@@ -1,0 +1,609 @@
+page 250 (
+    name: MonthAvailabilityReport
+    alias: MONTHAVAILABILITYREPORT
+    title: MonthAvailabilityReport
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region monthavailabilityreport-discarded (
+        name: MonthAvailabilityReport Discarded
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report-discarded (
+        name: Report Discarded
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select
+                aa.totalavailabilityhrs,
+                aa.tno,
+                aa.equipmentid,
+                aa.equipmentname,
+                aa.equipmentcategoryname,
+                aa.breakdownhrs,
+                --aa.closingmeterreading,
+                --aa.openingmeterreading,
+                --aa.closingworkinghrs,
+                --aa.openingworkinghrs,
+                aa.openingworkinghrs || aa.openingmeterreading as startinghmr,
+                aa.closingworkinghrs || aa.closingmeterreading as endinghmr,
+                aa.totalrunninghrs,
+                (totalrunninghrs / aa.totalavailabilityhrs)*100 as utilizationpercentage,
+                AA.CREATIONDATE
+                from
+                (Select 
+                a.availabilityhrs,
+                a.tno,
+                a.equipmentid,
+                a.equipmentname,
+                a.equipmentcategoryname,
+                a.breakdownhrs,
+                a.closingmeterreading,
+                a.openingmeterreading,
+                a.openingworkinghrs,
+                a.closingworkinghrs,
+                a.totalrunninghrs,
+                A.CREATIONDATE,
+                Case when a.totalworkinghours - nvl(a.availabilityhrs,0) != 0 then
+                          a.totalworkinghours
+                     when a.totalworkinghours - nvl(a.availabilityhrs,0) = 0 then
+                         a.totalworkinghours - (a.totalworkinghours - nvl(a.availabilityhrs,0)) 
+                         end as totalavailabilityhrs
+                From
+                (select
+                elb.availabilityhrs,
+                e.tno,
+                e.equipmentid,
+                e.equipmentname,
+                elb.closingworkinghrs,
+                elb.openingworkinghrs,
+                vlb.openingmeterreading,
+                vlb.closingmeterreading,
+                ec.equipmentcategoryname,
+                abs(to_DATE(:P250_TODATE,'DD-MON-YYYY') - TO_DATE(:P250_FROMDATE,'DD-MON-YYYY') + 1)*22 as totalworkinghours, 
+                
+                Case when elb.availabilityhrs is null then 
+                0
+                 when elb.availabilityhrs is not null then 
+                ((abs(to_DATE(:P250_TODATE,'DD-MON-YYYY') - TO_DATE(:P250_FROMDATE,'DD-MON-YYYY') + 1)*22)
+                - nvl(elb.availabilityhrs,0)) end as breakdownhrs,
+                ABS(abs(nvl(elb.closingworkinghrs,0) - nvl(elb.openingworkinghrs,0)) -
+                (nvl(vlb.closingmeterreading,0) - nvl(vlb.openingmeterreading,0))) as totalrunninghrs,
+                TO_CHAR(E.CREATIONTIME,'YYYY-MM-DD') AS CREATIONDATE 
+                from 
+                equipment e,
+                equipmentlogbook elb,
+                vehiclelogbook vlb,
+                equipmentcategory ec
+                where e.tno = elb.equipmenttno(+)
+                and e.tno = vlb.equipmenttno(+)
+                and e.equipmentcategorycode = ec.equipmentcategorycode(+)
+                and elb.equipmentlogbookdate between :P250_FROMDATE AND :P250_TODATE
+                and vlb.vehiclelogbookdate between :P250_FROMDATE AND :P250_TODATE
+                and (:P250_EQUIPMENTID IS NULL OR instr(':'||:P250_EQUIPMENTID||':',':'||E.EQUIPMENTID||':') > 0)
+                and (:P250_EQUIPMENTNAME IS NULL OR instr(':'||:P250_EQUIPMENTNAME||':',':'||E.EQUIPMENTNAME||':') > 0 ) 
+                and (:P250_EQUIPMENTCATEGORY IS NULL OR instr(':'||:P250_EQUIPMENTCATEGORY||':',':'||E.EQUIPMENTCATEGORYCODE||':') > 0)) a
+                )  aa;
+                
+                
+                
+                
+                
+                
+                
+                
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 8498543772523202
+        }
+
+        column BREAKDOWNHRS (
+            type: plainText
+            heading {
+                heading: B/D HRS
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column CREATIONDATE (
+            type: plainText
+            heading {
+                heading: Creation Date
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column ENDINGHMR (
+            type: plainText
+            heading {
+                heading: Ending HMR
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column EQUIPMENTCATEGORYNAME (
+            type: plainText
+            heading {
+                heading: Equipment Category Name
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column EQUIPMENTID (
+            type: plainText
+            heading {
+                heading: Equipment ID
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column EQUIPMENTNAME (
+            type: plainText
+            heading {
+                heading: Equipment Name
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column STARTINGHMR (
+            type: plainText
+            heading {
+                heading: Starting HMR
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column TOTALAVAILABILITYHRS (
+            type: plainText
+            heading {
+                heading: Total Availability Hrs
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column TOTALRUNNINGHRS (
+            type: plainText
+            heading {
+                heading: Total Running hrs
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column UTILIZATIONPERCENTAGE (
+            type: plainText
+            heading {
+                heading: Utilization Percentage
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report Discarded
+        }
+
+        savedReport 85089 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BREAKDOWNHRS (
+                sequence: 4
+            )
+
+            displayColumn ENDINGHMR (
+                sequence: 5
+            )
+
+            displayColumn EQUIPMENTCATEGORYNAME (
+                sequence: 2
+            )
+
+            displayColumn EQUIPMENTID (
+                sequence: 3
+            )
+
+            displayColumn EQUIPMENTNAME (
+                sequence: 1
+            )
+
+            displayColumn STARTINGHMR (
+                sequence: 6
+            )
+
+            displayColumn TOTALAVAILABILITYHRS (
+                sequence: 7
+            )
+
+            displayColumn TOTALRUNNINGHRS (
+                sequence: 8
+            )
+
+            displayColumn UTILIZATIONPERCENTAGE (
+                sequence: 9
+            )
+
+        )
+
+    )
+
+    pageItem P250_EQUIPMENTCATEGORY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment Category
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                A.EQUIPMENTCATEGORYNAME D,
+                A.EQUIPMENTCATEGORYCODE R
+                FROM EQUIPMENTCATEGORY A,EQUIPMENT B
+                WHERE A.EQUIPMENTCATEGORYCODE = B.EQUIPMENTCATEGORYCODE
+                ```
+        }
+        layout {
+            sequence: 40
+            region: @monthavailabilityreport-discarded
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P250_EQUIPMENTID (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment ID
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                EQUIPMENTID D,
+                EQUIPMENTID R
+                FROM EQUIPMENT 
+                ```
+        }
+        layout {
+            sequence: 50
+            region: @monthavailabilityreport-discarded
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P250_EQUIPMENTNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                EQUIPMENTNAME D,
+                EQUIPMENTNAME R
+                FROM EQUIPMENT
+                ```
+        }
+        layout {
+            sequence: 60
+            region: @monthavailabilityreport-discarded
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P250_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @monthavailabilityreport-discarded
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select sysdate from dual
+        }
+    )
+
+    pageItem P250_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @monthavailabilityreport-discarded
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select sysdate from dual
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

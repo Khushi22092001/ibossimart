@@ -1,0 +1,994 @@
+page 255 (
+    name: Work Shop Report
+    alias: WORK-SHOP-REPORT
+    title: Work Shop Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .t-fht-thead{
+              overflow: auto !important;
+            }
+            .a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region new (
+        name: New
+        type: regionDisplaySelector
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+                margin-top-none
+                margin-bottom-none
+                margin-left-none
+                margin-right-none
+            ]
+        }
+        settings {
+            includeShowAll: false
+            rememberSelection: bySession
+        }
+    )
+
+    region work-shop (
+        name: Work Shop
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select 
+                    Rownum as "Serial No",
+                    a.* ,
+                    b.LocationName as location
+                From(Select
+                    a.MaintenanceRequestDate as "Maintenance Request Date",
+                    ( to_date(:P255_DATE,'dd-mm-rrrr') - a.MaintenanceRequestDate ) as "No of Days",
+                    h.VehicleNo as "vehicle No",
+                    b.EquipmentID as "Equipment ID",
+                    null as "TP",
+                    null as "Driver Name",
+                    GetEquipmentLocationcode(b.Tno,( to_date(:P255_DATE,'dd-mm-rrrr'))) as LocationName,
+                    nvl(a.NotificationShortText,a.NotificationLongText) as "Complaints",
+                    Case --when g.JobCardNo is null then 'WIP'
+                    when d.TNo is not null Then 'WORK DONE' 
+                    end as "Status",
+                    GetemployeeName(g.MechnicCode) as "Mechanic"
+                From MaintenanceRequest a, Equipment b ,EquipmentMaintenanceOrder c, 
+                     MaintenanceOrderCompletion d, Location e, JobOrder f ,JobCard g,
+                     Companyvehicle h
+                Where a.Equipmenttno = b.tno (+)
+                    and a.Tno = c.MaintenanceRequestTno(+) 
+                    and c.Tno = d.EquipmentMaintenanceOrderTno(+)
+                    and c.LocationCode = e.LocationCode (+)
+                    and c.Tno = f.EquipmentMaintenanceOrderTno(+)
+                    and c.Tno = g.EquipmentMaintenanceOrderTno(+)
+                    and b.Tno = h.ModuleTno(+)
+                    and d.MaintenanceOrderCompletiondate = :P255_DATE 
+                    and (:P255_EQUIPMENTGROUP is Null Or Instr (':' || :P255_EQUIPMENTGROUP || ':' , ':' || b.EquipmentGroupCode || ':') > 0)
+                    and (:P255_LOCATION is Null Or Instr (':' || :P255_LOCATION || ':' , ':' || e.LocationCode || ':') > 0)
+                
+                Union All
+                
+                Select
+                    a.MaintenanceRequestDate as "Maintenance Request Date",
+                    ( to_date(:P255_DATE,'dd-mm-rrrr') - a.MaintenanceRequestDate ) as "No of Days",
+                    h.VehicleNo as "vehicle No",
+                    b.EquipmentID as "Equipment ID",
+                    null as "TP",
+                    null as "Driver Name",
+                    GetEquipmentLocationcode(b.Tno,( to_date(:P255_DATE,'dd-mm-rrrr'))) as LocationName,
+                    nvl(a.NotificationShortText,a.NotificationLongText) as "Complaints",
+                    Case when a.tno is not null then 'WIP' 
+                    end as "Status",
+                    GetemployeeName(g.MechnicCode) as "Mechanic"
+                From MaintenanceRequest a, Equipment b ,EquipmentMaintenanceOrder c, 
+                     MaintenanceOrderCompletion d, Location e, JobOrder f ,JobCard g,
+                     Companyvehicle h
+                Where a.Equipmenttno = b.tno (+)
+                    and a.Tno = c.MaintenanceRequestTno(+) 
+                    and c.Tno = d.EquipmentMaintenanceOrderTno(+)
+                    and c.LocationCode = e.LocationCode (+)
+                    and c.Tno = f.EquipmentMaintenanceOrderTno(+)
+                    and c.Tno = g.EquipmentMaintenanceOrderTno(+)
+                    and b.Tno = h.ModuleTno(+)
+                    and (:P255_EQUIPMENTGROUP is Null Or Instr (':' || :P255_EQUIPMENTGROUP || ':' , ':' || b.EquipmentGroupCode || ':') > 0)
+                    and (:P255_LOCATION is Null Or Instr (':' || :P255_LOCATION || ':' , ':' || e.LocationCode || ':') > 0)
+                    and g.Tno is not null
+                    and d.Tno is null) a, Location b
+                    where a.LocationName = b.LocationCode(+)
+                ```
+            pageItemsToSubmit: P255_DATE
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 3544243259327206
+        }
+
+        column Complaints (
+            type: plainText
+            heading {
+                heading: Complaints
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column "Driver Name" (
+            type: plainText
+            heading {
+                heading: Driver Name
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column "Equipment ID" (
+            type: plainText
+            heading {
+                heading: Equipment Id
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column LOCATIONNAME (
+            type: hidden
+            heading {
+                heading: Locationname
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column "Maintenance Request Date" (
+            type: plainText
+            heading {
+                heading: Maintenance Request Date
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column Mechanic (
+            type: plainText
+            heading {
+                heading: Mechanic
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column "No of Days" (
+            type: plainText
+            heading {
+                heading: No Of Days
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column "Serial No" (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column Status (
+            type: plainText
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column TP (
+            type: plainText
+            heading {
+                heading: Tp
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column "vehicle No" (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Work Shop
+        }
+
+        savedReport 85184 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn "Complaints" (
+                sequence: 9
+            )
+
+            displayColumn "Driver Name" (
+                sequence: 7
+            )
+
+            displayColumn "Equipment ID" (
+                sequence: 5
+            )
+
+            displayColumn LOCATION (
+                sequence: 8
+            )
+
+            displayColumn "Maintenance Request Date" (
+                sequence: 2
+            )
+
+            displayColumn "Mechanic" (
+                sequence: 11
+            )
+
+            displayColumn "No of Days" (
+                sequence: 3
+            )
+
+            displayColumn "Serial No" (
+                sequence: 1
+            )
+
+            displayColumn "Status" (
+                sequence: 10
+            )
+
+            displayColumn TP (
+                sequence: 6
+            )
+
+            displayColumn "vehicle No" (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    region work-shop-pending (
+        name: Work Shop Pending
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                a.*,
+                b.LocationName as Location
+                From (Select
+                    Rownum as "Serial No",
+                    a.MaintenanceRequestDate as "Maintenance Request Date",
+                    ( to_date(:P255_DATE,'dd-mm-rrrr') - a.MaintenanceRequestDate )as "No of Days",
+                    h.VehicleNo as "Vehicle No",
+                    b.EquipmentID as "Equipment ID",
+                    null as "TP",
+                    null as "Driver Name",
+                    GetEquipmentLocationcode(b.Tno,( to_date(:P255_DATE,'dd-mm-rrrr'))) as LocationName,
+                    nvl(a.NotificationShortText,a.NotificationLongText) as "Complaints",
+                    Case when g.JobCardNo is null then null 
+                    end as "Status",
+                    GetemployeeName(g.MechnicCode) as "Mechanic"
+                from MaintenanceRequest a, Equipment b ,EquipmentMaintenanceOrder c, 
+                     MaintenanceOrderCompletion d, Location e, JobOrder f ,
+                     JobCard g, Companyvehicle h
+                Where a.Equipmenttno = b.tno (+)
+                    and a.Tno = c.MaintenanceRequestTno(+) 
+                    and c.Tno = d.EquipmentMaintenanceOrderTno(+)
+                    and c.LocationCode = e.LocationCode (+)
+                    and c.Tno = f.EquipmentMaintenanceOrderTno(+)
+                    and c.Tno = g.EquipmentMaintenanceOrderTno(+)
+                    and b.Tno = h.ModuleTno(+)
+                    and (:P255_EQUIPMENTGROUP is Null Or Instr (':' || :P255_EQUIPMENTGROUP || ':' , ':' || b.EquipmentGroupCode || ':') > 0)
+                    and (:P255_LOCATION is Null Or Instr (':' || :P255_LOCATION || ':' , ':' || e.LocationCode || ':') > 0)
+                    and g.JobCardNo is null
+                    and d.Tno is null) a, location b
+                    Where a.LocationName = b.LocationCode(+)
+                    ;
+                ```
+            pageItemsToSubmit: P255_DATE
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 3546557234327229
+        }
+
+        column Complaints (
+            type: plainText
+            heading {
+                heading: Complaints
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column "Driver Name" (
+            type: plainText
+            heading {
+                heading: Driver Name
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column "Equipment ID" (
+            type: plainText
+            heading {
+                heading: Equipment Id
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column LOCATIONNAME (
+            type: hidden
+            heading {
+                heading: Locationname
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column "Maintenance Request Date" (
+            type: plainText
+            heading {
+                heading: Maintenance Request Date
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column Mechanic (
+            type: plainText
+            heading {
+                heading: Mechanic
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column "No of Days" (
+            type: plainText
+            heading {
+                heading: No Of Days
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column "Serial No" (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column Status (
+            type: plainText
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column TP (
+            type: plainText
+            heading {
+                heading: Tp
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column "Vehicle No" (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Work Shop Pending
+        }
+
+        savedReport 85539 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn "Complaints" (
+                sequence: 9
+            )
+
+            displayColumn "Driver Name" (
+                sequence: 7
+            )
+
+            displayColumn "Equipment ID" (
+                sequence: 5
+            )
+
+            displayColumn LOCATION (
+                sequence: 8
+            )
+
+            displayColumn "Maintenance Request Date" (
+                sequence: 2
+            )
+
+            displayColumn "Mechanic" (
+                sequence: 11
+            )
+
+            displayColumn "No of Days" (
+                sequence: 3
+            )
+
+            displayColumn "Serial No" (
+                sequence: 1
+            )
+
+            displayColumn "Status" (
+                sequence: 10
+            )
+
+            displayColumn TP (
+                sequence: 6
+            )
+
+            displayColumn "Vehicle No" (
+                sequence: 4
+            )
+
+            sort (
+                column: "Serial No"
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                function: count
+                column: "Serial No"
+            )
+
+        )
+
+    )
+
+    region workshop-report (
+        name: WorkShop Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-expanded
+                t-Region--accent1
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+    )
+
+    pageItem P255_DATE (
+        type: datePicker
+        label {
+            label: Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @workshop-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Sysdate
+        }
+    )
+
+    pageItem P255_EQUIPMENTGROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                EquipmentGroupName D,
+                EquipmentGroupCode R
+                From 
+                EquipmentGroup  ;
+                ```
+        }
+        layout {
+            sequence: 30
+            region: @workshop-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 5
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Equipment Group
+        }
+    )
+
+    pageItem P255_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'MAINTENANCEREQUEST'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                ```
+            nullDisplayValue: - Select -
+            nullReturnValue: - Select -
+        }
+        layout {
+            sequence: 20
+            region: @workshop-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 40
+            region: @workshop-report
+            slot: regionBody
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

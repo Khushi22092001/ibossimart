@@ -1,0 +1,2743 @@
+page 36 (
+    name: Material In Register
+    alias: MATERIAL-IN-REGISTER
+    title: Material In Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/materialinregister.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P36_FROMDATE').val());
+              var toDate = new Date($('#P36_TODATE').val());
+            
+              var reportParams = 
+                  '&P_COMPANY='+ $('#P36_COMPANY').val() +  
+                  '&P_LOCATION=' + $('#P36_LOCATION').val() +    
+                  '&P_FROMDATE=' +$('#P36_FROMDATE').val() + 
+                  '&P_TODATE=' +$('#P36_TODATE').val() + 
+                  '&P_DOCTYPE=' +$('#P36_DOCTYPE').val() +
+                  '&P_PARTY=' +$('#P36_PARTY').val() +
+                  '&P_GRNSTATUS=' +$('#P36_GRNSTATUS').val() +
+                  '&P_TRANSPORTER=' +$('#P36_TRANSPORTER').val() +
+                  '&P_VEHICLENO=' +$('#P36_VEHICLENO').val() +
+                  '&P_ITEM=' +$('#P36_ITEM').val() +
+                  '&P_MINO=' +$('#P36_MINO').val() +
+            	    '&P_ITEMSPECIFICATION=' +$('#P36_ITEMSPECIFICATION').val() +
+                  '&P_CREATOR=' +$('#P36_CREATOR').val()  
+                  ;
+              
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region material-in-register (
+        name: Material In Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report-material-in (
+        name: Report(Material In)
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                       row_number() over(order by a.Tno) SerialNo,
+                       a.LOCATIONCODE,
+                       a.DOCTYPECODE,
+                       a.LOCATIONNAME,
+                       PO.LOCATIONCODE AS POLOCATIONCODE,
+                       PO.DOCTYPECODE  AS PODOCTYPECODE,
+                       GETLOCATIONNAME(PO.LOCATIONCODE) POLOCATIONNAME,
+                       GETDOCTYPENAME(PO.DOCTYPECODE) AS PODOCTYPENAME,
+                       Upper(a.DOCTYPENAME) DOCTYPENAME,
+                       a.MATERIALINNO,
+                       a.MATERIALINDATE,
+                       a.PARTYCODE,
+                       a.PARTYNAME,
+                       a.REFDOCNO,
+                       a.REFDOCDATE,
+                       a.REFDOCAMOUNT,
+                       a.TRANSPORTERCODE,
+                       a.TRANSPORTER,
+                       a.VEHICLENO,
+                       a.VEHICLETYPENAME,
+                       a.DRIVERNAME,
+                       a.LRNO,
+                       a.LRDATE,
+                       a.ITEMCODE,
+                       a.ITEMNAME,
+                       a.ITEMSPECIFICATIONCODE,
+                       a.ITEMSPECIFICATIONNAME,
+                       a.ITEMNAME||' ~ '||a.ITEMSPECIFICATIONNAME as MATERIALDESCRIPTION,
+                       a.UOM,
+                       a.UOM2,
+                       round(a.QUANTITY1,3) as QUANTITY1,
+                       ROUND(a.Quantity2,3) AS Quantity2,
+                       a.PACKINGTYPENAME,
+                       Upper(a.MODULE) MODULE,
+                       a.MODULENO,
+                       a.MODULEDATE,
+                       a.WEIGHMENTTNO,
+                       a.WEIGHMENTNO,
+                     --  a.WEIGHMENTDATE,
+                       a.FIRSTWEIGHT,
+                       a.SECONDWEIGHT,
+                       a.NETWEIGHT,
+                       a.ACCEPTEDWEIGHT,
+                       a.Creator,
+                       a.CreationTime,
+                       a.CreatedFrom,
+                       Case When a.AcceptedWeight < a.Quantity1 then 'RED_COLOR'
+                            When a.AcceptedWeight = a.Quantity1 then 'GREEN_COLOR'
+                       Else 'YELLOW_COLOR'
+                       End as Color_Value,
+                       a.GRNStatus,
+                       a.GRNNO,
+                       a.GRNDate,
+                       GetEmployeeName(bu.EmployeeCode)||'( '||g.Creator||' )' as GRNCreator,
+                       g.CreationTime as GRNCreationTime,
+                       a.RakeTno,
+                       a.RakeNo,
+                       A.GATEINTIME,
+                       to_char(a.SecondWeightTime,'DD-MM-RRRR HH24:MI:SS PM') as WEIGHMENTDATE,
+                       A.GATEOUTTIME,
+                       a.TotalTime,
+                       dsd.DocumentStatusCode as Status
+                From GATEINREGISTER_VIEW a, Grn g, Bossuser bu, MaterialIn mn, Purchaseorder po, DocumentStatusDetail dsd
+                Where a.MaterialInDate between :P36_FROMDATE and :P36_TODATE
+                  and instr(':'||:P36_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P36_LOCATION||':',':'||a.LocationCode||':') > 0
+                  
+                  --(:P36_TODOLIST = 'YES' OR :P36_NEXTPROCESS = 'YES' OR (a.MaterialInDate between :P36_FROMDATE and :P36_TODATE))
+                  --and (:P36_TODOLIST = 'YES' OR :P36_NEXTPROCESS = 'YES' OR (instr(':'||:P36_COMPANY||':',':'||a.CompanyCode||':') > 0))
+                  --and (:P36_TODOLIST = 'YES' OR :P36_NEXTPROCESS = 'YES' OR (instr(':'||:P36_LOCATION||':',':'||a.LocationCode||':') > 0))
+                 
+                  and (:P36_DOCTYPE IS NULL OR instr(':'||:P36_DOCTYPE||':',':'||mn.DocTypeCode||':') > 0 )
+                  AND (:P36_POLOCATION IS NULL OR (instr(':'||:P36_LOCATION||':',':'||a.LocationCode||':') > 0))
+                  and (:P36_PODOCTYPE IS NULL OR instr(':'||:P36_PODOCTYPE||':',':'||PO.DocTypeCode||':') > 0 )
+                 
+                  and (:P36_PARTY IS NULL OR instr(':'||:P36_PARTY||':',':'||a.PartyCode||':') > 0 )
+                  and (:P36_TRANSPORTER IS NULL OR instr(':'||:P36_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+                  and (:P36_ITEM IS NULL OR instr(':'||:P36_ITEM||':',':'||a.ItemCode||':') > 0 ) 
+                  and (:P36_ITEMSPECIFICATION IS NULL OR instr(':'||:P36_ITEMSPECIFICATION||':',':'||a.ItemSpecificationCode||':') > 0 ) 
+                 -- and a.VehicleNo like nvl(:P36_VEHICLENO,'%')
+                  and a.GRNSTATUS like nvl(:P36_GRNSTATUS,'%')
+                  and (:P36_STATUS IS NULL OR instr(':'||:P36_STATUS||':',':'||dsd.DocumentStatusCode||':') > 0 ) 
+                 -- and a.MaterialInNo like nvl(:P36_MINO,'%')
+                  and (:P36_RAKENO is null or mn.raketno = :P36_RAKENO)
+                 -- and a.RakeTno like nvl(:P36_RAKENO,'%')
+                  and ( :P36_CREATOR IS NULL OR instr(':'||:P36_CREATOR||':',':'||a.Creator||':') > 0 )
+                  and  a.GRNTNo = g.TNo(+)
+                  and g.Creator = bu.LoginName(+)
+                  and a.Tno = mn.Tno(+)
+                  and mn.purchaseordertno = po.tno(+)
+                  and a.Tno = dsd.ModuleTno(+)
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or MN.panel = GetUserPanelAB_apex())
+                --   AND ( :P36_TODOLIST='NO' OR (:P36_TODOLIST='YES' AND EXISTS ( SELECT 1 FROM ONTHETABLE_APEX YY WHERE YY.TNO=A.TNO) ))
+                -- AND ( :P36_NEXTPROCESS = 'NO' OR (:P36_NEXTPROCESS = 'YES' AND (  getdocumentstatuscode('MATERIALIN',A.TNO)='ACTIVE'
+                --                                     AND  NOT EXISTS (Select 1 From GRN AA Where AA.Materialintno = A.TNO)
+                --                                 ))
+                
+                --  )
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+            cssClasses: t-Form--search
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+        }
+        download {
+            authorization: @candownload
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 48986255232506703
+        }
+
+        column ACCEPTEDWEIGHT (
+            type: plainText
+            heading {
+                heading: ACCEPTED WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 420
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column COLOR_VALUE (
+            type: plainText
+            heading {
+                heading: Color Value
+                alignment: center
+            }
+            layout {
+                sequence: 460
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column CREATEDFROM (
+            type: plainText
+            heading {
+                heading: CREATED FROM
+                alignment: center
+            }
+            layout {
+                sequence: 450
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: TIMESTAMP
+                alignment: center
+            }
+            layout {
+                sequence: 440
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY HH:MIPM
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CREATIONTIME#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: USER (RAISED BY)
+                alignment: center
+            }
+            layout {
+                sequence: 430
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CREATOR#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column DOCTYPECODE (
+            type: plainText
+            heading {
+                heading: Doctypecode
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: DOCTYPE
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column DRIVERNAME (
+            type: plainText
+            heading {
+                heading: DRIVER
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column FIRSTWEIGHT (
+            type: plainText
+            heading {
+                heading: FIRST WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 390
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column GATEINTIME (
+            type: plainText
+            heading {
+                heading: Gate In Time
+            }
+            layout {
+                sequence: 560
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column GATEOUTTIME (
+            type: plainText
+            heading {
+                heading: Gate Out Time
+            }
+            layout {
+                sequence: 570
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column GRNCREATIONTIME (
+            type: plainText
+            heading {
+                heading: GRN CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 520
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#GRNCREATIONTIME#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column GRNCREATOR (
+            type: plainText
+            heading {
+                heading: GRN CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 510
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#GRNCREATOR#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column GRNDATE (
+            type: plainText
+            heading {
+                heading: GRN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 490
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#GRNDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column GRNNO (
+            type: plainText
+            heading {
+                heading: GRN NO
+                alignment: center
+            }
+            layout {
+                sequence: 480
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#GRNNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column GRNSTATUS (
+            type: plainText
+            heading {
+                heading: GRN STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 470
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Itemname
+                alignment: center
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+                alignment: center
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Itemspecificationname
+                alignment: center
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Locationcode
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column LRDATE (
+            type: plainText
+            heading {
+                heading: LR DATE
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#LRDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column LRNO (
+            type: plainText
+            heading {
+                heading: LR NO
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#LRNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column MATERIALDESCRIPTION (
+            type: plainText
+            heading {
+                heading: MATERIAL DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 500
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:300px">#MATERIALDESCRIPTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column MATERIALINDATE (
+            type: plainText
+            heading {
+                heading: MATERIAL IN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#MATERIALINDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column MATERIALINNO (
+            type: plainText
+            heading {
+                heading: MATERIAL IN NO
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#MATERIALINNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column MODULE (
+            type: plainText
+            heading {
+                heading: REFERENCE
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#MODULE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column MODULEDATE (
+            type: plainText
+            heading {
+                heading: REFERENCE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#MODULEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: REFERENCE NO
+                alignment: center
+            }
+            layout {
+                sequence: 340
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#MODULENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column NETWEIGHT (
+            type: plainText
+            heading {
+                heading: NET WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 410
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column PACKINGTYPENAME (
+            type: plainText
+            heading {
+                heading: Packingtypename
+                alignment: center
+            }
+            layout {
+                sequence: 320
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PACKINGTYPENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: VENDOR NAME
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column PODOCTYPECODE (
+            type: plainText
+            heading {
+                heading: PO DOCTYPE CODE
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column PODOCTYPENAME (
+            type: plainText
+            heading {
+                heading: PO DOCTYPE NAME
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column POLOCATIONCODE (
+            type: plainText
+            heading {
+                heading: PO LOCATION CODE
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column POLOCATIONNAME (
+            type: plainText
+            heading {
+                heading: PO LOCATION NAME
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#QUANTITY1#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#QUANTITY2#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column RAKENO (
+            type: plainText
+            heading {
+                heading: RAKE NO
+            }
+            layout {
+                sequence: 550
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column RAKETNO (
+            type: plainText
+            heading {
+                heading: Raketno
+                alignment: end
+            }
+            layout {
+                sequence: 540
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column REFDOCAMOUNT (
+            type: plainText
+            heading {
+                heading: BILL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#REFDOCAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column REFDOCDATE (
+            type: plainText
+            heading {
+                heading: PARTY BILL DATE
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#REFDOCDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column REFDOCNO (
+            type: plainText
+            heading {
+                heading: PARTY BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#REFDOCNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column SECONDWEIGHT (
+            type: plainText
+            heading {
+                heading: SECOND WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 400
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 530
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: STATUS
+            }
+            layout {
+                sequence: 600
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column TOTALTIME (
+            type: plainText
+            heading {
+                heading: TOTAL TIME
+            }
+            layout {
+                sequence: 590
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column TRANSPORTER (
+            type: plainText
+            heading {
+                heading: TRANSPORTER
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#TRANSPORTER#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column TRANSPORTERCODE (
+            type: plainText
+            heading {
+                heading: Transportercode
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: P UOM
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#UOM#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column UOM2 (
+            type: plainText
+            heading {
+                heading: S UOM
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#UOM2#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: VEHICLE NO
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VEHICLENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column VEHICLETYPENAME (
+            type: plainText
+            heading {
+                heading: Vehicletypename
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VEHICLETYPENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column WEIGHMENTDATE (
+            type: plainText
+            heading {
+                heading: FINAL WEIGHMENT
+            }
+            layout {
+                sequence: 580
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:140px">#WEIGHMENTDATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column WEIGHMENTNO (
+            type: plainText
+            heading {
+                heading: WEIGHMENT NO
+                alignment: center
+            }
+            layout {
+                sequence: 370
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#WEIGHMENTNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column WEIGHMENTTNO (
+            type: plainText
+            heading {
+                heading: Weighmenttno
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report(Material In)
+        }
+
+        savedReport 42431 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCEPTEDWEIGHT (
+                sequence: 29
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 31
+            )
+
+            displayColumn CREATOR (
+                sequence: 30
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 3
+            )
+
+            displayColumn DRIVERNAME (
+                sequence: 16
+            )
+
+            displayColumn FIRSTWEIGHT (
+                sequence: 26
+            )
+
+            displayColumn GRNCREATIONTIME (
+                sequence: 37
+            )
+
+            displayColumn GRNCREATOR (
+                sequence: 36
+            )
+
+            displayColumn GRNDATE (
+                sequence: 34
+            )
+
+            displayColumn GRNNO (
+                sequence: 33
+            )
+
+            displayColumn GRNSTATUS (
+                sequence: 32
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 19
+            )
+
+            displayColumn LRDATE (
+                sequence: 18
+            )
+
+            displayColumn LRNO (
+                sequence: 17
+            )
+
+            displayColumn MATERIALDESCRIPTION (
+                sequence: 20
+            )
+
+            displayColumn MATERIALINDATE (
+                sequence: 7
+            )
+
+            displayColumn MATERIALINNO (
+                sequence: 8
+            )
+
+            displayColumn MODULE (
+                sequence: 9
+            )
+
+            displayColumn MODULENO (
+                sequence: 10
+            )
+
+            displayColumn NETWEIGHT (
+                sequence: 28
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 6
+            )
+
+            displayColumn PODOCTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn POLOCATIONNAME (
+                sequence: 5
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 22
+            )
+
+            displayColumn QUANTITY2 (
+                sequence: 24
+            )
+
+            displayColumn RAKENO (
+                sequence: 35
+            )
+
+            displayColumn REFDOCAMOUNT (
+                sequence: 13
+            )
+
+            displayColumn REFDOCDATE (
+                sequence: 12
+            )
+
+            displayColumn REFDOCNO (
+                sequence: 11
+            )
+
+            displayColumn SECONDWEIGHT (
+                sequence: 27
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn STATUS (
+                sequence: 2
+            )
+
+            displayColumn TOTALTIME (
+                sequence: 39
+            )
+
+            displayColumn TRANSPORTER (
+                sequence: 14
+            )
+
+            displayColumn UOM (
+                sequence: 21
+            )
+
+            displayColumn UOM2 (
+                sequence: 23
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 15
+            )
+
+            displayColumn WEIGHMENTDATE (
+                sequence: 38
+            )
+
+            displayColumn WEIGHMENTNO (
+                sequence: 25
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: DOCTYPENAME
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: PARTYNAME
+                sort {
+                    sequence: 3
+                }
+            )
+
+            sort (
+                column: MATERIALINDATE
+                sort {
+                    sequence: 4
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: FIRSTWEIGHT
+            )
+
+            aggregate (
+                column: SECONDWEIGHT
+            )
+
+            aggregate (
+                column: NETWEIGHT
+            )
+
+            aggregate (
+                column: ACCEPTEDWEIGHT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P36_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'MATERIALIN'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P36_CREATOR (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Creator
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      a.Creator d,
+                      a.Creator r
+                From GATEINREGISTER_VIEW a
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 150
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Transporter Name
+        }
+    )
+
+    pageItem P36_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'MATERIALIN'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P36_COMPANY
+            itemsToSubmit: P36_DOCTYPE
+        }
+        layout {
+            sequence: 30
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter DocType Name
+        }
+    )
+
+    pageItem P36_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)-7
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P36_GRNSTATUS (
+        type: selectList
+        label {
+            label: GRN Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:PREPARED;PREPARED,PENDING;PENDING
+            nullDisplayValue: --Select GRN Status--
+        }
+        layout {
+            sequence: 90
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P36_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        e.ItemName||' ( '||e.ItemCode as d,
+                        e.ItemCode r
+                From MaterialInDetail a, Item e
+                Where a.ItemCode = e.itemCode
+                
+                Union
+                
+                Select
+                        Distinct
+                        e.ItemName||' ( '||e.ItemCode as ItemName,
+                        e.ItemCode
+                From MaterialOutDetail a, Item e
+                Where a.ItemCode = e.itemCode
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 120
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: "Material "
+        }
+    )
+
+    pageItem P36_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        ee.ItemSpecificationName as d,
+                        ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P36_ITEM
+                and   e.TNo = ee.TNo
+                
+                Union
+                
+                Select
+                        Distinct
+                        ee.ItemSpecificationName as ItemName,
+                        ee.ItemSpecificationCode as ItemCode
+                From MaterialOutDetail a, Item e, ItemSpecification ee
+                Where e.ItemCode = :P36_ITEM
+                and   e.TNo = ee.TNo
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P36_ITEM
+            itemsToSubmit: P36_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 140
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P36_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'MATERIALIN'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P36_COMPANY
+            itemsToSubmit: P36_LOCATION
+        }
+        layout {
+            sequence: 20
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P36_MINO (
+        type: textFieldWithAutocomplete
+        label {
+            label: Mi No
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select MaterialInNo 
+                From MaterialIn 
+                Where instr(':'||:P36_LOCATION||':',':'||LocationCode||':') > 0
+                --  and instr(':'||:P114_DOCTYPE||':',':'||DocTypeCode||':') > 0
+                  and MaterialInDate Between :P36_FROMDATE and :P36_TODATE
+                Order by 1
+                ```
+        }
+        cascadingLov {
+            parentItems: P36_LOCATION
+            itemsToSubmit: P36_MINO
+        }
+        layout {
+            sequence: 130
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Material In No
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P36_NEXTPROCESS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 210
+            region: @material-in-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P36_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      p.PartyName d,
+                      p.PartyCode r
+                From MaterialIn a, Party p
+                Where a.PartyCode = p.PartyCode
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P36_PODOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: P.O. DocType
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select DISTINCT b.DocTypeName d, b.DocTypecode r
+                from purchaseorder a, doctype b
+                where a.doctypecode = b.doctypecode
+                ```
+            nullDisplayValue: "- Select - "
+        }
+        layout {
+            sequence: 170
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P36_POLOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: P.O. Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select DISTINCT b.LocationName d, b.locationcode r
+                from purchaseorder a, location b
+                where a.locationcode = b.locationcode
+                ```
+            nullDisplayValue: "- Select - "
+        }
+        layout {
+            sequence: 160
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P36_RAKENO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Rake No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                  b.RakeNo d,
+                  b.Tno r
+                From MaterialIn a, Rake b
+                Where a.RakeTno = b.Tno(+);
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Rake No
+        }
+    )
+
+    pageItem P36_STATUS (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Status
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select DISTINCT dsd.DocumentStatusCode d, dsd.DocumentStatusCode r
+                from materialin a, DocumentStatusDetail dsd
+                where a.Tno = dsd.moduletno
+                ```
+            nullDisplayValue: "- Select - "
+        }
+        layout {
+            sequence: 180
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P36_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P36_TODOLIST (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 200
+            region: @material-in-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P36_TRANSPORTER (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Transporter
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      p.PartyName d,
+                      p.PartyCode r
+                From MaterialIn a, Party p
+                Where a.TransporterCode = p.PartyCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Transporter Name
+        }
+    )
+
+    pageItem P36_VEHICLENO (
+        type: textFieldWithAutocomplete
+        label {
+            label: Vehicle No
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnType: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        a.VehicleNo
+                From MaterialIn a
+                
+                Union
+                
+                Select
+                        Distinct
+                        a.VehicleNo
+                From MaterialOut a
+                ```
+        }
+        layout {
+            sequence: 110
+            region: @material-in-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: Vehicle No
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button custom (
+        buttonName: CUSTOM
+        label: Custom
+        layout {
+            sequence: 20
+            region: @report-material-in
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconRight
+            ]
+            icon: fa-file-excel-o
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: http://15.207.2.208:9704/xmlpserver/PRA/materialinregister.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&P36_FROMDATE=&P36_FROMDATE.&P36_TODATE=&P36_TODATE.&P36_LOCATION=&P36_LOCATION.&P36_DOCTYPE=&P36_DOCTYPE.&P36_GRNSTATUS=&P36_GRNSTATUS.&P36_VEHICLENO=&P36_VEHICLENO.&P36_PARTY=&P36_PARTY.&P36_TRANSPORTER=&P36_TRANSPORTER.&P36_ITEM=&P36_ITEM.&P36_ITEMSPECIFICATION=&P36_ITEMSPECIFICATION.&P36_MINO=&P36_MINO.
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: 1
+            value: 2
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @report-material-in
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 190
+            region: @material-in-register
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P36_MINO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P36_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P36_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 5671139570666581
+        }
+    )
+
+)
+

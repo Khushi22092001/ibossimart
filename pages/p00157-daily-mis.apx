@@ -1,0 +1,1218 @@
+page 157 (
+    name: Daily MIS
+    alias: DAILY-MIS
+    title: Daily MIS
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region bleacher-production (
+        name: BLEACHER PRODUCTION
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select A.BATCHNO,
+                       Round(B.QUANTITY1, 3) As ISSUEDQTY,
+                       Round(C.QUANTITY1, 3) As RECEIPTQTY,
+                       Round(B.QUANTITY1 - C.QUANTITY1, 3) As LOSSQTY
+                  From PRODUCTION A,
+                       (Select TNO, Sum(QUANTITY1) As QUANTITY1
+                          From PRODUCTIONRAW
+                         Where ITEMCODE In ('429', '902')
+                         Group By TNO) B,
+                       (Select TNO, Sum(QUANTITY1) As QUANTITY1
+                          From PRODUCTIONFINISHED
+                         Where ITEMCODE In ('435')
+                         Group By TNO) C
+                 Where A.TNO = B.TNO
+                   And A.TNO = C.TNO
+                   And A.PRODUCTIONDATE = :P157_FROMDATE
+                ORDER BY A.TNO
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+            startNewRow: false
+            column: 5
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: BLEACHER PRODUCTION
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 540
+        }
+        advanced {
+            savedReportMappingIdentifier: 9930110807693135
+        }
+
+        column BATCHNO (
+            type: plainText
+            heading {
+                heading: BATCH NO
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ISSUEDQTY (
+            type: plainText
+            heading {
+                heading: "ISSUED "
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column LOSSQTY (
+            type: plainText
+            heading {
+                heading: LOSS/GAIN
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column RECEIPTQTY (
+            type: plainText
+            heading {
+                heading: "RECEIPT "
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        savedReport 115221 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn APXWS_CC_001 (
+                sequence: 5
+            )
+
+            displayColumn BATCHNO (
+                sequence: 1
+            )
+
+            displayColumn ISSUEDQTY (
+                sequence: 2
+            )
+
+            displayColumn LOSSQTY (
+                sequence: 4
+            )
+
+            displayColumn RECEIPTQTY (
+                sequence: 3
+            )
+
+            computation APXWS_CC_001 (
+                identifier: C01
+                source {
+                    expression: round((D / B) * 100,2)||' %'
+                    dataType: string
+                }
+                label {
+                    column: "% "
+                }
+            )
+
+            aggregate (
+                column: ISSUEDQTY
+            )
+
+            aggregate (
+                column: RECEIPTQTY
+            )
+
+            aggregate (
+                column: LOSSQTY
+            )
+
+        )
+
+    )
+
+    region daily-mis (
+        name: Daily MIS
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--noBorder
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+                margin-top-none
+                margin-left-none
+                margin-right-none
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region degum-oil-receipt-summary (
+        name: DEGUM  OIL RECEIPT SUMMARY
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 1 As MYSNO,
+                       Sum(1) Over(Order By TNO) SNO,
+                       round(a.stockquantity1, 3) As PBS
+                  From Stock A
+                 Where A.ITEMCODE = '429'
+                   And a.companycode = '1'
+                   And (a.stockmodulecode = 'INSPECTION' Or Exists
+                        (Select 1
+                           From grn aA, stocktransfer Bb, stock Cc, StockStorageDetail Dd
+                          Where aA.tno = bB.moduletno
+                            And bB.tno = cC.stockmoduletno
+                            And cC.tno = dD.tno
+                            And CC.TNO = A.TNO
+                               --And d.StorageLocationCode = 'VAPL'
+                            And aA.DOCTYPECODE = 'CONVERSIONJOBOUTOFPREMISES'))
+                   And a.stockdate = :P157_FROMDATE
+                   
+                 Order By TNO
+                
+                ```
+        }
+        layout {
+            sequence: 70
+            slot: body
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: DEGUM OIL RECEIPT SUMMARY
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 540
+        }
+        advanced {
+            savedReportMappingIdentifier: 11563368016936907
+        }
+
+        column MYSNO (
+            type: hidden
+            heading {
+                heading: Mysno
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column PBS (
+            type: plainText
+            heading {
+                heading: PBS
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column SNO (
+            type: plainText
+            heading {
+                heading: SNO
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        savedReport 115793 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn PBS (
+                sequence: 2
+            )
+
+            displayColumn SNO (
+                sequence: 1
+            )
+
+            aggregate (
+                column: PBS
+            )
+
+        )
+
+    )
+
+    region degum-oil-stock-summary (
+        name: DEGUM  OIL STOCK SUMMARY
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select A.STORAGELOCATIONNAME,
+                       GetSLItemOpeningQuantity1(A.STORAGELOCATIONCODE,
+                                                A.ITEMCODE,
+                                                Null,
+                                                '1',
+                                                TO_DATE(:P157_FROMDATE,'DD-MON-RRRR')+1, null, null, null,null) As Stock
+                  From Storagelocation A
+                 Where A.ITEMCODE = '429'
+                   And Nvl(GetSLItemOpeningQuantity1(A.STORAGELOCATIONCODE,
+                                                    A.ITEMCODE,
+                                                    Null,
+                                                    '1',
+                                                    TO_DATE(:P157_FROMDATE,'DD-MON-RRRR')+1, null,null,null,null),
+                           0) > 0
+                order by 1
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: DEGUM OIL STOCK SUMMARY
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 540
+        }
+        advanced {
+            savedReportMappingIdentifier: 9930657119693140
+        }
+
+        column STOCK (
+            type: plainText
+            heading {
+                heading: STOCK
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column STORAGELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: STORAGE LOCATION NAME
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        savedReport 115251 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn STOCK (
+                sequence: 2
+            )
+
+            displayColumn STORAGELOCATIONNAME (
+                sequence: 1
+            )
+
+            aggregate (
+                column: STOCK
+            )
+
+        )
+
+    )
+
+    region dip-reading (
+        name: DIP Reading
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.storagelocationname,
+                        b.quantityinmt
+                  From dipreading       a,
+                       dipreadingdetail  b,
+                       storagelocation   c,
+                       item              d,
+                       itemspecification e
+                 Where a.tno = b.tno
+                   And b.storagelocationcode = c.storagelocationcode(+)
+                   And b.itemcode = d.itemcode(+)
+                   And b.itemspecificationcode = e.itemspecificationcode(+)
+                   And c.parentcode = 'WIP'
+                   And a.DIPReadingDate = :P157_FROMDATE 
+                   order by 1
+                
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: STOCK AS DIP
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        advanced {
+            savedReportMappingIdentifier: 57140757376758444
+        }
+
+        column QUANTITYINMT (
+            type: plainText
+            heading {
+                heading: QUANTITY(MT)
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column STORAGELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: STORAGE LOCATION NAME
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#STORAGELOCATIONNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        savedReport 114711 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn QUANTITYINMT (
+                sequence: 2
+            )
+
+            displayColumn STORAGELOCATIONNAME (
+                sequence: 1
+            )
+
+            sort (
+                column: STOCKJOURNALDATE
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: QUANTITYINMT
+            )
+
+        )
+
+    )
+
+    region electrical-details (
+        name: ELECTRICAL DETAILS
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select  'Total Unit Consumed' as PARTICULAR,
+                        Sum(B.MWHUNIT) MWHUNIT
+                  From ENERGYMETERREADING A, ENERGYMETERREADINGDETAIL B
+                 Where A.TNO = B.TNO
+                   And A.ENERGYMETERREADINGDATE = :P157_FROMDATE
+                   And B.READINGFOR = 'CONSUMPTION'
+                ```
+        }
+        layout {
+            sequence: 80
+            slot: body
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: ELECTRICAL DETAIL
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 540
+        }
+        advanced {
+            savedReportMappingIdentifier: 11564055709936914
+        }
+
+        column MWHUNIT (
+            type: plainText
+            heading {
+                heading: MWHUNIT
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PARTICULAR (
+            type: plainText
+            heading {
+                heading: PARTICULAR
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        savedReport 115860 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn MWHUNIT (
+                sequence: 2
+            )
+
+            displayColumn PARTICULAR (
+                sequence: 1
+            )
+
+        )
+
+    )
+
+    region stock-position (
+        name: STOCK POSITION
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select A.ITEMCODE,A.ITEMNAME,B.ITEMSPECIFICATIONNAME,B.ITEMSPECIFICATIONCODE,
+                   getslitemopeningquantity1(Null,
+                                                 A.ITEMCODE,
+                                                 B.ITEMSPECIFICATIONCODE,
+                                                 '1',
+                                                 :P157_FROMDATE,null,null,null,null) As OPENING,
+                       GETSLITEMPRODUCTIONQUANTITY1(Null,
+                                                    A.ITEMCODE,
+                                                    B.ITEMSPECIFICATIONCODE,
+                                                    '1',
+                                                    :P157_FROMDATE,
+                                                    :P157_FROMDATE) As PRODUCTION,
+                       getslitempurchasequantity1(Null,
+                                                  A.ITEMCODE,
+                                                  B.ITEMSPECIFICATIONCODE,
+                                                  '1',
+                                                  :P157_FROMDATE,
+                                                  :P157_FROMDATE) As PURCHASE,
+                       getslitemconsumptionquantity1(Null,
+                                                     A.ITEMCODE,
+                                                     B.ITEMSPECIFICATIONCODE,
+                                                     '1',
+                                                     :P157_FROMDATE,
+                                                     :P157_FROMDATE) As consumption,
+                       getslitemDespatchquantity1(Null,
+                                                  A.ITEMCODE,
+                                                  B.ITEMSPECIFICATIONCODE,
+                                                  '1',
+                                                  :P157_FROMDATE,
+                                                  :P157_FROMDATE) As despatch,
+                       getslitemopeningquantity1(Null,
+                                                 A.ITEMCODE,
+                                                 B.ITEMSPECIFICATIONCODE,
+                                                 '1',
+                                                 TO_DATE(:P157_FROMDATE,'DD-MON-RRRR')+1,null,null,null,null ) As closing
+                  From ITEM A, ITEMSPECIFICATION B
+                 Where A.TNO=B.TNO(+)
+                 AND (A.ITEMNATURECODE In
+                       ('FINISHEDITEM', 'SEMIFINISHEDITEM', 'BYPRODUCTS') or  A.itemclasscode='GENERALMATERIAL')
+                    and Nvl(A.ITEMCLASSCODE, 'NO') != 'PACKED'
+                 ORDER BY A.ITEMNAME
+                ```
+        }
+        layout {
+            sequence: 60
+            slot: body
+            startNewRow: false
+            column: 5
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: STOCK POSITION
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        advanced {
+            savedReportMappingIdentifier: 9930942691693143
+        }
+
+        column CLOSING (
+            type: link
+            heading {
+                heading: CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            link {
+                target: {
+                    page: 158
+                    items: {
+                        P158_FROMDATE: &P157_FROMDATE.
+                        P158_ITEM: #ITEMCODE#
+                        P158_ITEMSPECIFICATIONCODE: #ITEMSPECIFICATIONCODE#
+                    }
+                    clearCache: 158
+                }
+                linkText: #CLOSING#
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CONSUMPTION (
+            type: plainText
+            heading {
+                heading: CONSUMPTION
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column DESPATCH (
+            type: plainText
+            heading {
+                heading: DISPATCH
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ITEMCODE (
+            type: hidden
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: ITEM NAME
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: ITEM SPECIFICATION
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column OPENING (
+            type: plainText
+            heading {
+                heading: OPENING
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PRODUCTION (
+            type: plainText
+            heading {
+                heading: PRODUCTION
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column PURCHASE (
+            type: plainText
+            heading {
+                heading: PURCHASE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        savedReport 115353 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CLOSING (
+                sequence: 8
+            )
+
+            displayColumn CONSUMPTION (
+                sequence: 6
+            )
+
+            displayColumn DESPATCH (
+                sequence: 7
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 1
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn OPENING (
+                sequence: 3
+            )
+
+            displayColumn PRODUCTION (
+                sequence: 4
+            )
+
+            displayColumn PURCHASE (
+                sequence: 5
+            )
+
+        )
+
+    )
+
+    pageItem P157_COMPANY (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @daily-mis
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P157_DIPNO (
+        type: hidden
+        layout {
+            sequence: 30
+            region: @daily-mis
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P157_FROMDATE (
+        type: datePickerJquery
+        label {
+            label: As On Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 40
+            region: @daily-mis
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P157_ITEM (
+        type: hidden
+        layout {
+            sequence: 60
+            region: @daily-mis
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P157_LOCATION (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @daily-mis
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P157_SPECIFICATION (
+        type: hidden
+        layout {
+            sequence: 70
+            region: @daily-mis
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P157_TODATE (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @daily-mis
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 80
+            region: @daily-mis
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P157_SJNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P157_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P157_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 12897989909065665
+        }
+    )
+
+)
+

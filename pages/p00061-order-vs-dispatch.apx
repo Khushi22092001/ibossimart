@@ -1,0 +1,1182 @@
+page 61 (
+    name: Order vs Dispatch
+    alias: ORDER-VS-DISPATCH
+    title: Order vs Dispatch
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/OrderVsDispatchReport.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P61_FROMDATE').val());
+              var toDate = new Date($('#P61_TODATE').val());
+            
+            var reportParams = 
+                  '&P61_COMPANY='+ $('#P61_COMPANY').val() +  
+                  '&P61_LOCATION=' +$('#P61_LOCATION').val() + 
+                  '&P61_FROMDATE=' +$('#P61_FROMDATE').val() +
+                  '&P61_TODATE=' + $('#P61_TODATE').val() +    
+                  '&P61_PARTY=' +$('#P61_PARTY').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region order-vs-dispatch (
+        name: Order vs Dispatch
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-useLocalStorage
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region order-vs-dispatch-report (
+        name: Order vs Dispatch Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                      row_number() over(order by a.SalesOrderDate) SerialNo,
+                      l.LocationName,
+                      p.PartyName,
+                      a.PartyPONo,
+                      a.PartyPODate,
+                      a.ValidityuptoDate,
+                      a.PartyPODate- a.ValidityuptoDate as OverdueDays,
+                      (Select sum(nvl(x.Quantity2,x.Quantity1)) From SalesOrderDetail x Where x.TNo = a.TNo) as POQuantity,
+                      (Select count(x.Sno) From SalesOrderDetail x Where x.TNo = a.TNo) as NoofSKU,
+                      Decode((Select Count(x.TNO)From SalesOrder x where x.TNo = a.TNo),'YES','NO') POCorrection,
+                      (Select to_char(daa.ProposedDate,'DD-MM-YYYY HH24:MI')
+                        From deliveryappointment daa 
+                        Where daa.TNo in (Select max(x.tno) from deliveryappointment x where x.SalesOrderTNo =a.TNo )) ProposedDateandTime,
+                      (Select GetEmployeeName(bu.EmployeeCode)||' ( '||daa.Creator||' )' 
+                        From deliveryappointment daa, BossUser bu 
+                        Where daa.TNo in (Select max(x.tno) from deliveryappointment x where x.SalesOrderTNo =a.TNo ) 
+                        and daa.Creator = bu.LoginName(+)) AppointmentTakenBy,
+                      (Select to_char(daa.AppointmentDate,'DD-MM-YYYY HH24:MI')
+                        From deliveryappointment daa 
+                        Where daa.TNo in (Select max(x.tno) from deliveryappointment x where x.SalesOrderTNo =a.TNo )) ReceivedDateandTime,
+                      (Select
+                             Listagg(ci.CCInvoiceDate||', ')
+                      From   CCInvoice ci
+                      Where ci.SalesOrderTNo = a.TNo) as InvoiceDate,
+                      (Select
+                             Listagg(ci.CCInvoiceNo||', ')
+                      From   CCInvoice ci
+                      Where ci.SalesOrderTNo = a.TNo) as InvoiceNo,
+                      (Select
+                             Listagg(ci.VehicleNo||', ')
+                      From   CCInvoice ci
+                      Where ci.SalesOrderTNo = a.TNo) as VehicleNo,
+                      (Select
+                             Sum(nvl(cid.Quantity2,cid.Quantity1))
+                      From   CCInvoice ci, CCInvoiceDetail cid
+                      Where ci.SalesOrderTNo = a.TNo
+                        and ci.TNo = cid.TNo) as InvoiceQty,
+                      (Select
+                             Sum(cid.TotalAmount)
+                      From   CCInvoice ci, CCInvoiceDetail cid
+                      Where ci.SalesOrderTNo = a.TNo
+                        and ci.TNo = cid.TNo) as InvoiceAmount,
+                        (Select
+                             UPPER(Listagg(mo.DriverName||', '))
+                      From   DespatchAdvice da, MaterialOut mo
+                      Where da.ReferenceTNo = a.TNo
+                        and da.TNo = mo.ReferenceTNo) as DriverName,
+                        (Select
+                             Listagg(mo.DriverMobileNo||', ')
+                      From   DespatchAdvice da, MaterialOut mo
+                      Where da.ReferenceTNo = a.TNo
+                        and da.TNo = mo.ReferenceTNo) as DriverMobileNo,
+                        (Select
+                             Listagg(sg.SalesGRNDate||', ')
+                      From   CCInvoice ci, SalesGRN sg
+                      Where ci.SalesOrderTNo = a.TNo
+                        and ci.TNo = sg.CCInvoiceTNo) as SalesGRNDate,
+                        (Select
+                             Listagg(sg.SalesGRNNo||', ')
+                      From   CCInvoice ci, SalesGRN sg
+                      Where ci.SalesOrderTNo = a.TNo
+                        and ci.TNo = sg.CCInvoiceTNo) as SalesGRNNo,
+                        (Select
+                             Sum(nvl(sgd.Quantity2,sgd.Quantity1))
+                      From   CCInvoice ci, SalesGRN sg, SalesGRNDetail sgd
+                      Where ci.SalesOrderTNo = a.TNo
+                        and ci.TNo = sg.CCInvoiceTno
+                        and sg.Tno = sgd.TNo) as ReachedQty
+                From  SalesOrder a, Party p, Party cg, Location l, City fc, City tc
+                Where a.PartyCode = p.partyCode
+                  and a.ConsigneeCode = cg.PartyCode
+                  and a.LocationCode = l.LocationCode
+                  and a.FromCityCode = fc.CityCode
+                  and a.ToCityCode = tc.CityCode
+                  and a.SalesOrderDate between :P61_FROMDATE and :P61_TODATE
+                    -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                  and instr(':'||:P61_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P61_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and ( :P61_PARTY IS NULL OR instr(':'||:P61_PARTY||':',':'||a.PartyCode||':') > 0 ) 
+                  --and ( :P61_TRADETYPE IS NULL OR instr(':'||:P61_TRADETYPE||':',':'||a.TradeTypeCode||':') > 0 )
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 3140616882062623
+        }
+
+        column APPOINTMENTTAKENBY (
+            type: plainText
+            heading {
+                heading: APPOINTMENT TAKEN BY
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#APPOINTMENTTAKENBY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DRIVERMOBILENO (
+            type: plainText
+            heading {
+                heading: DRIVER MOBILE NO
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column DRIVERNAME (
+            type: plainText
+            heading {
+                heading: DRIVER NAME
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column INVOICEAMOUNT (
+            type: plainText
+            heading {
+                heading: INVOICE AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: INVOICE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#INVOICEDATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: INVOICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#INVOICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column INVOICEQTY (
+            type: plainText
+            heading {
+                heading: INVOICE QTY
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column NOOFSKU (
+            type: plainText
+            heading {
+                heading: NO OF SKU
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column OVERDUEDAYS (
+            type: plainText
+            heading {
+                heading: OVERDUE DAYS
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PARTYPODATE (
+            type: plainText
+            heading {
+                heading: PARTY PO DATE
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PARTYPODATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PARTYPONO (
+            type: plainText
+            heading {
+                heading: PARTY PO NO
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PARTYPONO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column POCORRECTION (
+            type: plainText
+            heading {
+                heading: PO CORRECTION
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column POQUANTITY (
+            type: plainText
+            heading {
+                heading: PO QUANTITY
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column PROPOSEDDATEANDTIME (
+            type: plainText
+            heading {
+                heading: PROPOSED DATE AND TIME
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PROPOSEDDATEANDTIME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column REACHEDQTY (
+            type: plainText
+            heading {
+                heading: REACHED QTY
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column RECEIVEDDATEANDTIME (
+            type: plainText
+            heading {
+                heading: RECEIVED DATE AND TIME
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#RECEIVEDDATEANDTIME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column SALESGRNDATE (
+            type: plainText
+            heading {
+                heading: GRN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column SALESGRNNO (
+            type: plainText
+            heading {
+                heading: GRN NO
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column VALIDITYUPTODATE (
+            type: plainText
+            heading {
+                heading: VALIDITY UPTO
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VALIDITYUPTODATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: VEHICLE NO
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Order vs Dispatch Report
+        }
+
+        savedReport 33532 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn APPOINTMENTTAKENBY (
+                sequence: 12
+            )
+
+            displayColumn DRIVERMOBILENO (
+                sequence: 20
+            )
+
+            displayColumn DRIVERNAME (
+                sequence: 19
+            )
+
+            displayColumn INVOICEAMOUNT (
+                sequence: 18
+            )
+
+            displayColumn INVOICEDATE (
+                sequence: 14
+            )
+
+            displayColumn INVOICENO (
+                sequence: 15
+            )
+
+            displayColumn INVOICEQTY (
+                sequence: 17
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn NOOFSKU (
+                sequence: 9
+            )
+
+            displayColumn OVERDUEDAYS (
+                sequence: 7
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 3
+            )
+
+            displayColumn PARTYPODATE (
+                sequence: 5
+            )
+
+            displayColumn PARTYPONO (
+                sequence: 4
+            )
+
+            displayColumn POCORRECTION (
+                sequence: 10
+            )
+
+            displayColumn POQUANTITY (
+                sequence: 8
+            )
+
+            displayColumn PROPOSEDDATEANDTIME (
+                sequence: 11
+            )
+
+            displayColumn REACHEDQTY (
+                sequence: 23
+            )
+
+            displayColumn RECEIVEDDATEANDTIME (
+                sequence: 13
+            )
+
+            displayColumn SALESGRNDATE (
+                sequence: 21
+            )
+
+            displayColumn SALESGRNNO (
+                sequence: 22
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn VALIDITYUPTODATE (
+                sequence: 6
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 16
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: POQUANTITY
+            )
+
+            aggregate (
+                column: INVOICEQTY
+            )
+
+            aggregate (
+                column: INVOICEAMOUNT
+            )
+
+            aggregate (
+                column: REACHEDQTY
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P61_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'CCINVOICE'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P61_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P61_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'CCINVOICE'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Location name
+        }
+    )
+
+    pageItem P61_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                GetPartyName(PartyCode) d,
+                PartyCode r
+                From SalesOrder 
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Party Name
+        }
+    )
+
+    pageItem P61_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: To Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @order-vs-dispatch-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @order-vs-dispatch
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    javascript:window.open('http://117.217.121.130:9502/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/PBS/REPORTS/Order vs Dispatch Report.xdo&nQUser=consumer&nQPassword=Info123$&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1","_paramsP_COMPANY":"&P61_COMPANY.","_paramsP_LOCATION":"&P61_LOCATION.","_paramsP_FROMDATE":"&P61_FROMDATE.","_paramsP_TODATE":"&P61_TODATE.","_paramsP_TRADETYPE":"&P61_TRADETYPE.","_paramsP_PARTY":"&P61_PARTY."}');
+                                                                                                       
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

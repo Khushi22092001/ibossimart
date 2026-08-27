@@ -1,0 +1,859 @@
+page 678 (
+    name: Voucher Analysis
+    alias: VOUCHER-ANALYSIS
+    title: Voucher Analysis
+    pageGroup: @financial-intelligence
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: The bottom of the Trial Balance drill-down: one voucher, every line, and the source document reference that raised it. Voucher.ModuleCode and ModuleTno identify the originating module - this ERP posts from more than thirty of them - and are shown as traceability text rather than as a link, because there is no single source-document page that could be linked to without inventing one. The header shows this voucher's own edit and deletion audit from VoucherLog and VoucherDLog.
+    }
+
+    region command-header (
+        name: Voucher Analysis
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With V As (
+                       Select v.Tno, v.VoucherNo, v.DocTypeCode, v.VoucherDate, v.CompanyCode, v.LocationCode,
+                              v.FinancialYearCode, v.ModuleCode, v.ModuleTno, v.Creator, v.CreationTime,
+                              v.Updater, v.UpdationTime, v.Narration, v.Panel
+                         From Voucher v
+                        Where v.Tno = to_number(:P678_TNO)
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null Or v.Panel = (Select GetUserPanelAB_apex() From dual))),
+                     L As (
+                       Select nvl(Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End),0) Dr,
+                              nvl(Sum(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End),0) Cr,
+                              Count(*) Lines
+                         From VoucherDetail d Where d.Tno = to_number(:P678_TNO)),
+                     Ed As (Select Count(*) N From VoucherLog g Where g.Tno = to_number(:P678_TNO))
+                Select '<div class="ds-fin-head">'
+                    || '<div class="ds-fin-eyebrow">Finance &middot; General Ledger &middot; Voucher</div>'
+                    || '<h1 class="ds-fin-title">' || apex_escape.html(nvl(v.VoucherNo,'Voucher not found')) || '</h1>'
+                    || '<div class="ds-fin-sub">Every line of this entry, the accounts it touched, and the module that raised it</div>'
+                    || '<div class="ds-fin-context">'
+                    || '<span class="ds-fin-chip"><span class="fa fa-tag"></span>Type <b>' || apex_escape.html(nvl(v.DocTypeCode,'-')) || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-calendar"></span>Voucher date <b>' || nvl(to_char(v.VoucherDate,'DD-MM-RRRR'),'-') || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-calendar-check-o"></span>Financial year <b>' || apex_escape.html(nvl(v.FinancialYearCode,'-')) || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = v.CompanyCode), nvl(v.CompanyCode,'-'))) || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = v.LocationCode), nvl(v.LocationCode,'-'))) || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-cube"></span>Source <b>'
+                       || apex_escape.html(nvl(v.ModuleCode,'Direct entry'))
+                       || Case When v.ModuleTno Is Not Null Then ' #' || to_char(v.ModuleTno) End || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-shield"></span>Panel <b>' || apex_escape.html(nvl(v.Panel,'-')) || '</b></span>'
+                    /* Integrity is stated in the header, not buried in a column: an
+                       out-of-balance voucher is the single most serious thing a reader
+                       can find here. */
+                    || Case When Abs(l.Dr - l.Cr) < 0.005
+                            Then '<span class="ds-fin-chip ds-fin-chip--live"><span class="fa fa-check"></span>Debits equal credits <b>&#8377;'
+                                 || to_char(l.Dr,'FM999G99G99G990D00') || '</b></span>'
+                            Else '<span class="ds-fin-chip ds-fin-chip--warn"><span class="fa fa-exclamation-triangle"></span>Out of balance by <b>&#8377;'
+                                 || to_char(Abs(l.Dr - l.Cr),'FM999G99G99G990D00') || '</b></span>' End
+                    || '<span class="ds-fin-chip"><span class="fa fa-user"></span>Created by <b>'
+                       || apex_escape.html(nvl(v.Creator,'-'))
+                       || Case When v.CreationTime Is Not Null Then ' on ' || to_char(v.CreationTime,'DD-MM-RRRR HH24:MI') End || '</b></span>'
+                    || Case When v.Updater Is Not Null Then
+                            '<span class="ds-fin-chip"><span class="fa fa-pencil"></span>Last edited by <b>'
+                            || apex_escape.html(v.Updater)
+                            || Case When v.UpdationTime Is Not Null Then ' on ' || to_char(v.UpdationTime,'DD-MM-RRRR HH24:MI') End
+                            || '</b></span>' End
+                    || Case When e.N > 0 Then
+                            '<span class="ds-fin-chip ds-fin-chip--warn"><span class="fa fa-history"></span>Edit history <b>'
+                            || to_char(e.N,'FM999G990') || ' logged change(s)</b></span>' End
+                    || '</div></div>' As HEAD
+                  From V v Cross Join L l Cross Join Ed e
+                ```
+            pageItemsToSubmit: P678_TNO
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: This voucher does not exist, or it is outside the panel this login may see.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region history (
+        name: Change History
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* VoucherLog is the ERP's own before-image audit. It is the only record
+                   of a voucher having been altered after posting, and there is no
+                   reversal or cancellation flag anywhere in this ledger. */
+                Select g.UpdationTime  As CHANGED_ON,
+                       g.Updater       As CHANGED_BY,
+                       g.VoucherNo     As VOUCHER_NO_THEN,
+                       g.VoucherDate   As VOUCHER_DATE_THEN,
+                       substr(g.Narration,1,140) As NARRATION_THEN,
+                       g.UpdateRemark  As REMARK
+                  From VoucherLog g
+                 Where g.Tno = to_number(:P678_TNO)
+                 Order By g.UpdationTime Desc Nulls Last
+                ```
+            pageItemsToSubmit: P678_TNO
+        }
+        layout {
+            sequence: 24
+            slot: body
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: This voucher has never been edited since it was created.
+        }
+
+        column CHANGED_BY (
+            derivedColumn: N
+            heading {
+                heading: Changed By
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column CHANGED_ON (
+            derivedColumn: N
+            heading {
+                heading: Changed On
+            }
+            layout {
+                sequence: 10
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR HH24:MI
+            }
+        )
+
+        column NARRATION_THEN (
+            derivedColumn: N
+            heading {
+                heading: Narration (before)
+            }
+            layout {
+                sequence: 50
+            }
+        )
+
+        column REMARK (
+            derivedColumn: N
+            heading {
+                heading: Remark
+            }
+            layout {
+                sequence: 60
+            }
+        )
+
+        column VOUCHER_DATE_THEN (
+            derivedColumn: N
+            heading {
+                heading: Date (before)
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+        )
+
+        column VOUCHER_NO_THEN (
+            derivedColumn: N
+            heading {
+                heading: Voucher No (before)
+            }
+            layout {
+                sequence: 30
+            }
+        )
+
+    )
+
+    region lines (
+        name: Voucher Lines
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Cost centre is aggregated to the line BEFORE it is joined:
+                   VoucherCostCentreDetail can hold several rows per (Tno, Sno) and
+                   joining it raw would duplicate the line and double its amount. */
+                With Cc As (
+                       Select c.Tno, c.Sno, listagg(Distinct c.CostCentreCode,', ')
+                              Within Group (Order By c.CostCentreCode) Codes
+                         From VoucherCostCentreDetail c
+                        Where c.Tno = to_number(:P678_TNO)
+                        Group By c.Tno, c.Sno)
+                Select d.SerialNo                              As LINE_NO,
+                       '<a href="' || apex_page.get_url(p_page => 677, p_clear_cache => '677',
+                                p_items => 'P677_ACCOUNT', p_values => d.AccountCode)
+                       || '">' || apex_escape.html(nvl(p.PartyName, d.AccountCode)) || '</a>' As ACCOUNT,
+                       d.AccountCode                           As ACCOUNT_CODE,
+                       apex_escape.html(nvl(g.PartyName,'&mdash;')) As ACCOUNT_GROUP,
+                       Case p.BasicNature When 'DR' Then 'Debit' When 'CR' Then 'Credit' Else 'Not declared' End As EXPECTED_SIDE,
+                       Round(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End,2) As DEBIT,
+                       Round(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End,2) As CREDIT,
+                       apex_escape.html(nvl(c.CompanyName, d.CompanyCode))   As COMPANY,
+                       apex_escape.html(nvl(lo.LocationName, d.LocationCode)) As LOCATION,
+                       cc.Codes                                As COST_CENTRE,
+                       d.BillNo                                As BILL_REFERENCE,
+                       nvl(d.ModuleCode,'-')                   As LINE_SOURCE,
+                       substr(d.Narration,1,200)               As NARRATION,
+                       Case When d.Amount Is Null
+                                 Then '<span class="ds-finchip ds-finchip--bad">Null amount</span>'
+                            When d.Amount = 0
+                                 Then '<span class="ds-finchip ds-finchip--watch">Zero</span>'
+                            When d.Amount < 0
+                                 Then '<span class="ds-finchip ds-finchip--dr">Debit</span>'
+                            Else      '<span class="ds-finchip ds-finchip--cr">Credit</span>' End As SIDE
+                  From VoucherDetail d
+                  Left Join Party p     On p.PartyCode = d.AccountCode
+                  Left Join Party g     On g.PartyCode = p.ParentCode
+                  Left Join Company c   On c.CompanyCode = d.CompanyCode
+                  Left Join Location lo On lo.LocationCode = d.LocationCode
+                  Left Join Cc cc       On cc.Tno = d.Tno And cc.Sno = d.Sno
+                 Where d.Tno = to_number(:P678_TNO)
+                 Order By d.SerialNo, d.Sno
+                ```
+            pageItemsToSubmit: P678_TNO
+        }
+        layout {
+            sequence: 12
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: This voucher has no lines at all. It is a header with nothing posted against it, and contributes nothing to the ledger.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 43540412624737432
+        }
+
+        column ACCOUNT (
+            type: plainText
+            heading {
+                heading: Account
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACCOUNT_CODE (
+            type: plainText
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ACCOUNT_GROUP (
+            type: plainText
+            heading {
+                heading: Group
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column BILL_REFERENCE (
+            type: plainText
+            heading {
+                heading: Bill Ref
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column COST_CENTRE (
+            type: plainText
+            heading {
+                heading: Cost Centre
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CREDIT (
+            type: plainText
+            heading {
+                heading: Credit (₹)
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column DEBIT (
+            type: plainText
+            heading {
+                heading: Debit (₹)
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column EXPECTED_SIDE (
+            type: plainText
+            heading {
+                heading: Expected Side
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column LINE_NO (
+            type: plainText
+            heading {
+                heading: Line
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LINE_SOURCE (
+            type: plainText
+            heading {
+                heading: Line Source
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column NARRATION (
+            type: plainText
+            heading {
+                heading: Narration
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column SIDE (
+            type: plainText
+            heading {
+                heading: Side
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 1 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn ACCOUNT (
+                sequence: 2
+            )
+
+            displayColumn ACCOUNT_GROUP (
+                sequence: 3
+            )
+
+            displayColumn BILL_REFERENCE (
+                sequence: 9
+            )
+
+            displayColumn COST_CENTRE (
+                sequence: 8
+            )
+
+            displayColumn CREDIT (
+                sequence: 5
+            )
+
+            displayColumn DEBIT (
+                sequence: 4
+            )
+
+            displayColumn LINE_NO (
+                sequence: 1
+            )
+
+            displayColumn LOCATION (
+                sequence: 7
+            )
+
+            displayColumn NARRATION (
+                sequence: 10
+            )
+
+            displayColumn SIDE (
+                sequence: 6
+            )
+
+        )
+
+    )
+
+    region rule-lines (
+        name: Voucher Lines
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>Voucher Lines</h2>
+                  <p>Every account this entry touched. Click an account to open its statement</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region rule-related (
+        name: Related Entries
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>Related Entries</h2>
+                  <p>Other vouchers raised from the same source document, and this voucher's own change history</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region siblings (
+        name: Other Vouchers From the Same Source Document
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Me As (Select v.ModuleCode Mc, v.ModuleTno Mt From Voucher v Where v.Tno = to_number(:P678_TNO)),
+                     L As (Select d.Tno,
+                                  Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End) Dr,
+                                  Sum(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End) Cr
+                             From VoucherDetail d
+                            Where d.Tno In (Select s.Tno From Voucher s, Me
+                                             Where s.ModuleCode = Me.Mc And s.ModuleTno = Me.Mt)
+                            Group By d.Tno)
+                Select '<a href="' || apex_page.get_url(p_page => 678, p_clear_cache => '678',
+                                p_items => 'P678_TNO', p_values => to_char(s.Tno))
+                       || '">' || apex_escape.html(s.VoucherNo) || '</a>' As VOUCHER_NO,
+                       s.DocTypeCode        As VOUCHER_TYPE,
+                       s.VoucherDate        As VOUCHER_DATE,
+                       Round(nvl(l.Dr,0),2) As DEBIT,
+                       Round(nvl(l.Cr,0),2) As CREDIT,
+                       Case When s.Tno = to_number(:P678_TNO)
+                            Then '<span class="ds-finchip ds-finchip--ok">This voucher</span>' End As MARKER
+                  From Voucher s
+                  Join Me m On s.ModuleCode = m.Mc And s.ModuleTno = m.Mt
+                  Left Join L l On l.Tno = s.Tno
+                 Where ((Select GetUserPanelAB_apex() From dual) Is Null Or s.Panel = (Select GetUserPanelAB_apex() From dual))
+                 Order By s.VoucherDate, s.VoucherNo
+                ```
+            pageItemsToSubmit: P678_TNO
+        }
+        layout {
+            sequence: 22
+            slot: body
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: This voucher was entered directly, not raised from a source document, so it has no siblings.
+        }
+
+        column CREDIT (
+            derivedColumn: N
+            heading {
+                heading: Credit (₹)
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+        )
+
+        column DEBIT (
+            derivedColumn: N
+            heading {
+                heading: Debit (₹)
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+        )
+
+        column MARKER (
+            derivedColumn: N
+            heading {
+                heading: &nbsp;
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VOUCHER_DATE (
+            derivedColumn: N
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+        )
+
+        column VOUCHER_NO (
+            derivedColumn: N
+            heading {
+                heading: Voucher No
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VOUCHER_TYPE (
+            derivedColumn: N
+            heading {
+                heading: Type
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+    )
+
+    region voucher-note (
+        name: Voucher Basis
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-finnote">
+                  <span class="fa fa-info-circle"></span>
+                  <b>Source document.</b> The header names the module that raised this voucher and its document id.
+                  It is shown as text, not as a link: <code>ModuleCode</code> spans more than thirty modules in this
+                  ERP and there is no single source-document page that every one of them could open, so a link would
+                  be broken for most vouchers. Use the module and id to find the document in its own register.
+                  <b>Cost centre</b> is aggregated per line &mdash; a line can carry several &mdash; and never joined
+                  raw, which would duplicate the line and double its amount.
+                </div>
+                ```
+        }
+        layout {
+            sequence: 13
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    pageItem P678_TNO (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @command-header
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Back to Trial Balance
+        layout {
+            sequence: 10
+            region: @command-header
+            slot: previous
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 675
+            }
+        }
+    )
+
+)
+

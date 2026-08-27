@@ -1,0 +1,1300 @@
+page 128 (
+    name: Asset Register
+    alias: ASSET-REGISTER
+    title: Asset Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #abc .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region asset-register (
+        name: Asset Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                row_number() over(order by a.AssetDate) SerialsNo,
+                a.Tno,
+                a.AssetNo,
+                a.AssetDate,
+                a.AssetValue,
+                c.PartyName as AccountName,
+                d.ItemName,
+                e.ItemSpecificationName,
+                a.Quantity1,
+                f.AssetCategoryName,
+                g.WorkCentreName,
+                h.AssetCode,
+                h.SerialNo,
+                i.Amount as CWIPAmount,
+                b.Amount as IssueAmount,
+                --a.AssetValue,
+                h.ITCAvailedAmount,
+                a.PurchaseDate,
+                a.TaxCode,
+                j.EquipmentNo,
+                a.PhysicalStatus,
+                a.OriginalPurchaseDate,
+                h.RemainingUseFullifeInMonths,
+                a.ResidualValue,
+                l.CostCentreName,
+                do.DoctypeName,
+                lo.LocationName,
+                depr.DepriciationAmount,
+                nvl(a.Assetvalue,0) - depr.DepriciationAmount as AssetWDV,
+                --k.DepreciationAmount,
+                --GetAccountGBDepreciation(a.accountcode, :P128_LOCATION, :P128_COMPANY, NVL(:P128_TODATE,TRUNC(SYSDATE))) as DepreciationAmount,
+                --NVL(a.AssetValue,0) - GetAccountGBDepreciation(a.accountcode, :P128_LOCATION, :P128_COMPANY, NVL(:P128_TODATE,TRUNC(SYSDATE))) AS AssetWDV,
+                --GetAccountGBCloseRevised(a.accountcode, :P128_LOCATION, :P128_COMPANY, NVL(:P128_TODATE,TRUNC(SYSDATE))) as AssetWDV,
+                --k.AssetWDV,
+                co.CompanyName
+                From Asset a, AssetDetail b,Party c, Item d, Itemspecification e, AssetCategory f, WorkCentre g,AssetCodeDetail h,
+                AssetCreditAccount i, Doctype do, Location lo, Company co, Equipment j, DepreciationDetailAssetCode k, CostCentre l,
+                (Select aa.tno,
+                        Sum(aa.depreciatedamount) + Sum(bb.depreciationamount) As DepriciationAmount
+                  From  asset aa, DepreciationDetail bb
+                 Where  aa.tno = bb.assettno
+                 Group By aa.tno) depr
+                
+                Where a.Tno = b.Tno(+) 
+                and a.AccountCode = c.PartyCode(+)
+                and a.ItemCode = d.ItemCode(+)
+                and a.ItemSpecificationCode = e.ItemSpecificationCode(+)
+                and a.AssetCategoryCode = f.AssetCategoryCode(+)
+                and a.WorkCentreCode = g.WorkCentreCode(+)
+                and a.Tno = h.Tno(+)
+                and a.Tno = i.Tno(+)
+                and a.DoctypeCode = do.DoctypeCode(+)
+                and a.LocationCode = lo.LocationCode(+)
+                and a.CompanyCode = co.CompanyCode(+)
+                and a.EquipmentTno = j.Tno(+)
+                and a.Tno = k.AssetTno(+)
+                and a.CostCentreCode = l.CostCentreCode(+)
+                and a.tno = depr.tno(+)
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                and a.AssetDate between :P128_FROMDATE and :P128_TODATE 
+                and (:P128_COMPANY is Null Or Instr (':' || :P128_COMPANY || ':' , ':' ||co.CompanyCode|| ':') > 0)
+                and (:P128_LOCATION is Null Or Instr (':' || :P128_LOCATION || ':' , ':' ||lo.LocationCode|| ':') > 0)
+                and (:P128_DOCTYPE is Null Or Instr (':' || :P128_DOCTYPE || ':' , ':' ||do.DoctypeCode|| ':') > 0)
+                and (:P128_ASSETACCOUNT is Null Or Instr (':' || :P128_ASSETACCOUNT || ':' , ':' ||c.PartyCode|| ':') > 0)
+                and (:P128_ITEM is Null Or Instr (':' || :P128_ITEM || ':' , ':' ||d.ItemCode|| ':') > 0)
+                and (:P128_ASSETCATEGORY is Null Or Instr (':' || :P128_ASSETCATEGORY || ':' , ':' ||f.AssetCategoryCode|| ':') > 0)
+                and (:P128_ASSET is Null Or Instr (':' || :P128_ASSET || ':' , ':' ||a.Tno|| ':') > 0)
+                Order by a.AssetDate desc;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 5046171232007002
+        }
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: Account Name
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ASSETCATEGORYNAME (
+            type: plainText
+            heading {
+                heading: Asset Category
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column ASSETCODE (
+            type: plainText
+            heading {
+                heading: Asset Code
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column ASSETDATE (
+            type: plainText
+            heading {
+                heading: Asset Date
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ASSETNO (
+            type: plainText
+            heading {
+                heading: Asset No
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ASSETVALUE (
+            type: plainText
+            heading {
+                heading: Asset Value
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column ASSETWDV (
+            type: plainText
+            heading {
+                heading: Asset WDV
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Company
+                alignment: center
+            }
+            layout {
+                sequence: 350
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column COSTCENTRENAME (
+            type: plainText
+            heading {
+                heading: Cost Centre
+                alignment: center
+            }
+            layout {
+                sequence: 300
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column CWIPAMOUNT (
+            type: plainText
+            heading {
+                heading: CWIP Amount
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column DEPRICIATIONAMOUNT (
+            type: plainText
+            heading {
+                heading: Depriciationamount
+                alignment: center
+            }
+            layout {
+                sequence: 370
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doctype
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column EQUIPMENTNO (
+            type: plainText
+            heading {
+                heading: Equipment No
+                alignment: center
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column ISSUEAMOUNT (
+            type: plainText
+            heading {
+                heading: Issue Amount
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column ITCAVAILEDAMOUNT (
+            type: plainText
+            heading {
+                heading: ITC Availed Amount
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Item
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Item Specification
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 320
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column ORIGINALPURCHASEDATE (
+            type: plainText
+            heading {
+                heading: Original Purchase Date
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column PHYSICALSTATUS (
+            type: plainText
+            heading {
+                heading: Physical Status
+                alignment: center
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column PURCHASEDATE (
+            type: plainText
+            heading {
+                heading: Purchase Date
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column REMAININGUSEFULLIFEINMONTHS (
+            type: plainText
+            heading {
+                heading: Remaining Useful Life In Months
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column RESIDUALVALUE (
+            type: plainText
+            heading {
+                heading: Residual Value
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column SERIALSNO (
+            type: plainText
+            heading {
+                heading: Sr. No
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column TAXCODE (
+            type: plainText
+            heading {
+                heading: Tax Code
+                alignment: center
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column WORKCENTRENAME (
+            type: plainText
+            heading {
+                heading: Work Centre
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Asset Register
+        }
+
+        savedReport 88996 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100000
+            }
+
+            displayColumn ACCOUNTNAME (
+                sequence: 7
+            )
+
+            displayColumn ASSETCATEGORYNAME (
+                sequence: 6
+            )
+
+            displayColumn ASSETCODE (
+                sequence: 14
+            )
+
+            displayColumn ASSETDATE (
+                sequence: 5
+            )
+
+            displayColumn ASSETNO (
+                sequence: 4
+            )
+
+            displayColumn ASSETVALUE (
+                sequence: 25
+            )
+
+            displayColumn ASSETWDV (
+                sequence: 27
+            )
+
+            displayColumn COSTCENTRENAME (
+                sequence: 24
+            )
+
+            displayColumn CWIPAMOUNT (
+                sequence: 15
+            )
+
+            displayColumn DEPRICIATIONAMOUNT (
+                sequence: 26
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 3
+            )
+
+            displayColumn EQUIPMENTNO (
+                sequence: 13
+            )
+
+            displayColumn ISSUEAMOUNT (
+                sequence: 16
+            )
+
+            displayColumn ITCAVAILEDAMOUNT (
+                sequence: 18
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 8
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 9
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn ORIGINALPURCHASEDATE (
+                sequence: 21
+            )
+
+            displayColumn PHYSICALSTATUS (
+                sequence: 20
+            )
+
+            displayColumn PURCHASEDATE (
+                sequence: 19
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 10
+            )
+
+            displayColumn REMAININGUSEFULLIFEINMONTHS (
+                sequence: 22
+            )
+
+            displayColumn RESIDUALVALUE (
+                sequence: 23
+            )
+
+            displayColumn SERIALNO (
+                sequence: 12
+            )
+
+            displayColumn SERIALSNO (
+                sequence: 1
+            )
+
+            displayColumn TAXCODE (
+                sequence: 17
+            )
+
+            displayColumn WORKCENTRENAME (
+                sequence: 11
+            )
+
+            sort (
+                column: SERIALSNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: ASSETVALUE
+            )
+
+            aggregate (
+                column: ISSUEAMOUNT
+            )
+
+            aggregate (
+                column: ASSETWDV
+            )
+
+            aggregate (
+                column: CWIPAMOUNT
+            )
+
+            aggregate (
+                column: DEPRECIATIONAMOUNT
+            )
+
+            aggregate (
+                column: ITCAVAILEDAMOUNT
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: REMAININGUSEFULLIFEINMONTHS
+            )
+
+            aggregate (
+                column: RESIDUALVALUE
+            )
+
+            aggregate (
+                column: DEPRICIATIONAMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    region filter-area (
+        name: Filter Area
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent4
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P128_ASSET (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Asset No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.AssetNo d,
+                b.Tno r
+                From Asset b
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 110
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_ASSETACCOUNT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Asset Account
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.PartyName d,
+                b.PartyCode r
+                From Asset a, Party b
+                Where a.AccountCode = b.PartyCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_ASSETCATEGORY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Asset Category
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.AssetCategoryName d,
+                b.AssetCategoryCode r
+                From Asset a, AssetCategory b
+                Where a.AssetCategoryCode = b.AssetCategoryCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.CompanyName d,
+                b.CompanyCode r
+                From Asset a, Company b
+                Where a.CompanyCode = b.CompanyCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doctype
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.DoctypeName d,
+                b.DoctypeCode r
+                From Asset a, Doctype b
+                Where a.DoctypeCode = b.DoctypeCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P128_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.ItemName d,
+                b.ItemCode r
+                From Asset a, Item b
+                Where a.ItemCode = b.ItemCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.LocationName d,
+                b.LocationCode r
+                From Asset a, Location b
+                Where a.LocationCode = b.LocationCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P128_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filter-area
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+            columnAttributes: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 120
+            region: @filter-area
+            slot: regionBody
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

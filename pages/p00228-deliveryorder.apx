@@ -1,0 +1,1915 @@
+page 228 (
+    name: Delivery Order
+    alias: DELIVERYORDER
+    title: Delivery Order
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .my_grid .a-GV-w-hdr{
+                overflow-x: auto !important;
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region delivery-order (
+        name: "DELIVERY ORDER "
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region delivery-order-report (
+        name: DELIVERY ORDER  REPORT
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                 Select
+                row_number() over(order by a.DeliveryOrderDate) SerialNo,
+                co.CompanyName,
+                a.DeliveryOrderNo,
+                a.DeliveryOrderDate,
+                a.PartyDONo,
+                a.PartyDODate,
+                fr.WorkOrderNo,
+                fr.WorkOrderDate,
+                a.partypono,
+                a.PartyPoDate,
+                a.FromDate,
+                a.ToDate,
+                p.PartyName,
+                k.locationName as Location,
+                do.DoctypeName,
+                al.AllotmentSchemeName,
+                sz.SizesName,
+                gr.GradeName,
+                gr.FromGCVBand,
+                gr.ToGCVBand,
+                a.AuctionDate,
+                a.LineItem,
+                b.SourceLocationName as SourceLocation,
+                c.DestinationLocationName as DestinationLocation,
+                i.ItemName ||'-'|| j.ItemSpecificationName as ItemName,
+                round(lo.Quantity1,3) as LoadingOrderQuantity,
+                round(aa.Quantity1,3) as DeliveryOrderQuantity,
+                round(it.LoadingQuantity1,3) as InternaltransferQty,
+                round(abs(nvl(aa.Quantity1,0) - nvl(lo.Quantity1,0)- nvl(it.LoadingQuantity1,0)),3) as BalanceQuantity,
+                a.Creator
+                from DeliveryOrder a,DeliveryOrderDetail aa, SourceLocation b, DestinationLocation c, 
+                    Party p, Item i, ItemSpecification j, Location k, Doctype do, FreightRateList fr,
+                    (Select Sum(z.Quantity1) as Quantity1,z.PartyRefNo ,z.DeliveryOrderSno,z.DeliveryOrderTno,
+                    z.PartyRefdate ,z.WorkOrderNo,z.WorkOrderDate
+                    From loadingOrder z
+                    Group by z.PartyRefNo,z.PartyRefdate ,z.WorkOrderNo,z.WorkOrderDate,z.DeliveryOrderSno,z.DeliveryOrderTno) lo,
+                    (Select Sum(it.LoadingQuantity1) as LoadingQuantity1, it.DeliveryOrderTno 
+                      from InternalTransfer it Group by it.DeliveryOrderTno) it, Company co, AllotmentScheme al, Sizes sz, Grade gr
+                Where a.Tno = aa.Tno
+                and aa.Tno = lo.DeliveryOrderTno(+)
+                and aa.Sno = lo.DeliveryOrderSno(+)
+                and a.LocationCode = k.LocationCode (+)
+                and a.DoctypeCode = do.DoctypeCode(+)
+                and a.FreightRateListTno = fr.Tno(+)
+                and aa.SourceLocationTno = b.Tno(+)
+                and aa.DestinationLocationTno = c.Tno(+)
+                and a.PartyCode = p.PartyCode(+)
+                and aa.ItemCode = i.ItemCode(+)
+                and aa.ItemSpecificationCode = j.ItemSpecificationCode(+)
+                and a.Tno = it.DeliveryOrderTno(+)
+                and a.CompanyCode = co.CompanyCode(+)
+                and a.AllotmentSchemeCode = al.AllotmentSchemeCode(+)
+                and a.SizesCode = sz.SizesCode(+)
+                and a.GradeCode = gr.GradeCode(+)
+                and (:P228_COMPANYNAME is null or instr(':'||:P228_COMPANYNAME||':',':'||a.Companycode||':') > 0)
+                and a.DeliveryOrderDate between :P228_FROMDATE and :P228_TODATE
+                and (:P228_LOCATIONNAME is null or instr(':'||:P228_LOCATIONNAME||':',':'||k.Locationcode||':') > 0)
+                and (:P228_DOCTYPE is null or instr(':'||:P228_DOCTYPE||':',':'||do.Doctypecode||':') > 0)
+                and (:P228_PARTY is null or instr(':'||:P228_PARTY||':',':'||P.Partycode||':') > 0)
+                and (:P228_DELIVERYORDERNO is null or instr(':'||:P228_DELIVERYORDERNO||':',':'||a.Tno||':') > 0)
+                and (:P228_WORKORDERNO is null or instr(':'||:P228_WORKORDERNO||':',':'||fr.TNo||':') > 0)
+                and (:P228_PARTYDONO is null or instr(':'||:P228_PARTYDONO||':',':'||a.PartyDoNo||':') > 0)
+                and (:P228_ALLOTMENTSCHEME is null or instr(':'||:P228_ALLOTMENTSCHEME||':',':'||al.AllotmentSchemeCode||':') > 0)
+                and (:P228_SIZES is null or instr(':'||:P228_SIZES||':',':'||sz.SizesCode||':') > 0)
+                and (:P228_GRADE is null or instr(':'||:P228_GRADE||':',':'||gr.GradeCode||':') > 0)
+                and ( ( NVL(aa.Quantity1, 0) - NVL(lo.Quantity1, 0) - NVL(it.LoadingQuantity1, 0) > 0 AND :P228_BALANCEQTY = 'Only Balance Quantity' )
+                    OR ( NVL(aa.Quantity1, 0) - NVL(lo.Quantity1, 0) - NVL(it.LoadingQuantity1, 0) = 0 AND :P228_BALANCEQTY = 'Zero Balance Quantity' )
+                              OR :P228_BALANCEQTY IS NULL )
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: my_grid
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        //rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                   
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 28374067041120239
+        }
+
+        savedReport 292174 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    width: 103
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYNAME
+                layout {
+                    width: 229
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @DELIVERYORDERNO
+                layout {
+                    width: 175
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @DELIVERYORDERDATE
+                layout {
+                    width: 132
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @PARTYDONO
+                layout {
+                    width: 96
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @PARTYDODATE
+                layout {
+                    width: 89
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @WORKORDERNO
+                layout {
+                    width: 208
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @WORKORDERDATE
+                layout {
+                    width: 106
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @PARTYPONO
+                layout {
+                    width: 81
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @PARTYPODATE
+                layout {
+                    width: 86
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @FROMDATE
+                layout {
+                    width: 91
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @TODATE
+                layout {
+                    width: 80
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    width: 237
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @LOCATION
+                layout {
+                    width: 136
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @DOCTYPENAME
+                layout {
+                    width: 110
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @ALLOTMENTSCHEMENAME
+                layout {
+                    width: 162
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @SIZESNAME
+                layout {
+                    width: 74
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @GRADENAME
+                layout {
+                    width: 67
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @SOURCELOCATION
+                layout {
+                    width: 216
+                    sequence: 23
+                }
+            )
+
+            displayColumn (
+                column: @DESTINATIONLOCATION
+                layout {
+                    width: 231
+                    sequence: 24
+                }
+            )
+
+            displayColumn (
+                column: @ITEMNAME
+                layout {
+                    width: 82
+                    sequence: 25
+                }
+            )
+
+            displayColumn (
+                column: @LOADINGORDERQUANTITY
+                layout {
+                    width: 151
+                    sequence: 26
+                }
+            )
+
+            displayColumn (
+                column: @DELIVERYORDERQUANTITY
+                layout {
+                    width: 168
+                    sequence: 27
+                }
+            )
+
+            displayColumn (
+                column: @INTERNALTRANSFERQTY
+                layout {
+                    width: 134
+                    sequence: 28
+                }
+            )
+
+            displayColumn (
+                column: @BALANCEQUANTITY
+                layout {
+                    width: 109
+                    sequence: 29
+                }
+            )
+
+            displayColumn (
+                column: @CREATOR
+                layout {
+                    width: 104
+                    sequence: 30
+                }
+            )
+
+            displayColumn (
+                column: @FROMGCVBAND
+                layout {
+                    width: 98
+                    sequence: 19
+                }
+            )
+
+            displayColumn (
+                column: @TOGCVBAND
+                layout {
+                    width: 82
+                    sequence: 20
+                }
+            )
+
+            displayColumn (
+                column: @AUCTIONDATE
+                layout {
+                    width: 94
+                    sequence: 21
+                }
+            )
+
+            displayColumn (
+                column: @LINEITEM
+                layout {
+                    width: 62
+                    sequence: 22
+                }
+            )
+
+            sort (
+                column: @SERIALNO
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            aggregate count (
+                column: @DELIVERYORDERDATE
+                function: count
+            )
+
+            aggregate sum (
+                column: @LOADINGORDERQUANTITY
+                showGrandTotal: true
+            )
+
+            aggregate sum-2 (
+                column: @DELIVERYORDERQUANTITY
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @INTERNALTRANSFERQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @BALANCEQUANTITY
+                showGrandTotal: true
+            )
+
+        )
+
+        column ALLOTMENTSCHEMENAME (
+            type: textarea
+            heading {
+                heading: Allotment Scheme
+            }
+            layout {
+                sequence: 150
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: ALLOTMENTSCHEMENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column AUCTIONDATE (
+            type: datePicker
+            heading {
+                heading: Auction Date
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: AUCTIONDATE
+                dataType: date
+            }
+        )
+
+        column BALANCEQUANTITY (
+            type: numberField
+            heading {
+                heading: Balance Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: BALANCEQUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column COMPANYNAME (
+            type: textarea
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: COMPANYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column CREATOR (
+            type: textField
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 250
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: CREATOR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column DELIVERYORDERDATE (
+            type: datePicker
+            heading {
+                heading: Delivery Order Date
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: DELIVERYORDERDATE
+                dataType: date
+            }
+        )
+
+        column DELIVERYORDERNO (
+            type: textarea
+            heading {
+                heading: Delivery Order No
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DELIVERYORDERNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column DELIVERYORDERQUANTITY (
+            type: numberField
+            heading {
+                heading: Delivery Order Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DELIVERYORDERQUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DESTINATIONLOCATION (
+            type: textarea
+            heading {
+                heading: Destination Location
+            }
+            layout {
+                sequence: 190
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DESTINATIONLOCATION
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column DOCTYPENAME (
+            type: textarea
+            heading {
+                heading: Doctype
+            }
+            layout {
+                sequence: 140
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DOCTYPENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column FROMDATE (
+            type: datePicker
+            heading {
+                heading: From Date
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: FROMDATE
+                dataType: date
+            }
+        )
+
+        column FROMGCVBAND (
+            type: numberField
+            heading {
+                heading: From GCV Band
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: FROMGCVBAND
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column GRADENAME (
+            type: textarea
+            heading {
+                heading: Grade
+            }
+            layout {
+                sequence: 170
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: GRADENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column INTERNALTRANSFERQTY (
+            type: numberField
+            heading {
+                heading: Internal Transfer Qty
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: INTERNALTRANSFERQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ITEMNAME (
+            type: textarea
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 200
+            }
+            validation {
+                maxLength: 201
+            }
+            source {
+                databaseColumn: ITEMNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column LINEITEM (
+            type: numberField
+            heading {
+                heading: Line  Item
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: LINEITEM
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column LOADINGORDERQUANTITY (
+            type: numberField
+            heading {
+                heading: Loading Order Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: LOADINGORDERQUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column LOCATION (
+            type: textarea
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 130
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: LOCATION
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYDODATE (
+            type: datePicker
+            heading {
+                heading: Party DO Date
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: PARTYDODATE
+                dataType: date
+            }
+        )
+
+        column PARTYDONO (
+            type: textarea
+            heading {
+                heading: Party  DO NO
+            }
+            layout {
+                sequence: 40
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: PARTYDONO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYNAME (
+            type: textarea
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 120
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYPODATE (
+            type: datePicker
+            heading {
+                heading: Party PO Date
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: PARTYPODATE
+                dataType: date
+            }
+        )
+
+        column PARTYPONO (
+            type: textarea
+            heading {
+                heading: Party PO No
+            }
+            layout {
+                sequence: 80
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: PARTYPONO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SIZESNAME (
+            type: textarea
+            heading {
+                heading: Sizes
+            }
+            layout {
+                sequence: 160
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SIZESNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SOURCELOCATION (
+            type: textarea
+            heading {
+                heading: Source Location
+            }
+            layout {
+                sequence: 180
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SOURCELOCATION
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column TODATE (
+            type: datePicker
+            heading {
+                heading: To Date
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: TODATE
+                dataType: date
+            }
+        )
+
+        column TOGCVBAND (
+            type: numberField
+            heading {
+                heading: To GCV Band
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TOGCVBAND
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column WORKORDERDATE (
+            type: datePicker
+            heading {
+                heading: Work Order Date
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: WORKORDERDATE
+                dataType: date
+            }
+        )
+
+        column WORKORDERNO (
+            type: textarea
+            heading {
+                heading: Work Order No
+            }
+            layout {
+                sequence: 60
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: WORKORDERNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: DELIVERY ORDER  REPORT
+        }
+    )
+
+    pageItem P228_ALLOTMENTSCHEME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Allotment Scheme
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.AllotmentSchemeName d,
+                b.AllotmentSchemeCode r
+                From DeliveryOrder a, AllotmentScheme b
+                where a.AllotmentSchemeCode = b.AllotmentSchemeCode(+)
+                ;
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 120
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_BALANCEQTY (
+        type: popupLov
+        label {
+            label: Balance Qty
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                'Zero Balance Quantity' as d,
+                'Zero Balance Quantity' as r
+                From Dual
+                UNION ALL
+                Select
+                'Only Balance Quantity' as d,
+                'Only Balance Quantity' as r
+                From Dual
+                ```
+            nullDisplayValue: --SELECT BOTH--
+        }
+        layout {
+            sequence: 150
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Balance Qty Type
+        }
+    )
+
+    pageItem P228_COMPANYNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.CompanyName d,
+                a.CompanyCode r                                                
+                From Company a;
+                
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_DELIVERYORDERNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Delivery Order No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.DeliveryOrderNo d,
+                a.TNo r
+                From DeliveryOrder a;
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doctype
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.DoctypeName d,
+                a.DoctypeCode r
+                From Doctype a, DeliveryOrder b
+                Where a.DoctypeCode = b.DoctypeCode
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_GRADE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Grade
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.GradeName d,
+                b.GradeCode r
+                From DeliveryOrder a, Grade b
+                where a.GradeCode = b.GradeCode(+)
+                ;
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 140
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_LOCATIONNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: "Location "
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.LocationName d,
+                a.LocationCode r
+                From Location a, DeliveryOrder b
+                Where a.LocationCode = b.LocationCode(+)
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.PartyName d,
+                a.PartyCode r                                                
+                From Party a, DeliveryOrder b
+                where a.PartyCode = b.PartyCode
+                And a.PartyTypeCode='CUSTOMER';
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_PARTYDONO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party Do No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                a.PartyDoNo d,
+                a.PartyDoNo r
+                From DeliveryOrder a
+                ;
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 110
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_SIZES (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Sizes
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.SizesName d,
+                b.SizesCode r
+                From DeliveryOrder a, Sizes b
+                where a.SizesCode = b.SizesCode(+)
+                ;
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 130
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P228_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 20
+        }
+    )
+
+    pageItem P228_WORKORDERNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Work Order No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                a.WorkOrderNo d,
+                to_char(a.Tno) as r
+                From FreightRateList a
+                Where exists(
+                Select
+                aa.Tno
+                From DeliveryOrder aa
+                Where aa.FreightRateListTno = a.Tno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @delivery-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @delivery-order
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

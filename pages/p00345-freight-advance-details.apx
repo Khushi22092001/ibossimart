@@ -1,0 +1,662 @@
+page 345 (
+    name: Freight Advance Details
+    alias: FREIGHT-ADVANCE-DETAILS
+    title: Freight Advance Details
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region freight-advance-detail (
+        name: Freight Advance Detail
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select   
+                     row_number() over(order by a.VoucherDate) SerialNo,
+                     a.VoucherDate,
+                     a.VoucherNo,
+                     f.LRNo,
+                     fa.FreightAdviceNo,
+                     f.GPNo,
+                     f.GPDate,
+                     f.VehicleNo,
+                     ee.Quantity1,
+                     g.TransporterName,
+                     h.PartyName as AccountName,
+                     abs(b.Amount) as DebitAmount
+                from voucher a, VoucherDetail b, Issue c,Requisition d, NecessitySlip e, NecessitySlipDetail ee, LR f, FreightAdviceDetail fad, FReightAdvice fa, Transporter g, Party h,
+                Module i
+                where a.Tno = b.Tno
+                  and a.ModuleTno = c.Tno(+)
+                  and c.REQUISITIONTNO = d.Tno(+)
+                  and d.MODULETNO = e.Tno(+)
+                  and e.Tno = ee.Tno(+)
+                  and e.LrTno = f.Tno(+)
+                  and f.Tno = fad.ModuleTno(+)
+                  and fad.Tno = fa.Tno(+)
+                  and e.TransporterCode = g.TransporterCode(+)
+                  and b.AccountCode = h.PartyCode(+)
+                  and a.ModuleCode = i.ModuleCode(+)
+                  and a.ModuleCode = 'ISSUE'
+                  and b.AccountCode = 'FREIGHTADVANCEACCOUNT'
+                  and nvl(b.Amount,0)< 0
+                  and a.VoucherDate between :P345_FROMDATE and :P345_TODATE
+                  and ( :P345_MODULE IS NULL OR instr(':'||:P345_MODULE||':',':'||i.ModuleCode||':') > 0 ) 
+                  and ( :P345_TRANSPORTER IS NULL OR instr(':'||:P345_TRANSPORTER||':',':'||g.TransporterCode||':') > 0 ) 
+                UNION ALL
+                select 
+                    row_number() over(order by a.VoucherDate) SerialNo, 
+                    a.VoucherDate,
+                    a.VoucherNo,
+                    f.LRNo,
+                    fa.FreightAdviceNo,
+                    f.GPNo,
+                    f.GPDate,
+                    f.VehicleNo,
+                    ee.Quantity1,
+                    g.TransporterName,
+                    h.PartyName as AccountName,
+                    abs(b.Amount) as DebitAmount
+                from voucher a, VoucherDetail b, NecessitySlip e,NecessitySlipDetail ee, LR f, FreightAdviceDetail fad, FreightAdvice fa, Transporter g, Party h, Module i
+                where a.Tno = b.Tno
+                  and a.MODULETNO = e.Tno(+)
+                  and e.Tno = ee.Tno(+)
+                  and e.LrTno = f.Tno(+)
+                  and f.Tno = fad.ModuleTno(+)
+                  and fad.Tno = fa.Tno(+)
+                  and e.TransporterCode = g.TransporterCode(+)
+                  and b.AccountCode = h.PartyCode(+)
+                  and a.ModuleCode = i.ModuleCode(+)
+                  and a.ModuleCode = 'NECESSITYSLIP'
+                  and b.AccountCode = 'FREIGHTADVANCEACCOUNT'
+                  and nvl(b.Amount,0) < 0
+                  and a.VoucherDate between :P345_FROMDATE and :P345_TODATE
+                  and ( :P345_MODULE IS NULL OR instr(':'||:P345_MODULE||':',':'||i.ModuleCode||':') > 0 ) 
+                  and ( :P345_TRANSPORTER IS NULL OR instr(':'||:P345_TRANSPORTER||':',':'||g.TransporterCode||':') > 0 ) 
+                UNION ALL
+                select
+                    row_number() over(order by a.VoucherDate) SerialNo, 
+                    a.VoucherDate,
+                    a.VoucherNo,
+                    f.LRNo,
+                    fa.FreightAdviceNo,
+                    NVL(e.GPNo,f.GPNo) as GPNo,
+                    f.GPDate,
+                    e.VehicleNo,
+                    cc.Quantity1,
+                    g.TransporterName,
+                    h.PartyName as AccountName,
+                    abs(b.Amount) as DebitAmount
+                from voucher a, VoucherDetail b, FreightAdvance e, LR f, NecessitySlip c, NecessitySlipDetail cc,FreightAdviceDetail fad, FreightAdvice fa,Transporter g, Party h,Module i
+                where a.Tno = b.Tno
+                  and a.MODULETNO = e.Tno(+)
+                  and e.LrTno = f.Tno(+)
+                  and f.Tno = c.LRTno
+                  and c.Tno = cc.Tno
+                  and f.Tno = fad.ModuleTno(+)
+                  and fad.Tno = fa.Tno(+)
+                  and e.TransporterCode = g.TransporterCode(+)
+                  and b.AccountCode = h.PartyCode(+)
+                  and a.ModuleCode = i.ModuleCode(+)
+                  and a.ModuleCode = 'FREIGHTADVANCE'
+                  and b.AccountCode = 'FREIGHTADVANCEACCOUNT'
+                  and nvl(b.Amount,0)< 0
+                  and a.VoucherDate between :P345_FROMDATE and :P345_TODATE
+                  and ( :P345_MODULE IS NULL OR instr(':'||:P345_MODULE||':',':'||i.ModuleCode||':') > 0 ) 
+                  and ( :P345_TRANSPORTER IS NULL OR instr(':'||:P345_TRANSPORTER||':',':'||g.TransporterCode||':') > 0 ) 
+                ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 53615201487479735
+        }
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: Account Name
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: Debit Amount
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column FREIGHTADVICENO (
+            type: plainText
+            heading {
+                heading: Freight Advice No
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column GPDATE (
+            type: plainText
+            heading {
+                heading: GP Date
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column GPNO (
+            type: plainText
+            heading {
+                heading: GP No.
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column LRNO (
+            type: plainText
+            heading {
+                heading: LR No
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TRANSPORTERNAME (
+            type: plainText
+            heading {
+                heading: Transporter Name
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Voucher Date
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: Voucher No
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 16
+            pageHeaderText: "   Freight Advance Report"
+        }
+
+        savedReport 557839 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCOUNTNAME (
+                sequence: 11
+            )
+
+            displayColumn DEBITAMOUNT (
+                sequence: 12
+            )
+
+            displayColumn FREIGHTADVICENO (
+                sequence: 5
+            )
+
+            displayColumn GPDATE (
+                sequence: 7
+            )
+
+            displayColumn GPNO (
+                sequence: 6
+            )
+
+            displayColumn LRNO (
+                sequence: 4
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 9
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn TRANSPORTERNAME (
+                sequence: 10
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 8
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 2
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 3
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: DEBITAMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P345_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @freight-advance-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P345_MODULE (
+        type: popupLov
+        label {
+            label: Module
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select
+                distinct
+                c.ModuleName,
+                c.ModuleCode
+                From Voucher a, VoucherDetail b, Module c
+                Where a.Tno = b.Tno
+                and a.ModuleCode = c.ModuleCode
+                and b.AccountCode = 'FREIGHTADVANCEACCOUNT'
+                and nvl(b.Amount,0)< 0;
+                ```
+            nullDisplayValue: - Select List-
+        }
+        layout {
+            sequence: 30
+            region: @freight-advance-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P345_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @freight-advance-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P345_TRANSPORTER (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Transporter Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                a.TransporterName d,
+                a.TransporterCode r
+                From Transporter a;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @freight-advance-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Transporter Name
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 50
+            region: @freight-advance-detail
+            slot: regionBody
+            startNewRow: false
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

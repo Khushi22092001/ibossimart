@@ -1,0 +1,4461 @@
+page 653 (
+    name: Sales Command Centre
+    alias: SALES-COMMAND-CENTRE
+    title: Sales Command Centre
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText:
+            ```html
+            SALES COMMAND CENTRE — data contract (HSPL).
+            
+            VALUE GRAIN. Every value figure on this page is SUM(CCInvoiceDetail.Amount)
+            — the invoice LINE, not the header. CCInvoice carries footer tax on its lines
+            (FooterAmount / TotalAmount); the line Amount is the taxable sales value and is
+            what reconciles to the CC Invoice (Sales) Register (page 56). Invoice value is
+            SUM(CCInvoiceDetail.TotalAmount) = value + footer charges. Never use the header
+            CCInvoiceAmount for a total.
+            
+            TAX. Pre-aggregated to (Tno, Sno) before it is joined. CCInvoiceDetailFooter holds
+            one row per charge head; a raw join multiplies each line by its head count. HSPL's
+            confirmed tax heads are .CGST. .SGST. .IGST. .TCS. (plus the charge heads
+            .INSURANCE. .LOADINGCHARGES. .LOADINGUNLOADING. .CUTTINGCHARGES. .EXPENSES.).
+            "Other charges" is FooterAmount minus the four taxes, so no head is double counted
+            and none is dropped.
+            
+            PANEL SECURITY. Every region repeats the panel predicate in the scalar-subquery
+            form:
+                ((Select GetUserPanelAB_apex() From dual) Is Null Or a.Panel = (Select ...))
+            matching the sibling Purchase suite (pages 668 ff). GetUserPanelAB_apex() is not
+            DETERMINISTIC and runs two SQL statements plus a session lookup per call; the
+            scalar-subquery form lets Oracle cache it for the statement instead of per row.
+            Two predicates are used, not one: the first is ENFORCEMENT (what this login may
+            see), the second (:P653_PANEL) is USER CHOICE — a panel-bound login cannot widen
+            its own scope.
+            
+            AGENT is on the SalesOrder, not the CCInvoice — joined via a.SalesOrderTNo.
+            Un-agented invoices resolve to "Agent not recorded", never dropped.
+            
+            READ-ONLY. Every region is a SELECT. No INSERT/UPDATE/DELETE/MERGE anywhere.
+            
+            SCHEMA VERIFICATION (20-08-2026, no DB connection available). Columns were
+            corroborated against this repository's OWN SQL — the CC Invoice Register
+            (p00056) lines 119-361 anchor the whole chain; SalesOrder agent/trade-type from
+            p00056:290-291; footer heads from p00056:261-269; traceability from p00056/p00347.
+            NOT corroborated and therefore NOT used: Invoice.DueDate (no AR ageing on the
+            sales side), Voucher/DocumentStatusDetail module-qualified by 'CCINVOICE' (HSPL
+            links them by ModuleTNo alone), footer heads .ROUNDPLUSMINUS./.TRANSPORTATION.,
+            DocTypeCode 'CONVERSION', and the 'GSTNO' attribute code (only 'GSTINNO' is
+            proven). See docs/sales-dashboard-hspl-build-notes.md before adding them.
+            ```
+    }
+
+    region activity (
+        name: Sales Activity
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  q.TNO,
+                  q.CCInvoiceNo As INVOICE_NO,
+                  q.INV_DATE,
+                  q.LOCATION,
+                  q.CUSTOMER,
+                  q.AGENT,
+                  q.LINES,
+                  q.SALES_VALUE,
+                  q.TAX,
+                  q.TOTAL_VALUE,
+                  Case q.ST
+                    When 'ACTIVE'        Then '<span class="ds-pill ds-pill--good">Active</span>'
+                    When 'CANCELED'      Then '<span class="ds-pill ds-pill--bad">Cancelled</span>'
+                    When 'NO STATUS ROW' Then '<span class="ds-pill ds-pill--muted">No status</span>'
+                    Else '<span class="ds-pill ds-pill--warn">' || apex_escape.html(q.ST) || '</span>'
+                  End As STATUS_PILL,
+                  Case When q.VNO Is Not Null
+                       Then '<span class="ds-pill ds-pill--good">Posted</span>'
+                       Else '<span class="ds-pill ds-pill--muted">Not posted</span>' End As VOUCHER_PILL
+                From (
+                  Select a.TNo, a.CCInvoiceNo, a.CCInvoiceDate As INV_DATE,
+                         nvl(GetLocationName(a.LocationCode), a.LocationCode) As LOCATION,
+                         GetPartyName(a.PartyCode) As CUSTOMER,
+                         nvl(GetPartyName(so.AgentCode),'Agent not recorded') As AGENT,
+                         (Select Count(*) From CCInvoiceDetail b Where b.TNo = a.TNo) As LINES,
+                         (Select Sum(b.Amount) From CCInvoiceDetail b Where b.TNo = a.TNo) As SALES_VALUE,
+                         (Select Sum(Decode(f.FooterHeadCode,'.CGST.',f.FooterValue,
+                                            '.SGST.',f.FooterValue,'.IGST.',f.FooterValue,
+                                            '.TCS.', f.FooterValue,0))
+                            From CCInvoiceDetailFooter f Where f.TNo = a.TNo) As TAX,
+                         (Select Sum(b.TotalAmount) From CCInvoiceDetail b Where b.TNo = a.TNo) As TOTAL_VALUE,
+                         nvl((Select Max(dsd.DocumentStatusCode) From DocumentStatusDetail dsd
+                               Where dsd.ModuleTNo = a.TNo),'NO STATUS ROW') As ST,
+                         (Select Max(v.VoucherNo) From Voucher v Where v.ModuleTNo = a.TNo) As VNO
+                    From CCInvoice a
+                    Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                   Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                     And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And (
+                         :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                     )
+                     And (
+                         :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                     )
+                     And (
+                         :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                     )
+                     And (
+                         :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                     )
+                     And (
+                         :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                     )
+                     And (
+                         :P653_TRANSPORTER Is Null Or a.TransporterCode = :P653_TRANSPORTER
+                     )
+                     And (
+                         :P653_VEHICLENO   Is Null Or a.VehicleNo = :P653_VEHICLENO
+                     )
+                     And (
+                         :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                     )
+                     And (
+                         :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                     )
+                     And (:P653_STATUS Is Null Or Exists
+                            (Select 1 From DocumentStatusDetail dsd
+                              Where dsd.ModuleTNo = a.TNo
+                                And dsd.DocumentStatusCode = :P653_STATUS))
+                ) q
+                Order By q.INV_DATE Desc, q.TNO Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_TRANSPORTER
+                P653_VEHICLENO
+                P653_STATUS
+            ]
+        }
+        layout {
+            sequence: 120
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No sales activity in this period and scope.
+        }
+        advanced {
+            savedReportMappingIdentifier: 28075594447250053
+        }
+
+        column AGENT (
+            type: plainText
+            heading {
+                heading: Agent
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column CUSTOMER (
+            type: plainText
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column INVOICE_NO (
+            type: link
+            heading {
+                heading: Invoice
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 657
+                    items: {
+                        P657_TNO: #TNO#
+                    }
+                    clearCache: 657
+                    debug: NO
+                }
+                linkText: #INVOICE_NO#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column INV_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column LINES (
+            type: plainText
+            heading {
+                heading: Lines
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column SALES_VALUE (
+            type: plainText
+            heading {
+                heading: Sales Value
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column STATUS_PILL (
+            type: plainText
+            heading {
+                heading: Status
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column TAX (
+            type: plainText
+            heading {
+                heading: Tax
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTAL_VALUE (
+            type: plainText
+            heading {
+                heading: Invoice Value
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column VOUCHER_PILL (
+            type: plainText
+            heading {
+                heading: Voucher
+            }
+            layout {
+                sequence: 110
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGENT (
+                sequence: 6
+            )
+
+            displayColumn CUSTOMER (
+                sequence: 5
+            )
+
+            displayColumn INVOICE_NO (
+                sequence: 2
+            )
+
+            displayColumn INV_DATE (
+                sequence: 3
+            )
+
+            displayColumn LINES (
+                sequence: 7
+            )
+
+            displayColumn LOCATION (
+                sequence: 4
+            )
+
+            displayColumn SALES_VALUE (
+                sequence: 8
+            )
+
+            displayColumn STATUS_PILL (
+                sequence: 11
+            )
+
+            displayColumn TAX (
+                sequence: 9
+            )
+
+            displayColumn TNO (
+                sequence: 1
+            )
+
+            displayColumn TOTAL_VALUE (
+                sequence: 10
+            )
+
+            displayColumn VOUCHER_PILL (
+                sequence: 12
+            )
+
+        )
+
+    )
+
+    region agent-chart (
+        name: Sales by Agent
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select AGENT_NAME, VALUE_LAC From (
+                  Select nvl(GetPartyName(so.AgentCode),'Agent not recorded') AGENT_NAME,
+                         Round(Sum(b.Amount)/100000,2) VALUE_LAC
+                    From CCInvoice a
+                    Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                    Join CCInvoiceDetail b On b.TNo = a.TNo
+                   Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                     And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And (
+                         :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                     )
+                     And (
+                         :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                     )
+                     And (
+                         :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                     )
+                     And (
+                         :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                     )
+                     And (
+                         :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                     )
+                     And (
+                         :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                     )
+                     And (
+                         :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                     )
+                     And (
+                         :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                     )
+                     And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                            (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                           Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                   Group By so.AgentCode
+                  Having Sum(b.Amount) > 0
+                   Order By Sum(b.Amount) Desc)
+                 Where Rownum <= 12
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 90
+            slot: body
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No agent-attributed sales in this period and scope.
+        }
+
+        series agt (
+            name: Sales Value (Rs Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: AGENT_NAME
+                value: VALUE_LAC
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lac
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region category-mix (
+        name: Sales by Item Category
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Item Category is an HSPL master dimension. Sales value by category for the
+                   selected period/scope; a slice drills the dashboard to that category. */
+                Select CATEGORY, CATCODE, VALUE_LAC
+                  From (Select Case When i.ItemCategoryCode Is Null Then 'Uncategorised'
+                                    Else nvl(GetItemCategoryName(i.ItemCategoryCode), i.ItemCategoryCode) End CATEGORY,
+                               nvl(i.ItemCategoryCode,'') CATCODE,
+                               Round(Sum(b.Amount)/100000,2) VALUE_LAC
+                          From CCInvoice a
+                          Join CCInvoiceDetail b On b.TNo = a.TNo
+                          Left Join Item i On i.ItemCode = b.ItemCode
+                         Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                           And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                           And ((Select GetUserPanelAB_apex() From dual) Is Null Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                           And (:P653_PANEL    Is Null Or a.Panel        = :P653_PANEL)
+                           And (:P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY)
+                           And (:P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION)
+                           And (:P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE)
+                         Group By i.ItemCategoryCode
+                        Having Sum(b.Amount) > 0)
+                 Order By VALUE_LAC Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+            ]
+        }
+        layout {
+            sequence: 84
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 320
+        }
+        value {
+            format: decimal
+            decimalPlaces: 2
+            formatScaling: none
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No sales value by category in this scope.
+        }
+
+        series cat (
+            name: Sales (₹ Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: CATEGORY
+                value: VALUE_LAC
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 653
+                    items: {
+                        P653_CATEGORY: &CATCODE.
+                        P653_FROMDATE: &P653_FROMDATE.
+                        P653_TODATE: &P653_TODATE.
+                        P653_COMPANY: &P653_COMPANY.
+                        P653_LOCATION: &P653_LOCATION.
+                        P653_PANEL: &P653_PANEL.
+                    }
+                }
+            }
+        )
+
+    )
+
+    region command-header (
+        name: Sales Command Centre
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  '<div class="ds-sales-hero">'
+                  || '<div class="ds-sales-hero-row">'
+                  || '<span class="ds-sales-hero-icon"><span class="fa fa-line-chart"></span></span>'
+                  || '<span class="ds-sales-hero-text">'
+                  || '<span class="ds-sales-hero-eyebrow">Commercial &middot; Sales Intelligence</span>'
+                  || '<span class="ds-sales-hero-title">Sales Command Centre</span>'
+                  || '<span class="ds-sales-hero-sub">The period position across the commercial '
+                  || 'book — revenue, invoices, customers, product and channel mix, tax and '
+                  || 'commercial exceptions. Every figure reconciles to the CC Invoice '
+                  || '(Sales) Register.</span>'
+                  || '</span></div>'
+                  || '<a class="ds-sales-hero-cta" href="' || apex_page.get_url(
+                       p_page        => 56,
+                       p_clear_cache => '56',
+                       p_items       => 'P56_FROMDATE,P56_TODATE,P56_COMPANY,P56_LOCATION',
+                       p_values      =>    :P653_FROMDATE ||','|| :P653_TODATE
+                                    ||','|| :P653_COMPANY  ||','|| :P653_LOCATION)
+                     || '">CC Invoice Register <span class="fa fa-arrow-right"></span></a>'
+                  || '<div class="ds-sales-hero-art"></div>'
+                  || '<div class="ds-sales-hero-chips">'
+                  || '<span class="ds-chip"><span class="fa fa-calendar ds-chip-ic"></span>'
+                     || '<span class="ds-chip-k">Period</span><b>'
+                     || apex_escape.html(:P653_FROMDATE) || ' &ndash; '
+                     || apex_escape.html(:P653_TODATE) || '</b>'
+                     || '<i class="ds-chip-sub">'
+                     || to_char(to_date(:P653_TODATE,'DD-MM-RRRR')
+                             - to_date(:P653_FROMDATE,'DD-MM-RRRR') + 1) || ' days</i></span>'
+                  || '<span class="ds-chip"><span class="fa fa-building-o ds-chip-ic"></span>'
+                     || '<span class="ds-chip-k">Company</span><b>'
+                     || apex_escape.html(nvl(GetCompanyName(:P653_COMPANY),'All companies'))
+                     || '</b></span>'
+                  || '<span class="ds-chip"><span class="fa fa-map-marker ds-chip-ic"></span>'
+                     || '<span class="ds-chip-k">Location</span><b>'
+                     || apex_escape.html(nvl(GetLocationName(:P653_LOCATION),'All locations'))
+                     || '</b></span>'
+                  || Case
+                       When (Select GetUserPanelAB_apex() From dual) Is Not Null
+                       Then '<span class="ds-chip"><span class="fa fa-th-large ds-chip-ic"></span>'
+                            || '<span class="ds-chip-k">Panel</span><b>'
+                            || apex_escape.html((Select GetUserPanelAB_apex() From dual))
+                            || ' (enforced)</b></span>'
+                       Else '<span class="ds-chip"><span class="fa fa-th-large ds-chip-ic"></span>'
+                            || '<span class="ds-chip-k">Panel</span><b>'
+                            || apex_escape.html(nvl(:P653_PANEL,'A + B')) || '</b></span>'
+                     End
+                  || Case When :P653_PARTY Is Not Null
+                          Then '<span class="ds-chip"><span class="fa fa-user-o ds-chip-ic"></span>'
+                               || '<span class="ds-chip-k">Customer</span><b>'
+                               || apex_escape.html(GetPartyName(:P653_PARTY)) || '</b></span>'
+                          Else '' End
+                  || Case When :P653_ITEM Is Not Null
+                          Then '<span class="ds-chip"><span class="fa fa-cube ds-chip-ic"></span>'
+                               || '<span class="ds-chip-k">Item</span><b>'
+                               || apex_escape.html(:P653_ITEM) || '</b></span>'
+                          Else '' End
+                  || '<span class="ds-chip ds-chip--live"><span class="fa fa-calendar-check-o ds-chip-ic"></span>'
+                     || '<span class="ds-chip-k">Invoices as of</span><b>'
+                     || apex_escape.html(nvl(to_char(
+                          (Select Max(a.CCInvoiceDate) From CCInvoice a
+                            Where ((Select GetUserPanelAB_apex() From dual) Is Null
+                                   Or a.Panel = (Select GetUserPanelAB_apex() From dual))),
+                          'DD-Mon-RRRR'),'no invoices visible'))
+                     || '</b></span>'
+                  || '</div></div>' As HEAD
+                From dual
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_PARTY
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-sales-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: Header unavailable.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region customer-chart (
+        name: Top 10 Customers by Sales
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select CUST_NAME, PARTY_CODE, VALUE_LAC
+                  From (Select GetPartyName(a.PartyCode) CUST_NAME, a.PartyCode PARTY_CODE,
+                               Round(Sum(b.Amount)/100000,2) VALUE_LAC
+                          From CCInvoice a
+                          Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                          Join CCInvoiceDetail b On b.TNo = a.TNo
+                         Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                           And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                           And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                           And (
+                               :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                           )
+                           And (
+                               :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                           )
+                           And (
+                               :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                           )
+                           And (
+                               :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                           )
+                           And (
+                               :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                           )
+                           And (
+                               :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                           )
+                           And (
+                               :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                           )
+                           And (
+                               :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                           )
+                           And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                  (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                                 Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                         Group By a.PartyCode
+                        Having Sum(b.Amount) > 0
+                         Order By Sum(b.Amount) Desc)
+                 Where Rownum <= 10
+                 Order By VALUE_LAC
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 60
+            slot: body
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 320
+        }
+        messages {
+            whenNoDataFound: No customer has any sales value in this period and scope.
+        }
+
+        series cust (
+            name: Sales Value (Rs Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: CUST_NAME
+                value: VALUE_LAC
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 655
+                    items: {
+                        P655_PARTY_CODE: &PARTY_CODE.
+                        P655_FROMDATE: &P653_FROMDATE.
+                        P655_TODATE: &P653_TODATE.
+                        P655_COMPANY: &P653_COMPANY.
+                        P655_LOCATION: &P653_LOCATION.
+                        P655_PANEL: &P653_PANEL.
+                    }
+                    clearCache: 655
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lac
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region customer-concentration (
+        name: Customer Concentration
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With V As (
+                       Select a.PartyCode,
+                              Sum(b.Amount) Val,
+                              Row_Number() Over(Order By Sum(b.Amount) Desc) rn
+                         From CCInvoice a
+                         Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                         Join CCInvoiceDetail b On b.TNo = a.TNo
+                        Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                          And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (
+                              :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                          )
+                          And (
+                              :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                          )
+                          And (
+                              :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                          )
+                          And (
+                              :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                          )
+                          And (
+                              :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                          )
+                          And (
+                              :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                          )
+                          And (
+                              :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                          )
+                          And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                 (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                                Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                        Group By a.PartyCode)
+                Select Case When rn <= 10 Then 'Top 10 customers' Else 'All other customers' End SEG,
+                       Round(Sum(Val)/100000,2) VAL
+                  From V
+                 Group By Case When rn <= 10 Then 'Top 10 customers' Else 'All other customers' End
+                 Order By 2 Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 65
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 320
+        }
+        messages {
+            whenNoDataFound: No sales value in this period and scope.
+        }
+
+        series conc (
+            name: Rs Lac
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: SEG
+                value: VAL
+            }
+        )
+
+    )
+
+    region customer-table (
+        name: Customer Performance
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Tax As (
+                       Select TNo, SNo,
+                              Sum(Decode(FooterHeadCode,'.CGST.',FooterValue,
+                                         '.SGST.',FooterValue,'.IGST.',FooterValue,
+                                         '.TCS.', FooterValue,0)) LineTax
+                         From CCInvoiceDetailFooter Group By TNo, SNo)
+                Select
+                  a.PartyCode As PARTYCODE,
+                  GetPartyName(a.PartyCode) As CUSTOMER,
+                  Count(Distinct a.TNo) As INVOICES,
+                  Count(b.SNo) As LINES,
+                  Sum(b.Amount) As SALES_VALUE,
+                  Sum(nvl(tx.LineTax,0)) As TAX,
+                  Sum(b.TotalAmount) As TOTAL_VALUE,
+                  Max(a.CCInvoiceDate) As LAST_INVOICE,
+                  '<div class="ds-sharecell"><div class="ds-bar ds-bar--blue"><i style="width:'
+                    || to_char(Round(100 * Sum(b.Amount)
+                                     / Nullif(Max(Sum(b.Amount)) Over(),0)),'FM990') || '%"></i></div>'
+                    || '<span>' || to_char(Round(100 * Sum(b.Amount)
+                                     / Nullif(Sum(Sum(b.Amount)) Over(),0),1),'FM990D0')
+                    || '% of period sales</span></div>' As SHARE_CELL
+                  From CCInvoice a
+                  Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                  Join CCInvoiceDetail b On b.TNo = a.TNo
+                  Left Join Tax tx On tx.TNo = b.TNo And tx.SNo = b.SNo
+                 Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                   And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (
+                       :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                   )
+                   And (
+                       :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                   )
+                   And (
+                       :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                   )
+                   And (
+                       :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                   )
+                   And (
+                       :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                   )
+                   And (
+                       :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                   )
+                   And (
+                       :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                   )
+                   And (
+                       :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                   )
+                   And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                          (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                         Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                 Group By a.PartyCode
+                 Order By Sum(b.Amount) Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 70
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No customer had sales in this period and scope.
+        }
+        advanced {
+            savedReportMappingIdentifier: 28070699509250051
+        }
+
+        column CUSTOMER (
+            type: link
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 655
+                    items: {
+                        P655_PARTY_CODE: #PARTYCODE#
+                        P655_FROMDATE: &P653_FROMDATE.
+                        P655_TODATE: &P653_TODATE.
+                        P655_COMPANY: &P653_COMPANY.
+                        P655_LOCATION: &P653_LOCATION.
+                        P655_PANEL: &P653_PANEL.
+                    }
+                    clearCache: 655
+                    debug: NO
+                }
+                linkText: #CUSTOMER#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column INVOICES (
+            type: plainText
+            heading {
+                heading: Invoices
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column LAST_INVOICE (
+            type: plainText
+            heading {
+                heading: Last Invoice
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LINES (
+            type: plainText
+            heading {
+                heading: Lines
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PARTYCODE (
+            type: hidden
+            heading {
+                heading: Party Code
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column SALES_VALUE (
+            type: plainText
+            heading {
+                heading: Sales Value
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SHARE_CELL (
+            type: plainText
+            heading {
+                heading: Share of Period Sales
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column TAX (
+            type: plainText
+            heading {
+                heading: Tax
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column TOTAL_VALUE (
+            type: plainText
+            heading {
+                heading: Invoice Value
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CUSTOMER (
+                sequence: 2
+            )
+
+            displayColumn INVOICES (
+                sequence: 3
+            )
+
+            displayColumn LAST_INVOICE (
+                sequence: 8
+            )
+
+            displayColumn LINES (
+                sequence: 4
+            )
+
+            displayColumn PARTYCODE (
+                sequence: 1
+            )
+
+            displayColumn SALES_VALUE (
+                sequence: 5
+            )
+
+            displayColumn SHARE_CELL (
+                sequence: 9
+            )
+
+            displayColumn TAX (
+                sequence: 6
+            )
+
+            displayColumn TOTAL_VALUE (
+                sequence: 7
+            )
+
+        )
+
+    )
+
+    region exceptions (
+        name: Commercial Exceptions
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Scope As (
+                       Select a.TNo, a.CCInvoiceNo, a.CCInvoiceDate, a.CCInvoiceAmount,
+                              a.PartyCode, a.SalesOrderTno, a.DespatchAdviceTno
+                         From CCInvoice a
+                        Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                          And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (
+                              :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                          )
+                          And (
+                              :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                          )
+                          And (
+                              :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                          )
+                          And (
+                              :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                          )
+                          And (:P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY)),
+                Det As (
+                       Select b.TNo, Sum(b.TotalAmount) DetTotal, Count(*) Lines
+                         From CCInvoiceDetail b Group By b.TNo),
+                Tx As (
+                       Select f.TNo,
+                              Sum(Decode(f.FooterHeadCode,'.CGST.',f.FooterValue,
+                                         '.SGST.',f.FooterValue,'.IGST.',f.FooterValue,
+                                         '.TCS.', f.FooterValue,0)) Tax
+                         From CCInvoiceDetailFooter f Group By f.TNo),
+                Med As (
+                       Select ItemCode, Median(Rate) Med
+                         From CCInvoiceDetail Where Rate > 0 Group By ItemCode),
+                Exc As (
+                       Select 1 SEV, 'Header value does not match its lines' REASON,
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate,
+                              Abs(s.CCInvoiceAmount - nvl(d.DetTotal,0)) AMT
+                         From Scope s Join Det d On d.TNo = s.TNo
+                        Where Abs(s.CCInvoiceAmount - nvl(d.DetTotal,0)) > 0.01
+                       Union All
+                       Select 1, 'GST charged but customer has no GSTIN',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, t.Tax
+                         From Scope s Join Tx t On t.TNo = s.TNo
+                        Where t.Tax > 0
+                          And GetPartyAttributeValue(s.PartyCode,'GSTINNO') Is Null
+                       Union All
+                       Select 1, 'Line amount is not Quantity x Rate',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate,
+                              Abs(b.Amount - b.Quantity1 * b.Rate)
+                         From Scope s Join CCInvoiceDetail b On b.TNo = s.TNo
+                        Where b.Quantity1 > 0 And b.Rate > 0
+                          And Abs(b.Amount - b.Quantity1 * b.Rate) > 1
+                       Union All
+                       Select 1, 'Cancelled invoice still carrying value',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, nvl(d.DetTotal,0)
+                         From Scope s Join Det d On d.TNo = s.TNo
+                        Where d.DetTotal > 0
+                          And Exists (Select 1 From DocumentStatusDetail dsd
+                                       Where dsd.ModuleTNo = s.TNo
+                                         And dsd.DocumentStatusCode = 'CANCELED')
+                       Union All
+                       Select 2, 'Invoice has no item lines',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, s.CCInvoiceAmount
+                         From Scope s
+                        Where Not Exists (Select 1 From CCInvoiceDetail b Where b.TNo = s.TNo)
+                       Union All
+                       Select 2, 'Zero-value invoice line',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, To_Number(Null)
+                         From Scope s Join CCInvoiceDetail b On b.TNo = s.TNo
+                        Where b.Amount = 0
+                       Union All
+                       Select 2, 'Rate deviates over 40% from item lifetime median',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, b.Amount
+                         From Scope s Join CCInvoiceDetail b On b.TNo = s.TNo
+                         Join Med m On m.ItemCode = b.ItemCode
+                        Where b.Rate > 0 And m.Med > 0
+                          And Abs(b.Rate - m.Med) / m.Med > 0.4
+                       Union All
+                       Select 3, 'Invoice raised without a Sales Order',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, nvl(d.DetTotal,0)
+                         From Scope s Left Join Det d On d.TNo = s.TNo
+                        Where s.SalesOrderTno Is Null
+                       Union All
+                       Select 3, 'Invoice raised without a Dispatch Advice',
+                              s.TNo, s.CCInvoiceNo, s.CCInvoiceDate, nvl(d.DetTotal,0)
+                         From Scope s Left Join Det d On d.TNo = s.TNo
+                        Where s.DespatchAdviceTno Is Null)
+                Select
+                  Case SEV When 1 Then '<span class="ds-sev ds-sev--high">High</span>'
+                           When 2 Then '<span class="ds-sev ds-sev--medium">Medium</span>'
+                           Else '<span class="ds-sev ds-sev--low">Low</span>' End As SEVERITY,
+                  REASON As RULE_TEXT,
+                  '<a class="ds-exc-drill" href="'
+                    || apex_page.get_url(p_page => 657, p_clear_cache => '657',
+                         p_items => 'P657_TNO', p_values => TNo)
+                    || '">' || apex_escape.html(CCInvoiceNo) || '</a>' As INVOICE_NO,
+                  Case When AMT Is Null
+                       Then '<span class="ds-muted">not quantifiable</span>'
+                       Else 'Rs ' || to_char(Round(AMT),'FM99G99G99G990') End As VALUE_CELL,
+                  Trunc(sysdate) - Trunc(CCInvoiceDate) As AGE,
+                  SEV As SEV,
+                  AMT As AMT
+                From Exc
+                Order By SEV, AMT Desc Nulls Last, CCInvoiceDate Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+            ]
+        }
+        layout {
+            sequence: 110
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                ds-register
+                ds-dash-exceptions
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No commercial exceptions in this period and scope — every invoice balances.
+        }
+        advanced {
+            savedReportMappingIdentifier: 28074672362250053
+        }
+
+        column AGE (
+            type: plainText
+            heading {
+                heading: Age (days)
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column AMT (
+            type: hidden
+            heading {
+                heading: Amount
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column INVOICE_NO (
+            type: plainText
+            heading {
+                heading: Invoice
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column RULE_TEXT (
+            type: plainText
+            heading {
+                heading: Exception
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SEV (
+            type: hidden
+            heading {
+                heading: Sev
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column SEVERITY (
+            type: plainText
+            heading {
+                heading: Severity
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VALUE_CELL (
+            type: plainText
+            heading {
+                heading: Value at Stake
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGE (
+                sequence: 5
+            )
+
+            displayColumn AMT (
+                sequence: 7
+            )
+
+            displayColumn INVOICE_NO (
+                sequence: 3
+            )
+
+            displayColumn RULE_TEXT (
+                sequence: 2
+            )
+
+            displayColumn SEV (
+                sequence: 6
+            )
+
+            displayColumn SEVERITY (
+                sequence: 1
+            )
+
+            displayColumn VALUE_CELL (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p653Filters
+        }
+    )
+
+    region filter-drawer (
+        name: Advanced Filters
+        type: staticContent
+        layout {
+            sequence: 12
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/inline-drawer
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-filterdrawer
+                js-dialog-class-t-Drawer--pullOutEnd
+            ]
+        }
+        advanced {
+            htmlDomId: p653Drawer
+        }
+    )
+
+    region item-chart (
+        name: Top 10 Items by Sales
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select ITEM_NAME, ITEM_CODE, VALUE_LAC
+                  From (Select nvl(Max(i.ItemName), b.ItemCode) ITEM_NAME, b.ItemCode ITEM_CODE,
+                               Round(Sum(b.Amount)/100000,2) VALUE_LAC
+                          From CCInvoice a
+                          Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                          Join CCInvoiceDetail b On b.TNo = a.TNo
+                          Left Join Item i On i.ItemCode = b.ItemCode
+                         Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                           And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                           And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                           And (
+                               :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                           )
+                           And (
+                               :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                           )
+                           And (
+                               :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                           )
+                           And (
+                               :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                           )
+                           And (
+                               :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                           )
+                           And (
+                               :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                           )
+                           And (
+                               :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                           )
+                           And (
+                               :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                           )
+                           And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                  (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                                 Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                         Group By b.ItemCode
+                        Having Sum(b.Amount) > 0
+                         Order By Sum(b.Amount) Desc)
+                 Where Rownum <= 10
+                 Order By VALUE_LAC
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 80
+            slot: body
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 320
+        }
+        messages {
+            whenNoDataFound: No item has any sales value in this period and scope.
+        }
+
+        series itm (
+            name: Sales Value (Rs Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: ITEM_NAME
+                value: VALUE_LAC
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 656
+                    items: {
+                        P656_ITEM_CODE: &ITEM_CODE.
+                        P656_FROMDATE: &P653_FROMDATE.
+                        P656_TODATE: &P653_TODATE.
+                        P656_COMPANY: &P653_COMPANY.
+                        P656_LOCATION: &P653_LOCATION.
+                        P656_PANEL: &P653_PANEL.
+                        P656_PARTY_CODE: &P653_PARTY.
+                    }
+                    clearCache: 656
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lac
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region item-table (
+        name: Item and Specification Performance
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  b.ItemCode As ITEMCODE,
+                  nvl(Max(i.ItemName), b.ItemCode) As ITEM_NAME,
+                  b.ItemSpecificationCode As SPEC,
+                  Max(i.MeasuringUnitCode1) As UOM,
+                  Count(Distinct a.TNo) As INVOICES,
+                  Sum(b.Quantity1) As QTY1,
+                  Sum(b.Amount) As SALES_VALUE,
+                  Case When Sum(b.Quantity1) > 0
+                       Then Round(Sum(b.Amount)/Sum(b.Quantity1),2) End As AVG_RATE,
+                  '<div class="ds-sharecell"><div class="ds-bar ds-bar--teal"><i style="width:'
+                    || to_char(Round(100 * Sum(b.Amount)
+                                     / Nullif(Max(Sum(b.Amount)) Over(),0)),'FM990') || '%"></i></div>'
+                    || '<span>' || to_char(Round(100 * Sum(b.Amount)
+                                     / Nullif(Sum(Sum(b.Amount)) Over(),0),1),'FM990D0')
+                    || '%</span></div>' As SHARE_CELL
+                  From CCInvoice a
+                  Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                  Join CCInvoiceDetail b On b.TNo = a.TNo
+                  Left Join Item i On i.ItemCode = b.ItemCode
+                 Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                   And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (
+                       :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                   )
+                   And (
+                       :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                   )
+                   And (
+                       :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                   )
+                   And (
+                       :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                   )
+                   And (
+                       :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                   )
+                   And (
+                       :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                   )
+                   And (
+                       :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                   )
+                   And (
+                       :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                   )
+                   And (
+                       :P653_ITEMSPEC Is Null Or b.ItemSpecificationCode = :P653_ITEMSPEC
+                   )
+                   And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                          (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                         Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                 Group By b.ItemCode, b.ItemSpecificationCode
+                 Order By Sum(b.Amount) Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+                P653_ITEMSPEC
+            ]
+        }
+        layout {
+            sequence: 100
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No item had sales in this period and scope.
+        }
+        advanced {
+            savedReportMappingIdentifier: 28073481572250052
+        }
+
+        column AVG_RATE (
+            type: plainText
+            heading {
+                heading: Realised Rate
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column INVOICES (
+            type: plainText
+            heading {
+                heading: Invoices
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ITEMCODE (
+            type: hidden
+            heading {
+                heading: Item Code
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ITEM_NAME (
+            type: link
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 656
+                    items: {
+                        P656_ITEM_CODE: #ITEMCODE#
+                        P656_FROMDATE: &P653_FROMDATE.
+                        P656_TODATE: &P653_TODATE.
+                        P656_COMPANY: &P653_COMPANY.
+                        P656_LOCATION: &P653_LOCATION.
+                        P656_PANEL: &P653_PANEL.
+                    }
+                    clearCache: 656
+                    debug: NO
+                }
+                linkText: #ITEM_NAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column QTY1 (
+            type: plainText
+            heading {
+                heading: Quantity
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column SALES_VALUE (
+            type: plainText
+            heading {
+                heading: Sales Value
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column SHARE_CELL (
+            type: plainText
+            heading {
+                heading: Share
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SPEC (
+            type: plainText
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: UOM
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AVG_RATE (
+                sequence: 8
+            )
+
+            displayColumn INVOICES (
+                sequence: 5
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 1
+            )
+
+            displayColumn ITEM_NAME (
+                sequence: 2
+            )
+
+            displayColumn QTY1 (
+                sequence: 6
+            )
+
+            displayColumn SALES_VALUE (
+                sequence: 7
+            )
+
+            displayColumn SHARE_CELL (
+                sequence: 9
+            )
+
+            displayColumn SPEC (
+                sequence: 3
+            )
+
+            displayColumn UOM (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    region kpi-strip (
+        name: Sales Pulse KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Win As (
+                       Select to_date(:P653_FROMDATE,'DD-MM-RRRR') F,
+                              to_date(:P653_TODATE,'DD-MM-RRRR')   T
+                         From dual),
+                Prv As (
+                       Select F - (T - F + 1) PF, F - 1 PT From Win),
+                -- Footer pre-aggregated to (Tno,Sno): the four taxes per line.
+                Tax As (
+                       Select TNo, SNo,
+                              Sum(Decode(FooterHeadCode,'.CGST.',FooterValue,
+                                         '.SGST.',FooterValue,'.IGST.',FooterValue,
+                                         '.TCS.', FooterValue,0)) LineTax
+                         From CCInvoiceDetailFooter
+                        Group By TNo, SNo),
+                -- CURRENT-PERIOD LINES — the value grain. LEFT JOIN keeps header-only
+                -- invoices (so the invoice count matches the register); SUM ignores nulls.
+                Cur As (
+                       Select a.TNo, a.PartyCode, a.LocationCode, a.CCInvoiceDate,
+                              b.SNo, b.ItemCode, b.Quantity1,
+                              b.Amount, b.TotalAmount, nvl(tx.LineTax,0) LineTax
+                         From CCInvoice a
+                         Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                         Left Join CCInvoiceDetail b On b.TNo = a.TNo
+                         Left Join Tax tx On tx.TNo = b.TNo And tx.SNo = b.SNo
+                        Where a.CCInvoiceDate >= (Select F From Win)
+                          And a.CCInvoiceDate <  (Select T From Win) + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (
+                              :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                          )
+                          And (
+                              :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                          )
+                          And (
+                              :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                          )
+                          And (
+                              :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                          )
+                          And (
+                              :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                          )
+                          And (
+                              :P653_TRANSPORTER Is Null Or a.TransporterCode = :P653_TRANSPORTER
+                          )
+                          And (
+                              :P653_VEHICLENO   Is Null Or a.VehicleNo = :P653_VEHICLENO
+                          )
+                          And (
+                              :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                          )
+                          And (
+                              :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                          )
+                          And (
+                              :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                          )
+                          And (
+                              :P653_ITEMSPEC Is Null Or b.ItemSpecificationCode = :P653_ITEMSPEC
+                          )
+                          And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                 (Select ItemCode From Item
+                                   Start With ItemCode = :P653_ITEMGROUP
+                                 Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                          And (:P653_STATUS Is Null Or Exists
+                                 (Select 1 From DocumentStatusDetail dsd
+                                   Where dsd.ModuleTNo = a.TNo
+                                     And dsd.DocumentStatusCode = :P653_STATUS))),
+                -- PRIOR-PERIOD LINES — same scope, immediately preceding window.
+                Prev As (
+                       Select a.TNo, a.PartyCode, b.Amount, b.TotalAmount
+                         From CCInvoice a
+                         Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                         Left Join CCInvoiceDetail b On b.TNo = a.TNo
+                        Where a.CCInvoiceDate >= (Select PF From Prv)
+                          And a.CCInvoiceDate <  (Select PT From Prv) + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (
+                              :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                          )
+                          And (
+                              :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                          )
+                          And (
+                              :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                          )
+                          And (
+                              :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                          )
+                          And (
+                              :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                          )
+                          And (
+                              :P653_TRANSPORTER Is Null Or a.TransporterCode = :P653_TRANSPORTER
+                          )
+                          And (
+                              :P653_VEHICLENO   Is Null Or a.VehicleNo = :P653_VEHICLENO
+                          )
+                          And (
+                              :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                          )
+                          And (
+                              :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                          )
+                          And (
+                              :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                          )
+                          And (
+                              :P653_ITEMSPEC Is Null Or b.ItemSpecificationCode = :P653_ITEMSPEC
+                          )
+                          And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                 (Select ItemCode From Item
+                                   Start With ItemCode = :P653_ITEMGROUP
+                                 Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))),
+                Agg As (
+                       Select Sum(Amount) Val, Sum(TotalAmount) Inv, Sum(LineTax) Tax,
+                              Count(SNo) Lines, Count(Distinct TNo) Invoices,
+                              Count(Distinct ItemCode) Items,
+                              Count(Distinct PartyCode) Parties,
+                              Count(Distinct LocationCode) Locs,
+                              Sum(Quantity1) Qty
+                         From Cur),
+                PrvAgg As (
+                       Select Sum(Amount) Val, Sum(TotalAmount) Inv,
+                              Count(Distinct TNo) Invoices,
+                              Count(Distinct PartyCode) Parties
+                         From Prev),
+                -- DAILY roll-up for the sparklines (cards 1-3). Daily (not monthly)
+                -- so even a short period draws a real up-and-down line instead of a
+                -- single flat point.
+                SparkM As (
+                       Select Trunc(CCInvoiceDate,'DD') mn,
+                              Sum(Amount) val, Sum(TotalAmount) inv,
+                              Count(Distinct TNo) invs
+                         From Cur Group By Trunc(CCInvoiceDate,'DD')),
+                SparkSV As (
+                       Select Case When Pts Is Null Then ''
+                            Else '<svg class="ds-spark ds-spark--gold" viewBox="0 0 100 36" '
+                              || 'preserveAspectRatio="none" aria-hidden="true">'
+                              || '<polygon class="ds-spark-fill" points="0,36 ' || Pts || ' 100,36"/>'
+                              || '<polyline class="ds-spark-line" points="' || Pts || '"/>'
+                              || '</svg>' End Svg
+                         From (Select Listagg(px||','||py, ' ') Within Group (Order By rn) Pts
+                                 From (Select Round((rn-1)*100/Greatest(cnt-1,1)) px,
+                                              Round(33 - (v-lo)*30/Greatest(hi-lo,1)) py, rn
+                                         From (Select val v, Row_Number() Over(Order By mn) rn,
+                                                      Count(*) Over() cnt,
+                                                      Min(val) Over() lo, Max(val) Over() hi
+                                                 From SparkM)))),
+                SparkIV As (
+                       Select Case When Pts Is Null Then ''
+                            Else '<svg class="ds-spark ds-spark--blue" viewBox="0 0 100 36" '
+                              || 'preserveAspectRatio="none" aria-hidden="true">'
+                              || '<polygon class="ds-spark-fill" points="0,36 ' || Pts || ' 100,36"/>'
+                              || '<polyline class="ds-spark-line" points="' || Pts || '"/>'
+                              || '</svg>' End Svg
+                         From (Select Listagg(px||','||py, ' ') Within Group (Order By rn) Pts
+                                 From (Select Round((rn-1)*100/Greatest(cnt-1,1)) px,
+                                              Round(33 - (v-lo)*30/Greatest(hi-lo,1)) py, rn
+                                         From (Select inv v, Row_Number() Over(Order By mn) rn,
+                                                      Count(*) Over() cnt,
+                                                      Min(inv) Over() lo, Max(inv) Over() hi
+                                                 From SparkM)))),
+                SparkNI As (
+                       Select Case When Pts Is Null Then ''
+                            Else '<svg class="ds-spark ds-spark--blue" viewBox="0 0 100 36" '
+                              || 'preserveAspectRatio="none" aria-hidden="true">'
+                              || '<polygon class="ds-spark-fill" points="0,36 ' || Pts || ' 100,36"/>'
+                              || '<polyline class="ds-spark-line" points="' || Pts || '"/>'
+                              || '</svg>' End Svg
+                         From (Select Listagg(px||','||py, ' ') Within Group (Order By rn) Pts
+                                 From (Select Round((rn-1)*100/Greatest(cnt-1,1)) px,
+                                              Round(33 - (v-lo)*30/Greatest(hi-lo,1)) py, rn
+                                         From (Select invs v, Row_Number() Over(Order By mn) rn,
+                                                      Count(*) Over() cnt,
+                                                      Min(invs) Over() lo, Max(invs) Over() hi
+                                                 From SparkM))))
+                Select
+                  -- 1. TOTAL SALES VALUE --------------------------------------------
+                  '<div class="ds-kpi ds-kpi--value" title="SUM(CCInvoiceDetail.Amount) — '
+                  || 'taxable line value; reconciles to the CC Invoice Register.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-inr"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Total Sales Value</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.Val,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(a.Val/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(a.Val,0) >= 100000
+                             Then 'Rs ' || to_char(Round(a.Val/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(a.Val,0),'FM99G99G990D00') End
+                     || '</span><span class="ds-kpi-sub">'
+                     || Case When nvl(pa.Val,0) = 0
+                             Then '<span class="ds-delta ds-delta--flat">No prior period</span>'
+                             When a.Val > pa.Val
+                             Then '<span class="ds-delta ds-delta--up">&uarr; '
+                                  || to_char(Round(100*(a.Val-pa.Val)/pa.Val,1),'FM99999990D0') || '%</span>'
+                             When a.Val < pa.Val
+                             Then '<span class="ds-delta ds-delta--down">&darr; '
+                                  || to_char(Round(100*(pa.Val-a.Val)/pa.Val,1),'FM99999990D0') || '%</span>'
+                             Else '<span class="ds-delta ds-delta--flat">no change</span>' End
+                     || ' &middot; ' || to_char(nvl(a.Lines,0),'FM999G999') || ' lines'
+                  || '</span></span>' || sv.Svg || '</div>' As KPI1,
+                  -- 2. TOTAL INVOICE VALUE ------------------------------------------
+                  '<div class="ds-kpi ds-kpi--bill" title="SUM(CCInvoiceDetail.TotalAmount) — '
+                  || 'sales value plus all footer taxes/charges.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-file-text-o"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Total Invoice Value</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.Inv,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(a.Inv/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(a.Inv,0) >= 100000
+                             Then 'Rs ' || to_char(Round(a.Inv/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(a.Inv,0),'FM99G99G990D00') End
+                     || '</span><span class="ds-kpi-sub">'
+                     || Case When nvl(pa.Inv,0) = 0
+                             Then '<span class="ds-delta ds-delta--flat">No prior period</span>'
+                             When a.Inv > pa.Inv
+                             Then '<span class="ds-delta ds-delta--up">&uarr; '
+                                  || to_char(Round(100*(a.Inv-pa.Inv)/pa.Inv,1),'FM99999990D0') || '%</span>'
+                             When a.Inv < pa.Inv
+                             Then '<span class="ds-delta ds-delta--down">&darr; '
+                                  || to_char(Round(100*(pa.Inv-a.Inv)/pa.Inv,1),'FM99999990D0') || '%</span>'
+                             Else '<span class="ds-delta ds-delta--flat">no change</span>' End
+                     || ' &middot; value plus tax</span></span>' || iv.Svg || '</div>' As KPI2,
+                  -- 3. TOTAL INVOICES (drills to the register) ----------------------
+                  '<a class="ds-kpi ds-kpi--input ds-kpi--link" href="'
+                  || apex_page.get_url(p_page => 56, p_clear_cache => '56',
+                       p_items  => 'P56_FROMDATE,P56_TODATE,P56_COMPANY,P56_LOCATION',
+                       p_values => :P653_FROMDATE ||','|| :P653_TODATE ||','|| :P653_COMPANY ||','|| :P653_LOCATION)
+                  || '" title="COUNT(DISTINCT CCInvoice.TNo) in the period.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-list-alt"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Total Invoices</span>'
+                  || '<span class="ds-kpi-n">' || to_char(nvl(a.Invoices,0),'FM999G999G999') || '</span>'
+                  || '<span class="ds-kpi-sub">'
+                     || Case When nvl(pa.Invoices,0) = 0
+                             Then '<span class="ds-delta ds-delta--flat">No prior period</span>'
+                             When a.Invoices > pa.Invoices
+                             Then '<span class="ds-delta ds-delta--up">&uarr; '
+                                  || to_char(Round(100*(a.Invoices-pa.Invoices)/pa.Invoices,1),'FM99999990D0') || '%</span>'
+                             When a.Invoices < pa.Invoices
+                             Then '<span class="ds-delta ds-delta--down">&darr; '
+                                  || to_char(Round(100*(pa.Invoices-a.Invoices)/pa.Invoices,1),'FM99999990D0') || '%</span>'
+                             Else '<span class="ds-delta ds-delta--flat">no change</span>' End
+                     || ' &middot; open the register</span></span>' || ni.Svg || '</a>' As KPI3,
+                  -- 4. AVERAGE INVOICE VALUE ----------------------------------------
+                  '<div class="ds-kpi ds-kpi--struct" title="Total invoice value divided by '
+                  || 'distinct invoices.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-calculator"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Average Invoice Value</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.Invoices,0) = 0 Then 'Rs 0'
+                             Else Case When a.Inv/a.Invoices >= 10000000
+                                       Then 'Rs ' || to_char(Round(a.Inv/a.Invoices/10000000,2),'FM99G990D00') || ' Cr'
+                                       When a.Inv/a.Invoices >= 100000
+                                       Then 'Rs ' || to_char(Round(a.Inv/a.Invoices/100000,2),'FM99G990D00') || ' L'
+                                       Else 'Rs ' || to_char(Round(a.Inv/a.Invoices),'FM99G99G990') End
+                        End
+                     || '</span><span class="ds-kpi-sub">across '
+                     || to_char(nvl(a.Invoices,0),'FM999G999') || ' invoices</span></span></div>' As KPI4,
+                  -- 5. BILLED CUSTOMERS ---------------------------------------------
+                  '<a class="ds-kpi ds-kpi--users ds-kpi--link" href="'
+                  || apex_page.get_url(p_page => 655, p_clear_cache => '655',
+                       p_items  => 'P655_FROMDATE,P655_TODATE,P655_COMPANY,P655_LOCATION,P655_PANEL',
+                       p_values => :P653_FROMDATE ||','|| :P653_TODATE ||','|| :P653_COMPANY ||','|| :P653_LOCATION ||','|| :P653_PANEL)
+                  || '" title="COUNT(DISTINCT CCInvoice.PartyCode) in the period.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-users"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Billed Customers</span>'
+                  || '<span class="ds-kpi-n">' || to_char(nvl(a.Parties,0),'FM999G999') || '</span>'
+                  || '<span class="ds-kpi-sub">'
+                     || Case When nvl(pa.Parties,0) = 0
+                             Then '<span class="ds-delta ds-delta--flat">No prior period</span>'
+                             When a.Parties > pa.Parties
+                             Then '<span class="ds-delta ds-delta--up">&uarr; '
+                                  || to_char(Round(100*(a.Parties-pa.Parties)/pa.Parties,1),'FM99999990D0') || '%</span>'
+                             When a.Parties < pa.Parties
+                             Then '<span class="ds-delta ds-delta--down">&darr; '
+                                  || to_char(Round(100*(pa.Parties-a.Parties)/pa.Parties,1),'FM99999990D0') || '%</span>'
+                             Else '<span class="ds-delta ds-delta--flat">no change</span>' End
+                     || ' &middot; distinct parties invoiced</span></span></a>' As KPI5,
+                  -- 6. SELLING LOCATIONS --------------------------------------------
+                  '<div class="ds-kpi ds-kpi--move" title="COUNT(DISTINCT CCInvoice.LocationCode).">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-map-marker"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Selling Locations</span>'
+                  || '<span class="ds-kpi-n">' || to_char(nvl(a.Locs,0),'FM999G999') || '</span>'
+                  || '<span class="ds-kpi-sub">locations that raised an invoice</span></span></div>' As KPI6,
+                  -- 7. ITEMS SOLD / INVOICE LINES -----------------------------------
+                  '<a class="ds-kpi ds-kpi--suppl ds-kpi--link" href="'
+                  || apex_page.get_url(p_page => 656, p_clear_cache => '656',
+                       p_items  => 'P656_FROMDATE,P656_TODATE,P656_COMPANY,P656_LOCATION,P656_PANEL',
+                       p_values => :P653_FROMDATE ||','|| :P653_TODATE ||','|| :P653_COMPANY ||','|| :P653_LOCATION ||','|| :P653_PANEL)
+                  || '" title="Invoice lines (headline), distinct items and primary-unit '
+                  || 'quantity — the three legitimate readings of &quot;items sold&quot;.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-cubes"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Items Sold &middot; Invoice Lines</span>'
+                  || '<span class="ds-kpi-n">' || to_char(nvl(a.Lines,0),'FM999G999G999') || '</span>'
+                  || '<span class="ds-kpi-sub">' || to_char(nvl(a.Items,0),'FM999G999')
+                     || ' distinct items &middot; ' || to_char(nvl(a.Qty,0),'FM999G999G990')
+                     || ' qty (primary UOM)</span></span></a>' As KPI7,
+                  -- 8. TOTAL TAX ----------------------------------------------------
+                  '<div class="ds-kpi ds-kpi--freight" title="SUM(CGST+SGST+IGST+TCS) from the '
+                  || 'footer pre-aggregate.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-percent"></span></span>'
+                  || '<span class="ds-kpi-body"><span class="ds-kpi-t">Total Tax</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.Tax,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(a.Tax/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(a.Tax,0) >= 100000
+                             Then 'Rs ' || to_char(Round(a.Tax/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(a.Tax,0),'FM99G99G990D00') End
+                     || '</span><span class="ds-kpi-sub">'
+                     || Case When nvl(a.Val,0) > 0
+                             Then to_char(Round(100*nvl(a.Tax,0)/a.Val,1),'FM99999990D0') || '% of sales value'
+                             Else 'no sales value in period' End
+                     || '</span></span></div>' As KPI8
+                From Agg a
+                Cross Join PrvAgg pa
+                Cross Join SparkSV sv
+                Cross Join SparkIV iv
+                Cross Join SparkNI ni
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_TRANSPORTER
+                P653_VEHICLENO
+                P653_ITEMGROUP
+                P653_ITEM
+                P653_ITEMSPEC
+                P653_STATUS
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: No sales activity in this period and scope.
+        }
+
+        column KPI1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI7 (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            layout {
+                sequence: 70
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI8 (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            layout {
+                sequence: 80
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region location-chart (
+        name: Sales by Location
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(GetLocationName(a.LocationCode), a.LocationCode) LOC_NAME,
+                       a.LocationCode LOC_CODE,
+                       Round(Sum(b.Amount)/100000,2) VALUE_LAC
+                  From CCInvoice a
+                  Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                  Join CCInvoiceDetail b On b.TNo = a.TNo
+                 Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                   And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (
+                       :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                   )
+                   And (
+                       :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                   )
+                   And (
+                       :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                   )
+                   And (
+                       :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                   )
+                   And (
+                       :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                   )
+                   And (
+                       :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                   )
+                   And (
+                       :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                   )
+                   And (
+                       :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                   )
+                   And (
+                       :P653_ITEMSPEC Is Null Or b.ItemSpecificationCode = :P653_ITEMSPEC
+                   )
+                   And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                          (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                         Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                 Group By a.LocationCode
+                Having Sum(b.Amount) > 0
+                 Order By Sum(b.Amount)
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+                P653_ITEMSPEC
+            ]
+        }
+        layout {
+            sequence: 45
+            slot: body
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No location has any sales value in this period and scope.
+        }
+
+        series loc (
+            name: Sales Value (Rs Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LOC_NAME
+                value: VALUE_LAC
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 654
+                    items: {
+                        P654_LOCATION_CODE: &LOC_CODE.
+                        P654_FROMDATE: &P653_FROMDATE.
+                        P654_TODATE: &P653_TODATE.
+                        P654_COMPANY: &P653_COMPANY.
+                        P654_PANEL: &P653_PANEL.
+                    }
+                    clearCache: 654
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lac
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region page-style (
+        name: Sales Theme
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <style>
+                /* Token re-skin: accent gold -> blue. Recolours KPI value rails,
+                   section markers, chip icons, drill anchors, gateway, filters label. */
+                body:has(.ds-sales-headregion){
+                  --sales-primary:#4F46E5; --sales-secondary:#6D5CE7; --sales-accent:#3730A3;
+                  --ds-dash-gold:#4F46E5; --ds-dash-gold-bg:#EEF0FE;
+                  --ds-dash-ink:#1E1B4B; --ds-dash-ink2:#4C4A6E;
+                  --ds-dash-canvas:#F7F7FB; --ds-dash-tinted:#F2F2F9; --ds-dash-line:#E4E4F0;
+                }
+                body:has(.ds-sales-headregion) .ds-kpi--value{--ds-kpi-accent:#6D5CE7;--ds-kpi-accent-bg:#EEF0FE;}
+                body:has(.ds-sales-headregion) .ds-kpi--bill {--ds-kpi-accent:#3B82C4;--ds-kpi-accent-bg:#E8F1FB;}
+                body:has(.ds-sales-headregion) .ds-kpi--input{--ds-kpi-accent:#0E7C86;--ds-kpi-accent-bg:#E4F4F5;}
+                body:has(.ds-sales-headregion) .ds-purchase-section::before{background:linear-gradient(180deg,#6D5CE7,#3730A3);}
+                body:has(.ds-sales-headregion) .ds-spark--gold .ds-spark-line{stroke:#4F46E5;}
+                body:has(.ds-sales-headregion) .ds-spark--gold .ds-spark-fill{fill:#4F46E5;}
+                body:has(.ds-sales-headregion) .ds-spark--blue .ds-spark-line{stroke:#3730A3;}
+                body:has(.ds-sales-headregion) .ds-spark--blue .ds-spark-fill{fill:#3730A3;}
+                body:has(.ds-sales-headregion) .ds-dash-filters::before{
+                  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231D6FB8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolygon points='22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3'/%3E%3C/svg%3E") left center / 14px 14px no-repeat;
+                }
+                body:has(.ds-sales-headregion) .ds-dash-filters::after{display:none;}
+                /* Sales HERO band (the hub). */
+                .ds-sales-hero{position:relative;overflow:hidden;padding:24px 26px 20px;
+                  border:1px solid #C7C5EE;border-radius:16px;
+                  background:radial-gradient(130% 130% at 92% 8%, rgba(109,92,231,.30) 0%, rgba(109,92,231,0) 48%),
+                    radial-gradient(120% 120% at 0% 100%, rgba(55,48,163,.20) 0%, rgba(55,48,163,0) 44%),
+                    linear-gradient(120deg,#D9D8F4 0%,#D2CFF0 34%,#DED9F6 66%,#EAE7FC 100%);
+                  box-shadow:0 1px 2px rgba(16,24,40,.05),0 12px 34px rgba(79,70,229,.12);}
+                .ds-sales-hero-row{position:relative;z-index:1;display:flex;align-items:flex-start;gap:16px;}
+                .ds-sales-hero-icon{flex:0 0 auto;display:grid;place-items:center;width:54px;height:54px;
+                  border-radius:14px;color:#fff;font-size:22px;
+                  background:linear-gradient(135deg,#6366F1 0%,#4F46E5 100%);
+                  box-shadow:0 6px 16px rgba(79,70,229,.32);}
+                .ds-sales-hero-text{display:flex;flex-direction:column;}
+                .ds-sales-hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;
+                  text-transform:uppercase;color:#4F46E5;margin-bottom:3px;}
+                .ds-sales-hero-title{font-size:27px;font-weight:700;line-height:1.15;
+                  letter-spacing:-.02em;color:#1E1B4B;}
+                .ds-sales-hero-sub{margin-top:6px;font-size:13.5px;line-height:1.5;color:#4C4A6E;max-width:56ch;}
+                .ds-sales-hero-cta{position:absolute;top:22px;right:24px;z-index:3;display:inline-flex;
+                  align-items:center;gap:8px;padding:10px 18px;font-size:13px;font-weight:600;
+                  text-decoration:none;color:#fff;background:linear-gradient(135deg,#6366F1 0%,#4F46E5 100%);
+                  border-radius:10px;box-shadow:0 6px 16px rgba(79,70,229,.28);
+                  transition:transform .16s ease,box-shadow .16s ease;}
+                .ds-sales-hero-cta:hover,.ds-sales-hero-cta:focus{color:#fff;text-decoration:none;
+                  transform:translateY(-1px);box-shadow:0 10px 22px rgba(79,70,229,.36);}
+                .ds-sales-hero-art{position:absolute;bottom:2px;right:18px;width:300px;height:232px;
+                  max-width:42%;opacity:1;pointer-events:none;z-index:0;}
+                @media (max-width:1160px){.ds-sales-hero-art{display:none;}}
+                .ds-sales-hero-chips{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;max-width:62%;}
+                /* Sales command header (drill pages 654-657). */
+                .ds-sales-head{position:relative;padding:20px 22px 18px;background:var(--ds-dash-surface);
+                  border-left:3px solid #1D6FB8;border:1px solid var(--ds-dash-line);
+                  border-radius:var(--ds-dash-radius);box-shadow:var(--ds-dash-shadow);}
+                .ds-sales-head-eyebrow{font-size:11px;font-weight:700;letter-spacing:.10em;
+                  text-transform:uppercase;color:#1D6FB8;margin-bottom:4px;}
+                .ds-sales-head-title{margin:0;font-size:25px;font-weight:600;letter-spacing:-.01em;
+                  line-height:1.2;color:#0B2A45;}
+                .ds-sales-head-sub{margin:5px 0 0;font-size:13px;line-height:1.5;color:#33506B;max-width:74ch;}
+                .ds-sales-head-context{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
+                /* This page carries its title in the hero/header, so hide the app title card.
+                   Scoped + double-class to beat the theme's own .hspl-hero-card rule. */
+                html.page-653 .t-Body-title.hspl-hero-card,
+                html.page-653 .t-Body-title{display:none !important;}
+                </style>
+                ```
+        }
+        layout {
+            sequence: 1
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region product-mix (
+        name: Product Mix
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With V As (
+                       Select b.ItemCode,
+                              nvl(Max(i.ItemName), b.ItemCode) Nm,
+                              Sum(b.Amount) Val,
+                              Row_Number() Over(Order By Sum(b.Amount) Desc) rn
+                         From CCInvoice a
+                         Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                         Join CCInvoiceDetail b On b.TNo = a.TNo
+                         Left Join Item i On i.ItemCode = b.ItemCode
+                        Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                          And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (
+                              :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                          )
+                          And (
+                              :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                          )
+                          And (
+                              :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                          )
+                          And (
+                              :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                          )
+                          And (
+                              :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                          )
+                          And (
+                              :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                          )
+                          And (
+                              :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                          )
+                          And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                 (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                                Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                        Group By b.ItemCode)
+                Select Case When rn <= 6 Then Nm Else 'All other items' End SEG,
+                       Round(Sum(Val)/100000,2) VAL
+                  From V
+                 Group By Case When rn <= 6 Then Nm Else 'All other items' End
+                 Order By 2 Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+            ]
+        }
+        layout {
+            sequence: 85
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 320
+        }
+        messages {
+            whenNoDataFound: No item sales in this period and scope.
+        }
+
+        series mix (
+            name: Rs Lac
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: SEG
+                value: VAL
+            }
+        )
+
+    )
+
+    region quick-periods (
+        name: Quick Periods
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-periods">
+                  <span class="ds-periods-lbl">Quick period</span>
+                  <button type="button" class="ds-period" data-range="month">This Month</button>
+                  <button type="button" class="ds-period" data-range="quarter">This Quarter</button>
+                  <button type="button" class="ds-period" data-range="fy">This FY</button>
+                  <button type="button" class="ds-period" data-range="d30">Last 30 Days</button>
+                  <button type="button" class="ds-period" data-range="d90">Last 90 Days</button>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 11
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-periods-wrap
+        }
+    )
+
+    region rule-customer (
+        name: Customer Intelligence
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Customer Intelligence</h2>
+                  <p>Who the book depends on. Top customers and the customer performance table
+                     drill to Customer Analysis; the concentration donut deliberately ignores
+                     the customer filter, because a concentration measure narrowed to one
+                     customer is meaningless.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 55
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-exceptions (
+        name: Commercial Exceptions
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Commercial Exceptions</h2>
+                  <p>Control failures worth acting on, each with a severity, the value at stake
+                     where it can be quantified, and a direct drill to the invoice behind it.
+                     Every rule was counted against the schema before it was written; two
+                     blueprint rules that would fire on everyone (voucher missing) or never
+                     (missing specification) are excluded and shown as information on the
+                     activity table instead.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 105
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-market (
+        name: Location and Market
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Location &amp; Market</h2>
+                  <p>Where the revenue is raised and where the customers sit. Location is
+                     uncapped and drills to Location Analysis; state is the customer's office
+                     state (Party.OfficeStateCode), top 12 — there is no geo-coding, so no map
+                     is drawn.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-product (
+        name: Product and Channel
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Product &amp; Channel</h2>
+                  <p>What sells and how it reaches the customer. Top items and the item &times;
+                     specification table drill to Item Analysis; the product mix ignores the
+                     item filter; un-agented invoices are named "Agent not recorded" rather than
+                     dropped; and the document-status donut shows whether the book is clean.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 75
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-pulse (
+        name: Sales Pulse
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Sales Pulse</h2>
+                  <p>Where the period stands. Value is the taxable invoice line
+                     (CCInvoiceDetail.Amount) and reconciles to the CC Invoice Register;
+                     invoice value adds all footer taxes. Each comparable card measures against
+                     the immediately preceding period of equal length, and says so plainly
+                     where there is no prior period.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 15
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-trend (
+        name: Revenue Performance
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Revenue Performance</h2>
+                  <p>Sales over time at monthly grain — taxable value and invoice value as two
+                     series, grouped and ordered on the truncated month — and what the invoice
+                     value is made of. TCS is legitimately nil in this book, so its slice never
+                     appears; empty charge heads are omitted rather than shown as blank wedges.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 25
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region state-chart (
+        name: Sales by State
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select STATE_NAME, VALUE_LAC From (
+                  Select nvl(GetStateName(p.OfficeStateCode),'Not recorded') STATE_NAME,
+                         Round(Sum(b.Amount)/100000,2) VALUE_LAC
+                    From CCInvoice a
+                    Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                    Join CCInvoiceDetail b On b.TNo = a.TNo
+                    Left Join Party p On p.PartyCode = a.PartyCode
+                   Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                     And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And (
+                         :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                     )
+                     And (
+                         :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                     )
+                     And (
+                         :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                     )
+                     And (
+                         :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                     )
+                     And (
+                         :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                     )
+                     And (
+                         :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                     )
+                     And (
+                         :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                     )
+                     And (
+                         :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                     )
+                     And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                            (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                           Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                   Group By nvl(GetStateName(p.OfficeStateCode),'Not recorded')
+                  Having Sum(b.Amount) > 0
+                   Order By Sum(b.Amount) Desc)
+                 Where Rownum <= 12
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 50
+            slot: body
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No customer state has any sales value in this period and scope.
+        }
+
+        series st (
+            name: Sales Value (Rs Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: STATE_NAME
+                value: VALUE_LAC
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lac
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region status-mix (
+        name: Invoices by Document Status
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(dsd.DocumentStatusCode,'NO STATUS ROW') STATUS_CODE,
+                       Count(Distinct a.TNo) INVOICES
+                  From CCInvoice a
+                  Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                  Left Join DocumentStatusDetail dsd On dsd.ModuleTNo = a.TNo
+                 Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                   And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (
+                       :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                   )
+                   And (
+                       :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                   )
+                   And (
+                       :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                   )
+                   And (
+                       :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                   )
+                   And (
+                       :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                   )
+                   And (
+                       :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                   )
+                   And (
+                       :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                   )
+                 Group By nvl(dsd.DocumentStatusCode,'NO STATUS ROW')
+                 Order By 2 Desc
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+            ]
+        }
+        layout {
+            sequence: 95
+            slot: body
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No invoices in this period and scope.
+        }
+
+        series stat (
+            name: Invoices
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: STATUS_CODE
+                value: INVOICES
+            }
+        )
+
+    )
+
+    region tax-composition (
+        name: Tax and Charge Composition
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Sc As (
+                       Select b.FooterAmount,
+                              nvl(tx.Cgst,0) Cgst, nvl(tx.Sgst,0) Sgst,
+                              nvl(tx.Igst,0) Igst, nvl(tx.Tcs,0) Tcs
+                         From CCInvoice a
+                         Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                         Join CCInvoiceDetail b On b.TNo = a.TNo
+                         Left Join (Select TNo, SNo,
+                                      Sum(Decode(FooterHeadCode,'.CGST.',FooterValue,0)) Cgst,
+                                      Sum(Decode(FooterHeadCode,'.SGST.',FooterValue,0)) Sgst,
+                                      Sum(Decode(FooterHeadCode,'.IGST.',FooterValue,0)) Igst,
+                                      Sum(Decode(FooterHeadCode,'.TCS.', FooterValue,0)) Tcs
+                                    From CCInvoiceDetailFooter Group By TNo, SNo) tx
+                                On tx.TNo = b.TNo And tx.SNo = b.SNo
+                        Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                          And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (
+                              :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                          )
+                          And (
+                              :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                          )
+                          And (
+                              :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                          )
+                          And (
+                              :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                          )
+                          And (
+                              :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                          )
+                          And (
+                              :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                          )
+                          And (
+                              :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                          )
+                          And (
+                              :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                          )
+                          And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                                 (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                                Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY)))
+                Select HEAD, VAL From (
+                       Select 'CGST' HEAD, Round(Sum(Cgst)/100000,2) VAL, 1 o From Sc
+                       Union All Select 'SGST', Round(Sum(Sgst)/100000,2), 2 From Sc
+                       Union All Select 'IGST', Round(Sum(Igst)/100000,2), 3 From Sc
+                       Union All Select 'TCS',  Round(Sum(Tcs)/100000,2),  4 From Sc
+                       Union All Select 'Other charges',
+                              Round((Sum(FooterAmount) - Sum(Cgst+Sgst+Igst+Tcs))/100000,2), 5 From Sc)
+                 Where nvl(VAL,0) <> 0
+                 Order By o
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_ITEMGROUP
+                P653_ITEM
+            ]
+        }
+        layout {
+            sequence: 35
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No tax or charges were booked in this period and scope.
+        }
+
+        series tax-heads (
+            name: Rs Lac
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: HEAD
+                value: VAL
+            }
+        )
+
+    )
+
+    region trend-chart (
+        name: Monthly Sales Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select to_char(Trunc(a.CCInvoiceDate,'MM'),'Mon-RR') MONTH_LABEL,
+                       Round(Sum(b.Amount)/100000,2)      SALES_LAC,
+                       Round(Sum(b.TotalAmount)/100000,2) INVOICE_LAC,
+                       Trunc(a.CCInvoiceDate,'MM') SORT_KEY
+                  From CCInvoice a
+                  Left Join SalesOrder so On so.TNo = a.SalesOrderTNo
+                  Join CCInvoiceDetail b On b.TNo = a.TNo
+                 Where a.CCInvoiceDate >= to_date(:P653_FROMDATE,'DD-MM-RRRR')
+                   And a.CCInvoiceDate <  to_date(:P653_TODATE,'DD-MM-RRRR') + 1
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (
+                       :P653_PANEL    Is Null Or a.Panel        = :P653_PANEL
+                   )
+                   And (
+                       :P653_COMPANY  Is Null Or a.CompanyCode  = :P653_COMPANY
+                   )
+                   And (
+                       :P653_LOCATION Is Null Or a.LocationCode = :P653_LOCATION
+                   )
+                   And (
+                       :P653_DOCTYPE  Is Null Or a.DocTypeCode  = :P653_DOCTYPE
+                   )
+                   And (
+                       :P653_PARTY    Is Null Or a.PartyCode    = :P653_PARTY
+                   )
+                   And (
+                       :P653_TRANSPORTER Is Null Or a.TransporterCode = :P653_TRANSPORTER
+                   )
+                   And (
+                       :P653_VEHICLENO   Is Null Or a.VehicleNo = :P653_VEHICLENO
+                   )
+                   And (
+                       :P653_AGENT     Is Null Or so.AgentCode     = :P653_AGENT
+                   )
+                   And (
+                       :P653_TRADETYPE Is Null Or so.TradeTypeCode = :P653_TRADETYPE
+                   )
+                   And (
+                       :P653_ITEM     Is Null Or b.ItemCode = :P653_ITEM
+                   )
+                   And (
+                       :P653_ITEMSPEC Is Null Or b.ItemSpecificationCode = :P653_ITEMSPEC
+                   )
+                   And (:P653_ITEMGROUP Is Null Or b.ItemCode In
+                          (Select ItemCode From Item Start With ItemCode = :P653_ITEMGROUP
+                         Connect By Prior ItemCode = ParentCode))
+                           And (:P653_CATEGORY Is Null Or b.ItemCode In (Select ic.ItemCode From Item ic Where ic.ItemCategoryCode = :P653_CATEGORY))
+                   And (:P653_STATUS Is Null Or Exists
+                          (Select 1 From DocumentStatusDetail dsd
+                            Where dsd.ModuleTNo = a.TNo And dsd.DocumentStatusCode = :P653_STATUS))
+                 Group By Trunc(a.CCInvoiceDate,'MM')
+                 Order By SORT_KEY
+                ```
+            pageItemsToSubmit: [
+                P653_FROMDATE
+                P653_TODATE
+                P653_COMPANY
+                P653_LOCATION
+                P653_PANEL
+                P653_DOCTYPE
+                P653_PARTY
+                P653_AGENT
+                P653_TRADETYPE
+                P653_TRANSPORTER
+                P653_VEHICLENO
+                P653_ITEMGROUP
+                P653_ITEM
+                P653_ITEMSPEC
+                P653_STATUS
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No invoices were booked in this period and scope, so there is nothing to plot.
+        }
+
+        series invoice-value (
+            name: Invoice Value (Rs Lac)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: MONTH_LABEL
+                value: INVOICE_LAC
+            }
+        )
+
+        series sales-value (
+            name: Sales Value (Rs Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: MONTH_LABEL
+                value: SALES_LAC
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lac
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    pageItem P653_AGENT (
+        type: popupLov
+        label {
+            label: Sales Agent
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select GetPartyName(so.AgentCode) d, so.AgentCode r
+                  From SalesOrder so
+                 Where so.AgentCode Is Not Null
+                   And Exists (
+                       Select 1 From CCInvoice a Where a.SalesOrderTNo = so.TNo
+                         And ((Select GetUserPanelAB_apex() From dual) Is Null
+                              Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   )
+                 Group By so.AgentCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All agents
+        }
+        layout {
+            sequence: 30
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_CATEGORY (
+        type: selectList
+        label {
+            label: Item category
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.ItemCategoryName d, c.ItemCategoryCode r
+                  From ItemCategory c
+                 Where Exists (Select 1 From Item i Where i.ItemCategoryCode = c.ItemCategoryCode)
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All categories
+        }
+        layout {
+            sequence: 46
+            region: @filter-drawer
+            slot: regionBody
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From CCInvoice a
+                                Where a.CompanyCode = c.CompanyCode
+                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                       Or a.Panel = (Select GetUserPanelAB_apex() From dual)))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Restricts every region to one company. The list shows only companies with an invoice you are entitled to see.
+        }
+    )
+
+    pageItem P653_DOCTYPE (
+        type: popupLov
+        label {
+            label: Document Type
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select dt.DocTypeName d, dt.DocTypeCode r
+                  From DocType dt
+                 Where Exists (
+                     Select 1 From CCInvoice a
+                      Where a.DocTypeCode = dt.DocTypeCode
+                        And ((Select GetUserPanelAB_apex() From dual) Is Null
+                             Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                 )
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All document types
+        }
+        layout {
+            sequence: 10
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate,'MM'),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Start of the reporting period. Defaults to the beginning of the current month.
+        }
+    )
+
+    pageItem P653_ITEM (
+        type: popupLov
+        label {
+            label: Item
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(Max(i.ItemName), cd.ItemCode) d, cd.ItemCode r
+                  From CCInvoiceDetail cd
+                  Left Join Item i On i.ItemCode = cd.ItemCode
+                 Group By cd.ItemCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All items
+        }
+        layout {
+            sequence: 70
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Narrows to one item. The product-mix donut deliberately ignores this filter.
+        }
+    )
+
+    pageItem P653_ITEMGROUP (
+        type: popupLov
+        label {
+            label: Item Group
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select i.ItemName d, i.ItemCode r
+                  From Item i
+                 Where i.ParentCode Is Null
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All item groups
+        }
+        layout {
+            sequence: 60
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: An item-group root. Every region expands it to its whole sub-tree via a hierarchical query.
+        }
+    )
+
+    pageItem P653_ITEMSPEC (
+        type: popupLov
+        label {
+            label: Item Specification
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select cd.ItemSpecificationCode d, cd.ItemSpecificationCode r
+                  From CCInvoiceDetail cd
+                 Where cd.ItemSpecificationCode Is Not Null
+                 Group By cd.ItemSpecificationCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All specifications
+        }
+        layout {
+            sequence: 80
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From CCInvoice a
+                                Where a.LocationCode = l.LocationCode
+                                  And (
+                                      :P653_COMPANY Is Null Or a.CompanyCode = :P653_COMPANY
+                                  )
+                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                       Or a.Panel = (Select GetUserPanelAB_apex() From dual)))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P653_COMPANY
+            itemsToSubmit: P653_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 8
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Cascades from Company.
+        }
+    )
+
+    pageItem P653_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Data partition. This control disappears when your login is bound to a panel — the restriction is then enforced in SQL and printed on the header.
+        }
+    )
+
+    pageItem P653_PARTY (
+        type: popupLov
+        label {
+            label: Customer
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select GetPartyName(a.PartyCode) d, a.PartyCode r
+                  From CCInvoice a
+                 Where ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (
+                       :P653_COMPANY Is Null Or a.CompanyCode = :P653_COMPANY
+                   )
+                 Group By a.PartyCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All customers
+        }
+        layout {
+            sequence: 20
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Narrows to one customer. The concentration donut deliberately ignores this filter.
+        }
+    )
+
+    pageItem P653_STATUS (
+        type: popupLov
+        label {
+            label: Document Status
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select dsd.DocumentStatusCode d, dsd.DocumentStatusCode r
+                  From DocumentStatusDetail dsd
+                 Where dsd.DocumentStatusCode Is Not Null
+                   And Exists (
+                       Select 1 From CCInvoice a Where a.TNo = dsd.ModuleTNo
+                         And ((Select GetUserPanelAB_apex() From dual) Is Null
+                              Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   )
+                 Group By dsd.DocumentStatusCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All statuses
+        }
+        layout {
+            sequence: 100
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: End of the reporting period. Defaults to today. The window is half-open, so the To-Date day is fully included.
+        }
+    )
+
+    pageItem P653_TRADETYPE (
+        type: popupLov
+        label {
+            label: Trade Type
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select so.TradeTypeCode d, so.TradeTypeCode r
+                  From SalesOrder so
+                 Where so.TradeTypeCode Is Not Null
+                   And Exists (
+                       Select 1 From CCInvoice a Where a.SalesOrderTNo = so.TNo
+                         And ((Select GetUserPanelAB_apex() From dual) Is Null
+                              Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                   )
+                 Group By so.TradeTypeCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All trade types
+        }
+        layout {
+            sequence: 40
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_TRANSPORTER (
+        type: popupLov
+        label {
+            label: Transporter
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select GetPartyName(a.TransporterCode) d, a.TransporterCode r
+                  From CCInvoice a
+                 Where a.TransporterCode Is Not Null
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                 Group By a.TransporterCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All transporters
+        }
+        layout {
+            sequence: 50
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P653_VEHICLENO (
+        type: popupLov
+        label {
+            label: Vehicle No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select a.VehicleNo d, a.VehicleNo r
+                  From CCInvoice a
+                 Where a.VehicleNo Is Not Null
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or a.Panel = (Select GetUserPanelAB_apex() From dual))
+                 Group By a.VehicleNo
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All vehicles
+        }
+        layout {
+            sequence: 90
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button open-filters (
+        buttonName: OPENFILTERS
+        label: More Filters
+        layout {
+            sequence: 80
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 6
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-sliders
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:apex.theme.openRegion('p653Drawer');
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button open-register (
+        buttonName: OPENREGISTER
+        label: Sales Register
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-table
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 56
+                items: {
+                    P56_FROMDATE: &P653_FROMDATE.
+                    P56_TODATE: &P653_TODATE.
+                    P56_COMPANY: &P653_COMPANY.
+                    P56_LOCATION: &P653_LOCATION.
+                }
+                clearCache: 56
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button reset-filters (
+        buttonName: RESETFILTERS
+        label: Reset All Filters
+        layout {
+            sequence: 10
+            region: @filter-drawer
+            slot: regionBody
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-undo
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 653
+                clearCache: 653
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction install-quickperiods (
+        name: Quick Period Chips
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action bind (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    apex.jQuery(document).off('click.p653period')
+                      .on('click.p653period', '.ds-period', function () {
+                        var r = this.getAttribute('data-range');
+                        var now = new Date(), f, t = now;
+                        var pad = function (n) { return ('0' + n).slice(-2); };
+                        var fmt = function (d) {
+                          return pad(d.getDate()) + '-' + pad(d.getMonth() + 1) + '-' + d.getFullYear();
+                        };
+                        if (r === 'month') { f = new Date(now.getFullYear(), now.getMonth(), 1); }
+                        else if (r === 'quarter') { f = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); }
+                        else if (r === 'fy') { var y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1; f = new Date(y, 3, 1); }
+                        else if (r === 'd30') { f = new Date(now); f.setDate(f.getDate() - 29); }
+                        else {
+                            f = new Date(now); f.setDate(f.getDate() - 89);
+                        }
+                        apex.item('P653_FROMDATE').setValue(fmt(f));
+                        apex.item('P653_TODATE').setValue(fmt(t));
+                        apex.page.submit();
+                      });
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

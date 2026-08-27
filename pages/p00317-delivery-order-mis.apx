@@ -1,0 +1,1397 @@
+page 317 (
+    name: Delivery Order MIS
+    alias: DELIVERY-ORDER-MIS
+    title: Delivery Order MIS
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/DELIVERYORDERMISREPORT.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P317_ASONDATE').val());
+            
+            var reportParams = 
+                  '&P317_COMPANY='+ $('#P317_COMPANY').val() +  
+                  '&P317_DOCTYPE=' + $('#P317_DOCTYPE').val() +  
+                  '&P317_ASONDATE=' + $('#P317_ASONDATE').val() +  
+                  '&P317_SOURCE=' +$('#P317_SOURCE').val() +  
+                  '&P317_DESTINATION=' +$('#P317_DESTINATION').val() + 
+                  '&P317_PARTYDO=' +$('#P317_PARTYDO').val() + 
+                  '&P317_BALANCEQTY=' +$('#P317_BALANCEQTY').val() +
+                  '&P317_TRIP=' +$('#P317_TRIP').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            ```
+    }
+    css {
+        inline:
+            ```css
+            .a-IRR-headerLink {
+                background-color: #383866;
+                color: white;
+            }
+            .a-IRR-table td{
+                border-color: black;
+            }
+            .a-IRR-aggregate{
+                background-color: #383866 !important;
+                color: white;
+            }
+            
+            .a-IRR-header {
+                    background-color: #383866 !important;
+                    color: white;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region delivery-order-mis-report (
+        name: Delivery Order MIS Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent4
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                :P317_ASONDATE as AsOnDate,
+                x.SOURCELOCATIONNAME,
+                x.DESTINATIONLOCATIONNAME,
+                x.PARTYDONO,
+                x.PARTYDODATE,
+                x.DUEDATE,
+                x.DOQUANTITY,
+                x.NOOFTRIPTODAY,
+                x.TODAYSLIFTED,
+                x.LIFTEDTILLDATE,
+                NVL(x.DOQUANTITY, 0) - NVL(x.LIFTEDTILLDATE, 0) - NVL(x.LAPSEDQTY, 0) as BALANCEQTY,
+                ROUND(((NVL(x.DOQUANTITY, 0) - NVL(x.LIFTEDTILLDATE, 0) - NVL(x.LAPSEDQTY, 0)) / NVL(x.BALANCEDAYS, 1)),3) as ASKINGRATE,
+                x.BALANCEDAYS,
+                x.PARTYNAME,
+                CASE WHEN x.DOQUANTITY = NVL(x.DOQUANTITY, 0) - NVL(x.LIFTEDTILLDATE, 0) - NVL(x.LAPSEDQTY, 0) THEN 'NO'
+                ELSE 'YES'
+                END AS DOSTARTED,
+                'INTERNALTRANSFER' as DATAPROCESS,
+                CASE WHEN x.DOQUANTITY = x.LIFTEDTILLDATE THEN 'GREEN'
+                     WHEN x.DUEDATE < :P317_ASONDATE and x.DOQUANTITY > x.LIFTEDTILLDATE THEN 'RED'
+                ELSE NULL
+                END AS DOSTATUS
+                FROM 
+                (SELECT
+                    DO.COMPANYCODE,
+                    DO.TNO,
+                    DO.DELIVERYORDERDATE,
+                    DO.FROMDATE,
+                    DO.TODATE,
+                    DO.DOCTYPECODE,
+                    DOD.SOURCELOCATIONTNO,
+                    DOD.DESTINATIONLOCATIONTNO,
+                    SL.SOURCELOCATIONNAME,
+                    DL.DESTINATIONLOCATIONNAME,
+                    DO.PARTYDONO,
+                    DO.PARTYDODATE,
+                    DO.TODATE     AS DUEDATE,
+                    DOD.ITEMCODE,
+                    DOD.QUANTITY1 AS DOQUANTITY,
+                    (SELECT
+                            COUNT(AA.INTERNALTRANSFERNO) 
+                        FROM
+                            INTERNALTRANSFER AA
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.INTERNALTRANSFERDATE = :P317_ASONDATE
+                            )AS NOOFTRIPTODAY,
+                    (SELECT
+                            NVL(SUM(AA.LOADINGQUANTITY1),0)
+                        FROM
+                            INTERNALTRANSFER AA
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.INTERNALTRANSFERDATE = :P317_ASONDATE
+                            )AS TODAYSLIFTED,
+                    (SELECT
+                            NVL(SUM(AA.LOADINGQUANTITY1),0)
+                        FROM
+                            INTERNALTRANSFER AA, DELIVERYORDER A
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.DELIVERYORDERTNO = A.TNO
+                            AND A.TNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.INTERNALTRANSFERDATE BETWEEN A.FROMDATE AND :P317_ASONDATE
+                            )AS LIFTEDTILLDATE,
+                    CASE
+                        WHEN DO.TODATE < TO_DATE(:P317_ASONDATE, 'DD-MM-YYYY') THEN DOD.QUANTITY1 - 
+                        (SELECT
+                            NVL(SUM(AA.LOADINGQUANTITY1),0)
+                        FROM
+                            INTERNALTRANSFER AA, DELIVERYORDER A
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.DELIVERYORDERTNO = A.TNO
+                            AND A.TNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.INTERNALTRANSFERDATE BETWEEN A.FROMDATE AND :P317_ASONDATE
+                            )
+                        ELSE NULL
+                    END AS LAPSEDQTY,
+                    CASE
+                        WHEN DO.TODATE > TO_DATE(:P317_ASONDATE, 'DD-MM-YYYY') THEN DO.TODATE - TO_DATE(:P317_ASONDATE, 'DD-MM-YYYY')
+                        ELSE NULL
+                    END AS BALANCEDAYS,
+                    PA.PARTYNAME
+                            
+                FROM
+                    DELIVERYORDER       DO,
+                    DELIVERYORDERDETAIL DOD,
+                    SOURCELOCATION      SL,
+                    DESTINATIONLOCATION DL,
+                    PARTY PA
+                WHERE
+                        1 = 1
+                    AND DO.TNO = DOD.TNO
+                    AND DOD.SOURCELOCATIONTNO = SL.TNO
+                    AND DOD.DESTINATIONLOCATIONTNO = DL.TNO
+                    AND DO.PARTYCODE = PA.PARTYCODE
+                    AND DO.doctypecode = 'INTERNALTRANSFER'
+                )X
+                Where 1=1
+                    AND instr(':'||:P317_COMPANY||':',':'||x.CompanyCode||':') > 0
+                    AND ( :P317_DOCTYPE IS NULL OR instr(':'||:P317_DOCTYPE||':',':'||x.DocTypeCode||':') > 0 )
+                    AND ( :P317_SOURCE IS NULL OR instr(':'||:P317_SOURCE||':',':'||x.SourceLocationTNo||':') > 0 )
+                    AND ( :P317_DESTINATION IS NULL OR instr(':'||:P317_DESTINATION||':',':'||x.DestinationLocationTNo||':') > 0 )
+                    AND ( :P317_PARTYDO IS NULL OR instr(':'||:P317_PARTYDO||':',':'||x.TNO||':') > 0 )
+                    AND ( ( NVL(X.DOQUANTITY, 0) - NVL(X.LIFTEDTILLDATE, 0) - NVL(X.LAPSEDQTY, 0) > 0 AND :P317_BALANCEQTY = 'Only Balance Quantity' )
+                              OR ( NVL(X.DOQUANTITY, 0) - NVL(X.LIFTEDTILLDATE, 0) - NVL(X.LAPSEDQTY, 0) = 0 AND :P317_BALANCEQTY = 'Zero Balance Quantity' )
+                              OR :P317_BALANCEQTY IS NULL )
+                    AND ( ( NVL(X.NOOFTRIPTODAY, 0) > 0 AND :P317_TRIP = 'Only Trip' )
+                              OR ( NVL(X.NOOFTRIPTODAY, 0) = 0 AND :P317_TRIP = 'Zero Trip' )
+                              OR :P317_TRIP IS NULL )
+                    AND :P317_ASONDATE BETWEEN X.FROMDATE AND X.TODATE
+                
+                Union All
+                
+                SELECT
+                :P317_ASONDATE as AsonDate,
+                x.SOURCELOCATIONNAME,
+                x.DESTINATIONLOCATIONNAME,
+                x.PARTYDONO,
+                x.PARTYDODATE,
+                x.DUEDATE,
+                x.DOQUANTITY,
+                x.NOOFTRIPTODAY,
+                x.TODAYSLIFTED,
+                x.LIFTEDTILLDATE,
+                NVL(x.DOQUANTITY, 0) - NVL(x.LIFTEDTILLDATE, 0) - NVL(x.LAPSEDQTY, 0) as BALANCEQTY,
+                ROUND(((NVL(x.DOQUANTITY, 0) - NVL(x.LIFTEDTILLDATE, 0) - NVL(x.LAPSEDQTY, 0)) / NVL(x.BALANCEDAYS, 1)),3) as ASKINGRATE,
+                x.BALANCEDAYS,
+                x.PARTYNAME,
+                CASE WHEN x.DOQUANTITY = NVL(x.DOQUANTITY, 0) - NVL(x.LIFTEDTILLDATE, 0) - NVL(x.LAPSEDQTY, 0) THEN 'NO'
+                ELSE 'YES'
+                END AS DOSTARTED,
+                'LR' as DATAPROCESS,
+                CASE WHEN x.DOQUANTITY = x.LIFTEDTILLDATE THEN 'GREEN'
+                     WHEN x.DUEDATE < :P317_ASONDATE and x.DOQUANTITY > x.LIFTEDTILLDATE THEN 'RED'
+                ELSE NULL
+                END AS DOSTATUS
+                FROM 
+                (SELECT
+                    DO.COMPANYCODE,
+                    DO.TNO,
+                    DO.DELIVERYORDERDATE,
+                    DO.FROMDATE,
+                    DO.TODATE,
+                    DO.DOCTYPECODE,
+                    DOD.SOURCELOCATIONTNO,
+                    DOD.DESTINATIONLOCATIONTNO,
+                    SL.SOURCELOCATIONNAME,
+                    DL.DESTINATIONLOCATIONNAME,
+                    DO.PARTYDONO,
+                    DO.PARTYDODATE,
+                    DO.TODATE     AS DUEDATE,
+                    DOD.ITEMCODE,
+                    DOD.QUANTITY1 AS DOQUANTITY,
+                    (SELECT
+                            COUNT(AA.LRNO) 
+                        FROM
+                            LR AA
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.LRDATE = :P317_ASONDATE
+                            )AS NOOFTRIPTODAY,
+                    (SELECT
+                            NVL(SUM(AA.QUANTITY1),0)
+                        FROM
+                            LR AA
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.LRDATE = :P317_ASONDATE
+                            )AS TODAYSLIFTED,
+                    (SELECT
+                            NVL(SUM(AA.QUANTITY1),0)
+                        FROM
+                            LR AA, DELIVERYORDER A
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.DELIVERYORDERTNO = A.TNO
+                            AND A.TNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.LRDATE BETWEEN A.FROMDATE AND :P317_ASONDATE
+                            )AS LIFTEDTILLDATE,
+                    CASE
+                        WHEN DO.TODATE < TO_DATE(:P317_ASONDATE, 'DD-MM-YYYY') THEN DOD.QUANTITY1 - 
+                        (SELECT
+                            NVL(SUM(AA.QUANTITY1),0)
+                        FROM
+                            LR AA, DELIVERYORDER A
+                        WHERE 1 = 1
+                            AND AA.DELIVERYORDERTNO = DOD.TNO
+                            AND AA.DELIVERYORDERTNO = A.TNO
+                            AND A.TNO = DOD.TNO
+                            AND AA.SOURCELOCATIONTNO = DOD.SOURCELOCATIONTNO
+                            AND AA.DESTINATIONLOCATIONTNO = DOD.DESTINATIONLOCATIONTNO
+                            AND AA.LRDATE BETWEEN A.FROMDATE AND :P317_ASONDATE
+                            )
+                        ELSE NULL
+                    END AS LAPSEDQTY,
+                    CASE
+                        WHEN DO.TODATE > TO_DATE(:P317_ASONDATE, 'DD-MM-YYYY') THEN DO.TODATE - TO_DATE(:P317_ASONDATE, 'DD-MM-YYYY')
+                        ELSE NULL
+                    END AS BALANCEDAYS,
+                    PA.PARTYNAME
+                            
+                FROM
+                    DELIVERYORDER       DO,
+                    DELIVERYORDERDETAIL DOD,
+                    SOURCELOCATION      SL,
+                    DESTINATIONLOCATION DL, 
+                    PARTY PA
+                WHERE
+                        1 = 1
+                    AND DO.TNO = DOD.TNO
+                    AND DOD.SOURCELOCATIONTNO = SL.TNO
+                    AND DOD.DESTINATIONLOCATIONTNO = DL.TNO
+                    AND DO.PARTYCODE = PA.PARTYCODE
+                    AND DO.doctypecode != 'INTERNALTRANSFER'
+                )X
+                Where 1=1
+                    AND instr(':'||:P317_COMPANY||':',':'||x.CompanyCode||':') > 0
+                    AND ( :P317_DOCTYPE IS NULL OR instr(':'||:P317_DOCTYPE||':',':'||x.DocTypeCode||':') > 0 )
+                    AND ( :P317_SOURCE IS NULL OR instr(':'||:P317_SOURCE||':',':'||x.SourceLocationTNo||':') > 0 )
+                    AND ( :P317_DESTINATION IS NULL OR instr(':'||:P317_DESTINATION||':',':'||x.DestinationLocationTNo||':') > 0 )
+                    AND ( :P317_PARTYDO IS NULL OR instr(':'||:P317_PARTYDO||':',':'||x.TNO||':') > 0 )
+                    AND ( ( NVL(X.DOQUANTITY, 0) - NVL(X.LIFTEDTILLDATE, 0) - NVL(X.LAPSEDQTY, 0) > 0 AND :P317_BALANCEQTY = 'Only Balance Quantity' )
+                              OR ( NVL(X.DOQUANTITY, 0) - NVL(X.LIFTEDTILLDATE, 0) - NVL(X.LAPSEDQTY, 0) = 0 AND :P317_BALANCEQTY = 'Zero Balance Quantity' )
+                              OR :P317_BALANCEQTY IS NULL )
+                    AND ( ( NVL(X.NOOFTRIPTODAY, 0) > 0 AND :P317_TRIP = 'Only Trip' )
+                              OR ( NVL(X.NOOFTRIPTODAY, 0) = 0 AND :P317_TRIP = 'Zero Trip' )
+                              OR :P317_TRIP IS NULL )
+                    AND :P317_ASONDATE BETWEEN X.FROMDATE AND X.TODATE
+                ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        actionsMenu {
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 39707085996348134
+        }
+
+        column ASKINGRATE (
+            type: plainText
+            heading {
+                heading: Asking Rate
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column ASONDATE (
+            type: plainText
+            heading {
+                heading: Asondate
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#ASONDATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column BALANCEDAYS (
+            type: plainText
+            heading {
+                heading: Balance Days
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column BALANCEQTY (
+            type: plainText
+            heading {
+                heading: Balance Qty
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DATAPROCESS (
+            type: plainText
+            heading {
+                heading: Dataprocess
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column DESTINATIONLOCATIONNAME (
+            type: plainText
+            heading {
+                heading: To
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DOQUANTITY (
+            type: plainText
+            heading {
+                heading: Do Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column DOSTARTED (
+            type: plainText
+            heading {
+                heading: Dostarted
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column DOSTATUS (
+            type: plainText
+            heading {
+                heading: Dostatus
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column DUEDATE (
+            type: plainText
+            heading {
+                heading: Due Date
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style = Width:70px>#DUEDATE#</Div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column LIFTEDTILLDATE (
+            type: plainText
+            heading {
+                heading: Lifted Till Date
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column NOOFTRIPTODAY (
+            type: plainText
+            heading {
+                heading: "Trips Today "
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column PARTYDODATE (
+            type: plainText
+            heading {
+                heading: Do Date
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style = Width:70px>#PARTYDODATE#</Div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PARTYDONO (
+            type: plainText
+            heading {
+                heading: DO No
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <Div Style = Width:90px>#PARTYDONO#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party Name
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column SOURCELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: From
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TODAYSLIFTED (
+            type: plainText
+            heading {
+                heading: "Lifted Today "
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        page {
+            size: a4
+            units: centimeters
+            width: 297
+            height: 210
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 22
+            pageHeaderText: Delivery Order MIS Report
+        }
+        columnHeadings {
+            font: times
+            fontSize: 12
+            backgroundColor: #c7c7cc
+        }
+        columns {
+            font: courier
+        }
+
+        savedReport 465473 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ASKINGRATE (
+                sequence: 12
+            )
+
+            displayColumn BALANCEDAYS (
+                sequence: 13
+            )
+
+            displayColumn BALANCEQTY (
+                sequence: 11
+            )
+
+            displayColumn DESTINATIONLOCATIONNAME (
+                sequence: 3
+            )
+
+            displayColumn DOQUANTITY (
+                sequence: 7
+            )
+
+            displayColumn DUEDATE (
+                sequence: 6
+            )
+
+            displayColumn LIFTEDTILLDATE (
+                sequence: 10
+            )
+
+            displayColumn NOOFTRIPTODAY (
+                sequence: 8
+            )
+
+            displayColumn PARTYDODATE (
+                sequence: 5
+            )
+
+            displayColumn PARTYDONO (
+                sequence: 4
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 1
+            )
+
+            displayColumn SOURCELOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn TODAYSLIFTED (
+                sequence: 9
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: NOOFTRIPTODAY
+            )
+
+            aggregate (
+                column: TODAYSLIFTED
+            )
+
+            aggregate (
+                column: LIFTEDTILLDATE
+            )
+
+            aggregate (
+                column: BALANCEQTY
+            )
+
+            aggregate (
+                column: DOQUANTITY
+            )
+
+            aggregate (
+                function: count
+                column: ROWNUM
+            )
+
+            aggregate (
+                function: count
+                column: PARTYDONO
+            )
+
+            controlBreak (
+                column: PARTYNAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+            highlight ir-condition (
+                name: DO Not Started
+                condition {
+                    column: DOSTARTED
+                    value: NO
+                }
+                colors {
+                    background: #fce2df
+                    text: #000000
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+            highlight ir-condition-2 (
+                name: DO Completed
+                condition {
+                    column: DOSTATUS
+                    value: GREEN
+                }
+                colors {
+                    background: #d0f1cc
+                    text: #000000
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+            highlight ir-condition-3 (
+                name: DO OverDue
+                condition {
+                    column: DOSTATUS
+                    value: RED
+                }
+                colors {
+                    background: #c13737
+                    text: #ffffff
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P317_ASONDATE (
+        type: datePicker
+        label {
+            label: As on Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            formatMask: DD-MM-YYYY
+            width: 30
+            valuePlaceholder: ADMIN
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+    )
+
+    pageItem P317_BALANCEQTY (
+        type: popupLov
+        label {
+            label: Balance Qty
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                'Zero Balance Quantity' as d,
+                'Zero Balance Quantity' as r
+                From Dual
+                UNION ALL
+                Select
+                'Only Balance Quantity' as d,
+                'Only Balance Quantity' as r
+                From Dual
+                ```
+            nullDisplayValue: --SELECT BOTH--
+        }
+        layout {
+            sequence: 80
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Balance Qty Type
+        }
+    )
+
+    pageItem P317_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'DELIVERYORDER'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P317_DESTINATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Destination
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct 
+                dl.DestinationLocationName as d,
+                dl.TNo r
+                From DeliveryOrderDetail dod, DestinationLocation dl
+                Where dod.DestinationLocationTNo = dl.TNo
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Destination
+        }
+    )
+
+    pageItem P317_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: DocType
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'DELIVERYORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  and instr(':'||:P317_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P317_COMPANY
+            itemsToSubmit: P317_DOCTYPE
+        }
+        layout {
+            sequence: 20
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: "Select DocType "
+        }
+    )
+
+    pageItem P317_PARTYDO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party Do No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                a.PartyDoNo d,
+                a.TNo r
+                From DeliveryOrder a
+                Where a.CompanyCode = :P317_COMPANY
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P317_COMPANY
+        }
+        layout {
+            sequence: 70
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Party Do No
+        }
+    )
+
+    pageItem P317_SOURCE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Source
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct 
+                sl.SourceLocationName as d,
+                sl.TNo r
+                From DeliveryOrderDetail dod, SourceLocation sl
+                Where dod.SourceLocationTNo = sl.TNo
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Source
+        }
+    )
+
+    pageItem P317_TRIP (
+        type: popupLov
+        label {
+            label: Trip
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                'Zero Trip' as d,
+                'Zero Trip' as r
+                From Dual
+                UNION ALL
+                Select
+                'Only Trip' as d,
+                'Only Trip' as r
+                From Dual
+                ```
+            nullDisplayValue: --SELECT BOTH--
+        }
+        layout {
+            sequence: 90
+            region: @delivery-order-mis-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Trip Type
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 20
+            region: @report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @delivery-order-mis-report
+            slot: regionBody
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

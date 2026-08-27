@@ -1,0 +1,544 @@
+page 353 (
+    name: Imprest Balance
+    alias: IMPREST-BALANCE
+    title: Imprest Balance
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region imprest-balance (
+        name: Imprest Balance
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent4
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region imprest-balance-report (
+        name: Imprest Balance Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                row_number() over(order by a.PARTYCode) SerialNo,
+                d.CompanyCode,
+                A.PartyCode,
+                A.PARTYNAME,
+                abs(GetAccountOPENING(a.PartyCode,TO_DATE(:P353_FROMDATE,'DD-MM-RRRR'),null, d.companycode))|| ' Dr' AS Opening,
+                abs(getaccountCREDITdurinG(a.Partycode,d.COMPANYCODE,:P353_FROMDATE,:P353_TODATE)) AS CREDIT,
+                'Cr',
+                abs(getaccountdebitdurinG(a.Partycode,d.COMPANYCODE,:P353_FROMDATE,:P353_TODATE)) AS DEBIT,
+                'Dr',
+                abs(GetAccountOPENING(a.PartyCODE,TO_DATE(:P353_FROMDATE,'DD-MM-RRRR'),null,d.Companycode))+
+                abs(getaccountdebitdurinG(a.Partycode,d.COMPANYCODE,:P353_FROMDATE,:P353_TODATE))-
+                abs(getaccountCREDITdurinG(a.Partycode,d.COMPANYCODE,:P353_FROMDATE,:P353_TODATE)) || ' Dr' AS Closing
+                FROM PARTY a, VOUCHERDETAIL b, PartyCompany c, Company d
+                Where a.PARTYCODE = b.ACCOUNTCODE
+                and a.Tno = c.Tno
+                and c.CompanyCode = d.CompanyCode
+                and a.PARENTCODE = 'CASHINHAND'
+                and (:P353_COMPANY is Null Or Instr (':' || :P353_COMPANY || ':' , ':' || d.CompanyCode|| ':') > 0)
+                Group By
+                A.PARTYNAME,
+                a.partyCode,
+                d.companycode
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                /*Select
+                b.PartyName,
+                abs(GetAccountOPENING(a.AccountCode,TO_DATE(:P353_FROMDATE,'DD-MM-RRRR'),null, a.companycode))|| ' Dr' AS Opening,
+                abs(getaccountCREDITdurinG(a.accountcode,a.COMPANYCODE,:P353_FROMDATE,:P353_TODATE)) AS CREDIT,
+                'Cr',
+                abs(getaccountdebitdurinG(a.accountcode,a.COMPANYCODE,:P353_FROMDATE,:P353_TODATE)) AS DEBIT,
+                'Dr',
+                abs(GetAccountOPENING(A.ACCOUNTCODE,TO_DATE(:P353_TODATE,'DD-MM-RRRR')- 1,null,a.Companycode))|| ' Cr' AS Closing
+                from Party b, Voucher a, Company c
+                Where b.PartyCode = a.AccountCode(+)
+                and a.CompanyCode = c.CompanyCode
+                and b.ParentCode = 'CASHINHAND'
+                and a.voucherDate between :P353_FROMDATE and :P353_TODATE
+                group by 
+                b.PartyName,
+                a.accountcode,
+                a.locationcode,
+                a.CompanyCode,
+                c.CompanyName;*/
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 72486628285364747
+        }
+
+        column 'CR' (
+            type: link
+            heading {
+                heading: CR
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            link {
+                target: {
+                    page: 354
+                    items: {
+                        P354_FROMDATE: &P353_FROMDATE.
+                        P354_TODATE: &P353_TODATE.
+                        P354_PARTYCODE: #PARTYCODE##ACCOUNTCODE#
+                    }
+                }
+                linkText: CR
+                linkAttributes: class="t-Button t-Button--simple t-Button--hot t-Button--stretch"
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column 'DR' (
+            type: link
+            heading {
+                heading: DR
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            link {
+                target: {
+                    page: 355
+                    items: {
+                        P355_FROMDATE: &P353_FROMDATE.
+                        P355_TODATE: &P353_TODATE.
+                        P355_PARTYCODE: #PARTYCODE##ACCOUNTCODE#
+                    }
+                }
+                linkText: DR
+                linkAttributes: class="t-Button t-Button--simple t-Button--hot t-Button--stretch"
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CLOSING (
+            type: plainText
+            heading {
+                heading: Closing
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column CREDIT (
+            type: plainText
+            heading {
+                heading: Credit
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column DEBIT (
+            type: plainText
+            heading {
+                heading: Debit
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column OPENING (
+            type: plainText
+            heading {
+                heading: Opening
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party Name
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Imprest Balance Report
+        }
+
+        savedReport 738785 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn 'CR' (
+                sequence: 5
+            )
+
+            displayColumn 'DR' (
+                sequence: 7
+            )
+
+            displayColumn CLOSING (
+                sequence: 8
+            )
+
+            displayColumn CREDIT (
+                sequence: 4
+            )
+
+            displayColumn DEBIT (
+                sequence: 6
+            )
+
+            displayColumn OPENING (
+                sequence: 3
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 2
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: CREDIT
+            )
+
+            aggregate (
+                column: DEBIT
+            )
+
+        )
+
+    )
+
+    pageItem P353_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.CompanyName d,
+                a.CompanyCode r
+                From Company a
+                Where exists(
+                   Select
+                      aa.CompanyCode
+                   From voucherDetail aa
+                   Where aa.companyCode = a.companyCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @imprest-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P353_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @imprest-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P353_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @imprest-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 40
+            region: @imprest-balance
+            slot: regionBody
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

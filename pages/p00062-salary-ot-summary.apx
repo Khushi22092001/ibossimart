@@ -1,0 +1,682 @@
+page 62 (
+    name: Salary + OT Summary
+    alias: SALARY-OT-SUMMARY
+    title: Salary + OT Summary
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region salary-ot-summary (
+        name: Salary + OT Summary
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region salary-ot-summary-report (
+        name: Salary + OT Summary Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                
+                Select
+                     dp.DepartmentCode,
+                     RPAD(' . ',(LEVEL-1)*2)||z.DEPARTMENTNAME AS TREE,
+                     round(z.SalaryAmount,2) as SalaryAmount,
+                     round(z.OTAmount,2) as OTAmount,
+                     round(z.TotalSALOTAmount,2) as TotalSALOTAmount,
+                     round(z.PMSalaryAmount,2) as PMSalaryAmount,
+                     round(z.PMOTAmount,2) as PMOTAmount,
+                     round(z.PMTotalSALOTAmount,2) as PMTotalSALOTAmount,
+                     z.Difference
+                From 
+                (Select
+                    y.DepartmentCode,
+                    GetDepartmentName(y.DepartmentCode) DepartmentName,
+                    y.SalaryAmount,
+                    y.OTAmount,
+                    (y.SalaryAmount + y.OTAmount) as TotalSALOTAmount,
+                    y.PMSalaryAmount,
+                    y.PMOTAmount,
+                    (y.PMSalaryAmount + y.PMOTAmount) as PMTotalSALOTAmount,
+                    (y.SalaryAmount + y.OTAmount) - (y.PMSalaryAmount + y.PMOTAmount) as Difference
+                From 
+                (Select
+                      x.DepartmentCode,
+                      nvl(sum(x.SalaryAmount),0) as SalaryAmount,
+                      nvl(sum(x.OTAmount),0)as OTAmount,
+                      nvl(sum(x.PMSalaryAmount),0) as PMSalaryAmount,
+                      nvl(sum(x.PMOTAmount),0) as PMOTAmount
+                From (
+                Select
+                      m.DepartmentCode,
+                      sum(a.NetEarning) - Sum(a.otamount) as SalaryAmount,
+                      sum(a.otamount) as OTAmount,
+                      null as PMSalaryAmount,
+                      null as PMOTAmount
+                From  SalaryEngineDetail a, MyEmployeeInclude m
+                where a.SalaryFromDate = :P62_FromDate
+                  and a.StaffType != 'HAMAL'
+                  and instr(':'||:P62_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P62_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and a.EmployeeCode = m.ChildCode
+                Group BY m.DepartmentCode
+                Union All
+                Select
+                      m.DepartmentCode,
+                	  Null As SalaryAmount,
+                	  Null As OTamount,
+                      sum(a.NetEarning) - nvl(Sum(a.otamount),0) as PMSalaryAmount,
+                      sum(a.otamount) as PMOTAmount
+                From  SalaryEngineDetail a, MyEmployeeInclude m
+                where a.SalaryFromDate = add_months(to_date(:P62_FromDate,'DD-Mon-RRRR'),- 1 )
+                  and a.StaffType != 'HAMAL'
+                  and instr(':'||:P62_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P62_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and a.EmployeeCode = m.ChildCode
+                Group BY m.DepartmentCode)x
+                Group by x.DepartmentCode
+                )y
+                )z, Department dp
+                Where z.DepartmentCode = dp.DepartmentCode
+                Start with dp.ParentCode is null
+                Connect by Prior dp.DepartmentCode = dp.ParentCode
+                
+                
+                
+                
+                /*Select
+                     dp.DepartmentCode,
+                     RPAD(' . ',(LEVEL-1)*2)||z.DEPARTMENTNAME AS TREE,
+                     z.SalaryAmount ,
+                     z.OTAmount,
+                     z.TotalSALOTAmount,
+                     z.PMSalaryAmount,
+                     z.PMOTAmount,
+                     z.PMTotalSALOTAmount,
+                     z.Difference
+                From 
+                (Select
+                    y.DepartmentCode,
+                    GetDepartmentName(y.DepartmentCode) DepartmentName,
+                    y.SalaryAmount,
+                    y.OTAmount,
+                    (y.SalaryAmount + y.OTAmount) as TotalSALOTAmount,
+                    y.PMSalaryAmount,
+                    y.PMOTAmount,
+                    (y.PMSalaryAmount + y.PMOTAmount) as PMTotalSALOTAmount,
+                    (y.SalaryAmount + y.OTAmount) - (y.PMSalaryAmount + y.PMOTAmount) as Difference
+                From 
+                (Select
+                      x.DepartmentCode,
+                      nvl(sum(x.SalaryAmount),0) as SalaryAmount,
+                      nvl(sum(x.OTAmount),0)as OTAmount,
+                      nvl(sum(x.PMSalaryAmount),0) as PMSalaryAmount,
+                      nvl(sum(x.PMOTAmount),0) as PMOTAmount
+                From (
+                Select
+                      m.DepartmentCode,
+                      sum(a.NetEarning) as SalaryAmount,
+                      null as OTAmount,
+                      null as PMSalaryAmount,
+                      null as PMOTAmount
+                From  SalaryEngineDetail a, MyEmployeeInclude m
+                where a.SalaryFromDate = :P62_FromDate
+                  and a.StaffType != 'HAMAL'
+                  and instr(':'||:P62_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P62_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and a.EmployeeCode = m.ChildCode
+                Group BY m.DepartmentCode
+                Union All
+                Select
+                      n.DepartmentCode,
+                      null as SalaryAmount,
+                      sum(b.NetAmount) as OTAmount,
+                      null as PMSalaryAmount,
+                      null as PMOTAmount
+                From OTEngineDetail b, MyEmployeeInclude n
+                Where b.FromDate = :P62_FromDate
+                  and instr(':'||:P62_COMPANY||':',':'||b.CompanyCode||':') > 0
+                  and instr(':'||:P62_LOCATION||':',':'||b.LocationCode||':') > 0
+                  and b.EmployeeCode = n.ChildCode
+                Group BY n.DepartmentCode
+                Union All
+                Select
+                      o.DepartmentCode,
+                      null as SalaryAmount,
+                      null as OTAmount,
+                      sum(c.NetEarning) as PMSalaryAmount,
+                      null as PMOTAmount
+                From  SalaryEngineDetail c, MyEmployeeInclude o
+                where To_Char(c.SalaryFromDate,'MON-YYYY') in (Select To_Char(xx.SalaryFromDate -12 ,'MON-YYYY') From SalaryEngineDetail xx Where xx.SalaryFromDate = :P62_FromDate)
+                  and c.StaffType != 'HAMAL'
+                  and instr(':'||:P62_COMPANY||':',':'||c.CompanyCode||':') > 0
+                  and instr(':'||:P62_LOCATION||':',':'||c.LocationCode||':') > 0
+                  and c.EmployeeCode = o.ChildCode
+                Group BY o.DepartmentCode
+                Union All
+                Select
+                      p.DepartmentCode,
+                      null as SalaryAmount,
+                      null as OTAmount,
+                      null as PMSalaryAmount,
+                      sum(d.NetAmount) as PMOTAmount
+                From OTEngineDetail d, MyEmployeeInclude p
+                Where To_Char(d.FromDate,'MON-YYYY') in (Select To_Char(xx.FromDate -12 ,'MON-YYYY') From OTEngineDetail xx Where xx.FromDate = :P62_FromDate)
+                  and instr(':'||:P62_COMPANY||':',':'||d.CompanyCode||':') > 0
+                  and instr(':'||:P62_LOCATION||':',':'||d.LocationCode||':') > 0
+                  and d.EmployeeCode = p.ChildCode
+                Group BY p.DepartmentCode
+                )x
+                Group by x.DepartmentCode
+                )y
+                )z, Department dp
+                Where z.DepartmentCode = dp.DepartmentCode
+                Start with dp.ParentCode is null
+                Connect by Prior dp.DepartmentCode = dp.ParentCode
+                */
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 8295891129219210
+        }
+
+        column DEPARTMENTCODE (
+            type: plainText
+            heading {
+                heading: DEPARTMENT CODE
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column DIFFERENCE (
+            type: plainText
+            heading {
+                heading: Difference
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column OTAMOUNT (
+            type: plainText
+            heading {
+                heading: CM OT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column PMOTAMOUNT (
+            type: plainText
+            heading {
+                heading: PM OT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column PMSALARYAMOUNT (
+            type: plainText
+            heading {
+                heading: PM SALARY AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column PMTOTALSALOTAMOUNT (
+            type: plainText
+            heading {
+                heading: PM TOTAL SAL+OT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column SALARYAMOUNT (
+            type: plainText
+            heading {
+                heading: CM SALARY AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column TOTALSALOTAMOUNT (
+            type: plainText
+            heading {
+                heading: CM TOTAL SAL + OT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column TREE (
+            type: plainText
+            heading {
+                heading: DEPARTMENT
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Salary + OT Summary Report
+        }
+
+        savedReport 34834 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DIFFERENCE (
+                sequence: 8
+            )
+
+            displayColumn OTAMOUNT (
+                sequence: 4
+            )
+
+            displayColumn PMOTAMOUNT (
+                sequence: 2
+            )
+
+            displayColumn PMSALARYAMOUNT (
+                sequence: 1
+            )
+
+            displayColumn PMTOTALSALOTAMOUNT (
+                sequence: 7
+            )
+
+            displayColumn SALARYAMOUNT (
+                sequence: 3
+            )
+
+            displayColumn TOTALSALOTAMOUNT (
+                sequence: 6
+            )
+
+            displayColumn TREE (
+                sequence: 5
+            )
+
+            sort (
+                column: MONTH
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: EMPLOYEEID
+                sort {
+                    sequence: 2
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P62_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'OVERTIME'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @salary-ot-summary
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Company Name
+        }
+    )
+
+    pageItem P62_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @salary-ot-summary
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P62_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'OVERTIME'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @salary-ot-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+    )
+
+    button otsummary (
+        buttonName: OTSUMMARY
+        label: Overtime Summary
+        layout {
+            sequence: 10
+            region: @salary-ot-summary-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--iconRight
+            ]
+            icon: fa-download
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: request=Value
+            value: 1
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 60
+            region: @salary-ot-summary
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

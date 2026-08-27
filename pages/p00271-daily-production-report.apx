@@ -1,0 +1,1965 @@
+page 271 (
+    name: " Daily Production Report"
+    alias: DAILY-PRODUCTION-REPORT
+    title: " Daily Production Report"
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/dailyproductiontripandquantity.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P271_FROMDATE').val());
+              var toDate = new Date($('#P271_TODATE').val());
+            
+            var reportParams = 
+                  '&P271_ASONDATE=' +$('#P271_ASONDATE').val() +  
+                  '&P271_LOCATION=' +$('#P271_LOCATION').val() + 
+                  '&P271_PROJECTFROMDATE=' +$('#P271_PROJECTFROMDATE').val() + 
+                  '&P271_YEARFROMDATE=' +$('#P271_YEARFROMDATE').val() + 
+                  '&P271_MONTHFROMDATE=' +$('#P271_MONTHFROMDATE').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region daily-production-report (
+        name: Daily Production Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+                margin-top-none
+                margin-bottom-none
+            ]
+        }
+    )
+
+    region diesel-summary (
+        name: Diesel Summary
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select ROWNUM AS SERIALNO,(Select Sum(c.quantity1)
+                          From NecessitySlip b, NecessitySlipDetail c
+                         Where b.tno = c.tno
+                           And b.Locationcode = a.locationcode
+                           And b.NecessitySlipDate = :P271_ASONDATE
+                           And b.shiftcode = 'DS') As DayShiftQty,
+                       (Select Sum(c.quantity1)
+                          From NecessitySlip b, NecessitySlipDetail c
+                         Where b.tno = c.tno
+                           And b.Locationcode = a.locationcode
+                           And b.NecessitySlipDate = :P271_ASONDATE
+                           And b.shiftcode = 'NS') As NightShiftQty,
+                       (Select Sum(c.quantity1)
+                          From NecessitySlip b, NecessitySlipDetail c
+                         Where b.tno = c.tno
+                           And b.Locationcode = a.locationcode
+                           And b.NecessitySlipDate = :P271_ASONDATE) As DayQty,
+                       (Select Sum(c.quantity1)
+                          From NecessitySlip b, NecessitySlipDetail c
+                         Where b.tno = c.tno
+                           And b.Locationcode = a.locationcode
+                           And b.NecessitySlipDate Between :P271_MONTHFROMDATE And
+                               :P271_ASONDATE) As MonthQty,
+                       (Select Sum(c.quantity1)
+                          From NecessitySlip b, NecessitySlipDetail c
+                         Where b.tno = c.tno
+                           And b.Locationcode = a.locationcode
+                           And b.NecessitySlipDate Between :P271_YEARFROMDATE And
+                               :P271_ASONDATE) As YearQty,
+                       (Select Sum(c.quantity1)
+                          From NecessitySlip b, NecessitySlipDetail c
+                         Where b.tno = c.tno
+                           And b.Locationcode = a.locationcode
+                           And b.NecessitySlipDate Between :P271_PROJECTFROMDATE And
+                               :P271_ASONDATE) As ProgressiveQty
+                  From LOCATION A
+                 Where A.LOCATIONCODE = :P271_LOCATION
+                
+                
+                /*
+                Select 
+                az.EquipmentGroupName as "Equipment Group Name",
+                 
+                Sum(Nvl(a.DieselQuantityA,0)) as "Diesel QtyA",
+                
+                Sum(Nvl(a.DieselQuantityB,0)) as "Diesel QtyB",
+                
+                Sum(Nvl(a.DieselQuantityDS,0)) as "Diesel QtyDS",
+                
+                Sum(Nvl(a.DieselQuantity,0)) as "Day Diesel Qty",
+                
+                Sum(Nvl(dx.DieselQuantityMonth,0)) as "Month Diesel Qty",
+                
+                Sum(Nvl(cx.DieselQuantityYear,0)) as "Year Diesel Qty",
+                
+                Sum(Nvl(ax.DieselQuantityProgressive,0)) as "Progressive Diesel Qty"
+                
+                From
+                
+                          (Select  
+                             a.VehiclelogBookDate,
+                             a.ShiftCode,
+                             b.EquipmentTno,
+                             Sum(j.Quantity) as DieselQuantityProgressive
+                         from  VehicleLogBook a, (Select  b.Tno,Count(b.Sno) as Sno, b.EquipmentTno From VehicleLogBookDetail b
+                         Group by   b.Tno, b.EquipmentTno) b, NecessitySlip i,
+                         (Select Sum(c.Quantity1)as Quantity , c.Tno  From NecessitySlipDetail c Group by c.Tno) j
+                         Where   a.Tno = b.tno(+)
+                         and a.VehiclelogbookDate = i.NecessitySlipDate(+)
+                         and a.Vehicleno = i.Vehicleno(+)
+                         --and a.ShiftCode = i.ShiftCode(+)
+                         and i.Tno = j.Tno(+)
+                         and b.sno is not null
+                         and (:P271_LOCATION IS NULL OR instr(':'||:P271_LOCATION||':',':'||a.LocationCode||':') > 0)
+                         and a.VehiclelogBookDate Between :P271_PROJECTFROMDATE and :P271_ASONDATE
+                         Group by 
+                         a.VehiclelogBookDate,
+                         a.ShiftCode,
+                         b.EquipmentTno) ax, Equipment ay,  EquipmentGroup az,
+                         
+                         
+                         
+                         (Select  
+                             a.VehiclelogBookDate,
+                             a.ShiftCode,
+                             b.EquipmentTno,
+                             Sum(j.Quantity) as DieselQuantityYear
+                         from  VehicleLogBook a, (Select  b.Tno,Count(b.Sno) as Sno, b.EquipmentTno From VehicleLogBookDetail b
+                         Group by   b.Tno, b.EquipmentTno) b, NecessitySlip i,
+                         (Select Sum(c.Quantity1)as Quantity , c.Tno  From NecessitySlipDetail c Group by c.Tno) j
+                         Where   a.Tno = b.tno(+)
+                         and a.VehiclelogbookDate = i.NecessitySlipDate(+)
+                         and a.Vehicleno = i.Vehicleno(+)
+                        -- and a.ShiftCode = i.ShiftCode(+)
+                         and i.Tno = j.Tno(+)
+                         and b.sno is not null
+                         and (:P271_LOCATION IS NULL OR instr(':'||:P271_LOCATION||':',':'||a.LocationCode||':') > 0)
+                         and a.VehiclelogBookDate Between :P271_YEARFROMDATE and :P271_ASONDATE
+                         Group by 
+                         a.VehiclelogBookDate,
+                         a.ShiftCode,
+                         b.EquipmentTno) cx, Equipment cy,
+                         
+                         
+                         
+                         
+                                  (Select  
+                             a.VehiclelogBookDate,
+                             a.ShiftCode,
+                             b.EquipmentTno,
+                             Sum(j.Quantity) as DieselQuantityMonth
+                         from  VehicleLogBook a, (Select  b.Tno,Count(b.Sno) as Sno, b.EquipmentTno From VehicleLogBookDetail b
+                         Group by   b.Tno, b.EquipmentTno) b, NecessitySlip i,
+                         (Select Sum(c.Quantity1)as Quantity , c.Tno  From NecessitySlipDetail c Group by c.Tno) j
+                         Where   a.Tno = b.tno(+)
+                         and a.VehiclelogbookDate = i.NecessitySlipDate(+)
+                         and a.Vehicleno = i.Vehicleno(+)
+                         --and a.ShiftCode = i.ShiftCode(+)
+                         and i.Tno = j.Tno(+)
+                         and b.sno is not null
+                         and (:P271_LOCATION IS NULL OR instr(':'||:P271_LOCATION||':',':'||a.LocationCode||':') > 0)
+                         and a.VehiclelogBookDate Between :P271_MONTHFROMDATE and :P271_ASONDATE
+                         Group by 
+                         a.VehiclelogBookDate,
+                         a.ShiftCode,
+                         b.EquipmentTno) dx, Equipment dy,
+                
+                
+                
+                
+                    (Select  
+                
+                        Case When a.ShiftCode = 'A' Then
+                        Sum(j.Quantity) end as DieselQuantityA,
+                        
+                        Case When a.ShiftCode = 'B' Then
+                        Sum(j.Quantity) end as DieselQuantityB,
+                        
+                        Case When a.ShiftCode = 'DS' Then
+                        Sum(j.Quantity) end as DieselQuantityDS,
+                
+                        a.VehiclelogBookDate,
+                        a.ShiftCode,
+                        b.EquipmentTno,
+                        Sum(j.Quantity) as DieselQuantity
+                    from  VehicleLogBook a, (Select  b.Tno,Count(b.Sno) as Sno, b.EquipmentTno From VehicleLogBookDetail b
+                    Group by   b.Tno, b.EquipmentTno) b, NecessitySlip i,
+                    (Select Sum(c.Quantity1)as Quantity , c.Tno  From NecessitySlipDetail c Group by c.Tno) j
+                    Where   a.Tno = b.tno(+)
+                    and a.VehiclelogbookDate = i.NecessitySlipDate(+)
+                    and a.equipmenttno = i.equipmenttno(+)
+                    and a.Vehicleno = i.Vehicleno(+)
+                    --and a.ShiftCode = i.ShiftCode(+)
+                    and i.Tno = j.Tno(+)
+                    and b.sno is not null
+                    and (:P271_LOCATION IS NULL OR instr(':'||:P271_LOCATION||':',':'||a.LocationCode||':') > 0)
+                    and a.VehiclelogBookDate = :P271_ASONDATE
+                    Group by 
+                    a.VehiclelogBookDate,
+                    a.ShiftCode,
+                    b.EquipmentTno) a,
+                     Equipment b, Shift c 
+                
+                
+                Where ax.EquipmentTno = ay.Tno(+)
+                    and  Ax.EquipmentTno = cx.EquipmentTno (+)
+                    and Ax.ShiftCode = cx.ShiftCode (+)
+                    and Ax.VehicleLogBookDate = cx.VehicleLogBookDate(+)
+                    
+                    
+                    and cx.EquipmentTno = cy.Tno
+                    and  cx.EquipmentTno = dx.EquipmentTno (+)
+                    and cx.ShiftCode = dx.ShiftCode (+)
+                    and cx.VehicleLogBookDate = dx.VehicleLogBookDate(+)
+                    
+                    
+                    and dx.EquipmentTno = dy.Tno
+                    and  dx.EquipmentTno = a.EquipmentTno (+)
+                    and dx.ShiftCode = a.ShiftCode (+)
+                    and dx.VehicleLogBookDate = a.VehicleLogBookDate(+)
+                    
+                    
+                    
+                    and a.EquipmentTno = b.Tno(+)
+                    and a.ShiftCode = c.ShiftCode(+)
+                    and ay.EquipmentGroupCode = az.EquipmentGroupCode(+)
+                    and az.EquipmentGroupCode = b.EquipmentGroupCode (+)
+                    Group by 
+                    az.EquipmentGroupName
+                */
+                ```
+            pageItemsToSubmit: [
+                P271_LOCATION
+                P271_ASONDATE
+                P271_MONTHFROMDATE
+                P271_YEARFROMDATE
+                P271_PROJECTFROMDATE
+            ]
+        }
+        layout {
+            sequence: 60
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        //rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 13102166723296436
+        }
+
+        savedReport 135674 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @DAYSHIFTQTY
+                layout {
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @NIGHTSHIFTQTY
+                layout {
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @DAYQTY
+                layout {
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @MONTHQTY
+                layout {
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @YEARQTY
+                layout {
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @PROGRESSIVEQTY
+                layout {
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: @SERIALNO
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            aggregate count (
+                column: @SERIALNO
+                function: count
+                showGrandTotal: true
+            )
+
+            aggregate sum (
+                column: @NIGHTSHIFTQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-2 (
+                column: @DAYQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @MONTHQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @YEARQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-5 (
+                column: @PROGRESSIVEQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-6 (
+                column: @DAYSHIFTQTY
+            )
+
+        )
+
+        columnGroup day (
+            heading: Day
+        )
+
+        columnGroup month (
+            heading: Month
+        )
+
+        columnGroup progressive (
+            heading: Progressive
+        )
+
+        columnGroup shift-a (
+            heading: Shift A
+        )
+
+        columnGroup shift-b (
+            heading: Shift B
+        )
+
+        columnGroup shift-ds (
+            heading: Shift DS
+        )
+
+        columnGroup year (
+            heading: Year
+        )
+
+        column DAYQTY (
+            type: numberField
+            heading {
+                heading: "Day Quantity "
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DAYQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DAYSHIFTQTY (
+            type: numberField
+            heading {
+                heading: Day Shift Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DAYSHIFTQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column MONTHQTY (
+            type: numberField
+            heading {
+                heading: Month Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: MONTHQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column NIGHTSHIFTQTY (
+            type: numberField
+            heading {
+                heading: Night Shift Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: NIGHTSHIFTQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PROGRESSIVEQTY (
+            type: numberField
+            heading {
+                heading: Progressive Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: PROGRESSIVEQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column YEARQTY (
+            type: numberField
+            heading {
+                heading: Year Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: YEARQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Diesel Summary
+        }
+    )
+
+    region new (
+        name: New
+        type: regionDisplaySelector
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+        settings {
+            includeShowAll: false
+            rememberSelection: bySession
+        }
+    )
+
+    region trip-and-quantity-summary (
+        name: Trip and Quantity Summary
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                    row_number() over(order by a.jobtypename) SerialNo,
+                    a.JobTypeName as "Job Type",
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'A',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift A",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'A',:P271_ASONDATE,:P271_ASONDATE) as "Shift A Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'B',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift B",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'B',:P271_ASONDATE,:P271_ASONDATE) as "Shift B Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'C',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift C",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'C',:P271_ASONDATE,:P271_ASONDATE) as "Shift C Quantity",
+                
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'DS',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift D",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'DS',:P271_ASONDATE,:P271_ASONDATE) as "Shift DS Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Day",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_ASONDATE,:P271_ASONDATE) as "Day Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_MONTHFROMDATE,:P271_ASONDATE) as "No of Trip Month",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,Null,:P271_MONTHFROMDATE,:P271_ASONDATE) as "Month Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_YEARFROMDATE,:P271_ASONDATE) as "No of Trip Year",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,Null,:P271_YEARFROMDATE,:P271_ASONDATE) as "Year Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_PROJECTFROMDATE,:P271_ASONDATE) as "No of Trip Progressive",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,Null,:P271_PROJECTFROMDATE,:P271_ASONDATE) as "Progressive Quantity"
+                    
+                    From
+                (
+                Select Distinct BB.jobtypecode, CC.JOBTYPENAME 
+                From vehiclelogbook aa, Vehiclelogbookdetail bb, Jobtype cc
+                Where aa.tno = bb.tno
+                  And bb.jobtypecode = cc.Jobtypecode
+                	And aa.vehiclelogbookdate <= :P271_ASONDATE
+                  and instr(':'||:P271_LOCATION||':',':'||aa.LocationCode||':') > 0
+                ) a
+                Group by a.JobTypeName,a.JobTypeCode
+                
+                /*
+                Select 
+                    a.JobTypeName as "Job Type",
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'A',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift A",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'A',:P271_ASONDATE,:P271_ASONDATE) as "Shift A Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'B',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift B",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'B',:P271_ASONDATE,:P271_ASONDATE) as "Shift B Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,'DS',:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Shift D",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,'DS',:P271_ASONDATE,:P271_ASONDATE) as "Shift DS Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_ASONDATE,:P271_ASONDATE) as "No of Trip Day",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_ASONDATE,:P271_ASONDATE) as "Day Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_MONTHFROMDATE,:P271_ASONDATE) as "No of Trip Month",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,Null,:P271_MONTHFROMDATE,:P271_ASONDATE) as "Month Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_YEARFROMDATE,:P271_ASONDATE) as "No of Trip Year",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,Null,:P271_YEARFROMDATE,:P271_ASONDATE) as "Year Quantity",
+                
+                    GetEquipmentTrips(:P271_LOCATION,null,a.JobtypeCode,NULL,:P271_PROJECTFROMDATE,:P271_ASONDATE) as "No of Trip Progressive",
+                    GetEquipmentQuantity(:P271_LOCATION,null,a.JobtypeCode,Null,:P271_PROJECTFROMDATE,:P271_ASONDATE) as "Progressive Quantity"
+                    
+                    From
+                (Select 
+                    Sum(f.NoOfTrips) ,
+                    g.JobtypeCode,
+                    g.JobTypeName,
+                    ab.ShiftCode,
+                    ab.ShiftName
+                from EquipmentLogBook a,(Select Tno,JobtypeCode From EquipmentLogBookDetail 
+                Group by Tno,JobtypeCode) aa,shift ab ,Equipment b,ShiftChangeDetail c,
+                    ShiftChange d, JobType g,
+                    (Select b.sno as NoOfTrips, b.EquipmentTno , a.VehiclelogBookDate, a.ShiftCode
+                    from    VehicleLogBook a, (Select  b.Tno,Count(b.Sno) as Sno, b.EquipmentTno From VehicleLogBookDetail b 
+                    Group by   b.Tno, b.EquipmentTno) b
+                    Where   a.Tno = b.tno(+) ) f
+                Where a.EquipmentTno = b.Tno
+                    and a.Tno = aa.Tno(+)
+                    and a.ShiftCode = ab.ShiftCode(+)
+                    and b.Tno = c.EquipmentTno(+)
+                    and ab.Tno = d.ShiftTno
+                    and c.tno = d.tno(+)
+                    and a.ShiftCode = f.ShiftCode(+)
+                    and a.EquipmentTno = f.EquipmentTno(+)
+                    and a.EquipmentLogBookDate = f.VehiclelogBookDate(+)
+                    and aa.JobTypeCode = g.JobTypeCode(+)
+                    and a.EquipmentLogbookDate = d.ShiftChangeDate
+                    and g.JobTypecode is not null
+                    Group by g.JobtypeCode,
+                    g.JobTypeName,
+                    ab.ShiftCode,
+                    ab.ShiftName) a
+                    Group by a.JobTypeName,a.JobTypeCode
+                    */
+                ```
+            pageItemsToSubmit: [
+                P271_LOCATION
+                P271_ASONDATE
+                P271_MONTHFROMDATE
+                P271_YEARFROMDATE
+                P271_PROJECTFROMDATE
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        //rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 13099745343296412
+        }
+
+        savedReport 131043 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @"No of Trip Progressive"
+                layout {
+                    width: 80
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @"Progressive Quantity"
+                layout {
+                    width: 80
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Shift C"
+                layout {
+                    width: 89
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @"Shift C Quantity"
+                layout {
+                    width: 100.0156
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @"Job Type"
+                layout {
+                    width: 165
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Shift A"
+                layout {
+                    width: 78
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @"Shift A Quantity"
+                layout {
+                    width: 93.0156
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Shift B"
+                layout {
+                    width: 90
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @"Shift B Quantity"
+                layout {
+                    width: 73
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Shift D"
+                layout {
+                    show: false
+                    width: 81
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @"Shift DS Quantity"
+                layout {
+                    show: false
+                    width: 62
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Day"
+                layout {
+                    width: 77
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @"Day Quantity"
+                layout {
+                    width: 64
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Month"
+                layout {
+                    width: 83
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @"Month Quantity"
+                layout {
+                    width: 67
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @"No of Trip Year"
+                layout {
+                    width: 80
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @"Year Quantity"
+                layout {
+                    width: 68
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    width: 64
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: @SERIALNO
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            aggregate count (
+                column: @SERIALNO
+                function: count
+                showGrandTotal: true
+            )
+
+            aggregate sum (
+                column: @"No of Trip Day"
+            )
+
+            aggregate sum-10 (
+                column: @"Shift DS Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-11 (
+                column: @"No of Trip Shift C"
+                showGrandTotal: true
+            )
+
+            aggregate sum-12 (
+                column: @"No of Trip Month"
+                showGrandTotal: true
+            )
+
+            aggregate sum-13 (
+                column: @"Month Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-14 (
+                column: @"No of Trip Year"
+                showGrandTotal: true
+            )
+
+            aggregate sum-15 (
+                column: @"Year Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-16 (
+                column: @"No of Trip Progressive"
+                showGrandTotal: true
+            )
+
+            aggregate sum-2 (
+                column: @"Progressive Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @"No of Trip Shift A"
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @"Shift C Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-5 (
+                column: @"Day Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-6 (
+                column: @"Shift A Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-7 (
+                column: @"No of Trip Shift B"
+                showGrandTotal: true
+            )
+
+            aggregate sum-8 (
+                column: @"Shift B Quantity"
+                showGrandTotal: true
+            )
+
+            aggregate sum-9 (
+                column: @"No of Trip Shift D"
+                showGrandTotal: true
+            )
+
+        )
+
+        columnGroup day (
+            heading: Day
+        )
+
+        columnGroup month (
+            heading: Month
+        )
+
+        columnGroup progressive (
+            heading: Progressive
+        )
+
+        columnGroup shift-a (
+            heading: Shift A
+        )
+
+        columnGroup shift-b (
+            heading: Shift B
+        )
+
+        columnGroup shift-c (
+            heading: Shift C
+            alternativeLabel: Shift C
+        )
+
+        columnGroup shift-ds (
+            heading: Shift DS
+        )
+
+        columnGroup year (
+            heading: Year
+        )
+
+        column "Day Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+                group: @day
+            }
+            source {
+                databaseColumn: Day Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Job Type" (
+            type: textarea
+            heading {
+                heading: Job Type
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 1000
+            }
+            source {
+                databaseColumn: Job Type
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column "Month Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+                group: @month
+            }
+            source {
+                databaseColumn: Month Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Day" (
+            type: numberField
+            heading {
+                heading: "No Of Trip "
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+                group: @day
+            }
+            source {
+                databaseColumn: No of Trip Day
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Month" (
+            type: numberField
+            heading {
+                heading: "No Of Trip "
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+                group: @month
+            }
+            source {
+                databaseColumn: No of Trip Month
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Progressive" (
+            type: numberField
+            heading {
+                heading: No Of Trip
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+                group: @progressive
+            }
+            source {
+                databaseColumn: No of Trip Progressive
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Shift A" (
+            type: numberField
+            heading {
+                heading: "No Of Trip "
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+                group: @shift-a
+            }
+            source {
+                databaseColumn: No of Trip Shift A
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Shift B" (
+            type: numberField
+            heading {
+                heading: No Of Trip
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+                group: @shift-b
+            }
+            source {
+                databaseColumn: No of Trip Shift B
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Shift C" (
+            type: numberField
+            heading {
+                heading: No Of Trip
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+                group: @shift-c
+            }
+            source {
+                databaseColumn: No of Trip Shift C
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Shift D" (
+            type: numberField
+            heading {
+                heading: "No Of Trip "
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+                group: @shift-ds
+            }
+            source {
+                databaseColumn: No of Trip Shift D
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "No of Trip Year" (
+            type: numberField
+            heading {
+                heading: "No Of Trip "
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+                group: @year
+            }
+            source {
+                databaseColumn: No of Trip Year
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Progressive Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+                group: @progressive
+            }
+            source {
+                databaseColumn: Progressive Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Shift A Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+                group: @shift-a
+            }
+            source {
+                databaseColumn: Shift A Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Shift B Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+                group: @shift-b
+            }
+            source {
+                databaseColumn: Shift B Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Shift C Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+                group: @shift-c
+            }
+            source {
+                databaseColumn: Shift C Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Shift DS Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+                group: @shift-ds
+            }
+            source {
+                databaseColumn: Shift DS Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "Year Quantity" (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+                group: @year
+            }
+            source {
+                databaseColumn: Year Quantity
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Trip and Quantity Summary
+        }
+    )
+
+    pageItem P271_ASONDATE (
+        type: datePicker
+        label {
+            label: As On Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @daily-production-report
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select As on Date
+        }
+    )
+
+    pageItem P271_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+            autocompleteRowsToFetch: 200
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct a.LocationName D,
+                a.LocationCode R
+                From Location a , VehicleLogBook b
+                where a.LocationCode= b.LocationCode;
+                ```
+            nullDisplayValue: -Select-
+        }
+        layout {
+            sequence: 20
+            region: @daily-production-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P271_MONTHFROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @daily-production-report
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P271_PROJECTFROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @daily-production-report
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT MIN(VEHICLELOGBOOKDATE) FROM VEHICLELOGBOOK
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P271_YEARFROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @daily-production-report
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select A.FINANCIALYEARBEGIN
+                  From FINANCIALYEAR A
+                 Where Trunc(Sysdate) Between A.FINANCIALYEARBEGIN And A.FINANCIALYEAREND
+                
+                ```
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 50
+            region: @trip-and-quantity-summary
+            slot: top
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 30
+            region: @daily-production-report
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P271_ASONDATE
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @trip-and-quantity-summary
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @diesel-summary
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                       SELECT TO_DATE('01-'||TO_CHAR(TO_DATE(:P271_ASONDATE,'DD-MM-RRRR'),'MM-RRRR')) FROM DUAL ;
+                    
+                    ```
+                itemsToSubmit: P271_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P271_MONTHFROMDATE
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                       Select A.FINANCIALYEARBEGIN From FINANCIALYEAR A
+                    WHERE :P271_ASONDATE BETWEEN A.FINANCIALYEARBEGIN AND  A.FINANCIALYEAREND ;
+                    ```
+                itemsToSubmit: P271_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P271_YEARFROMDATE
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value-3 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select NVL(Min(B.PROJECTDATE) ,(SELECT MIN(VEHICLELOGBOOKDATE) FROM VEHICLELOGBOOK))
+                      From Location A, Project B
+                     Where A.LOCATIONCODE = B.LOCATIONCODE(+)
+                       and instr(':'||:P271_LOCATION||':',':'||a.LocationCode||':') > 0
+                    AND ROWNUM = 1
+                     Group By A.LOCATIONCODE ;
+                    ```
+                itemsToSubmit: P271_LOCATION
+            }
+            affectedElements {
+                selectionType: items
+                items: P271_PROJECTFROMDATE
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @trip-and-quantity-summary
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @diesel-summary
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                       SELECT TO_DATE('01-'||TO_CHAR(TO_DATE(:P271_ASONDATE,'DD-MM-RRRR'),'MM-RRRR')) FROM DUAL ;
+                    
+                    ```
+                itemsToSubmit: P271_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P271_MONTHFROMDATE
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                       Select A.FINANCIALYEARBEGIN From FINANCIALYEAR A
+                    WHERE :P271_ASONDATE BETWEEN A.FINANCIALYEARBEGIN AND  A.FINANCIALYEAREND ;
+                    ```
+                itemsToSubmit: P271_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P271_YEARFROMDATE
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value-3 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select NVL(Min(B.PROJECTDATE) ,(SELECT MIN(VEHICLELOGBOOKDATE) FROM VEHICLELOGBOOK))
+                      From Location A, Project B
+                     Where A.LOCATIONCODE = B.LOCATIONCODE(+)
+                       and instr(':'||:P271_LOCATION||':',':'||a.LocationCode||':') > 0
+                       AND ROWNUM = 1
+                     Group By A.LOCATIONCODE ;
+                    ```
+                itemsToSubmit: P271_LOCATION
+            }
+            affectedElements {
+                selectionType: items
+                items: P271_PROJECTFROMDATE
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

@@ -1,0 +1,324 @@
+page 68 (
+    name: Nested Report Sample
+    alias: NESTED-REPORT-SAMPLE
+    title: Nested Report Sample
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region nested-report (
+        name: NESTED REPORT
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region nested-report-sample (
+        name: NESTED REPORT SAMPLE
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                     null as Nest,
+                     a.DepartmentCode,
+                     a.Department,
+                     sum(a.NetEarning) as NetEarning
+                From SalaryEngineDetail a
+                Where a.SalaryFromDate = :P68_MONTH--'SEP-2021'-
+                Group by a.DepartmentCode,a.Department
+                Order by 1;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: NEST_DEPARTMENT
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 3998326930785610
+        }
+
+        column DEPARTMENT (
+            type: plainText
+            heading {
+                heading: DEPARTMENT
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DEPARTMENTCODE (
+            type: plainText
+            heading {
+                heading: Departmentcode
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column NEST (
+            type: link
+            heading {
+                heading: DETAILS
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    type: url
+                    url: javascript: void(0);
+                }
+                linkText: <span class="fa fa-search"></span><span class="DEPARTMENTCODE" style="display: none">#DEPARTMENTCODE#</span>
+                linkAttributes: class="dept"
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column NETEARNING (
+            type: plainText
+            heading {
+                heading: NET EARNING
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: NESTED REPORT SAMPLE
+        }
+
+        savedReport 40195 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DEPARTMENT (
+                sequence: 3
+            )
+
+            displayColumn DEPARTMENTCODE (
+                sequence: 2
+            )
+
+            displayColumn NEST (
+                sequence: 1
+            )
+
+            displayColumn NETEARNING (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    pageItem P68_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @nested-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Month
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 30
+            region: @nested-report
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+            eventScope: dynamic
+            staticContainer: body
+        }
+        when {
+            event: click
+            selectionType: jQuerySelector
+            jquerySelector: .dept
+        }
+
+        action plugin-pretius-apex-nested-reports (
+            action: plugin/pretiusApexNestedReports
+            settings {
+                defaultCallbackOptions: [
+                    cacheResults
+                    collapseExpanded
+                    setMaxHeight
+                    addAnimation
+                    loadingIndicator
+                ]
+                defaultTemplateOptions: strechReport
+                detailsQuery:
+                    ```sql
+                    Select
+                         x.SalaryMonth,
+                         x.EmpID,
+                         x.EmployeeName,
+                         x.Department,
+                         x.Designation,
+                         x.NetEarning
+                    From SalaryEngineDetail x
+                    Where x.DepartmentCode = '#DEPARTMENTCODE#'
+                      and x.SalaryFromDate = :P68_MONTH
+                    Order by 1
+                    ```
+                whenNoDataFound: No data found
+            }
+            affectedElements {
+                selectionType: region
+                region: @nested-report-sample
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action plugin-pretius-apex-nested-reports-2 (
+            action: plugin/pretiusApexNestedReports
+            settings {
+                defaultCallbackOptions: [
+                    collapseExpanded
+                    addAnimation
+                    cacheResults
+                ]
+                detailsQuery:
+                    ```sql
+                    Select
+                         EmployeeName,
+                         FatherName,
+                         DateofBirth
+                    From Employee
+                    Where EmployeeID = '#EMPID#'
+                    ```
+                whenNoDataFound: No data found
+            }
+            affectedElements {
+                selectionType: jquerySelector
+                jquerySelector: .dept
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

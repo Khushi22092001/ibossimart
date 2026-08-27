@@ -1,0 +1,1289 @@
+page 116 (
+    name: Purchase
+    alias: PURCHASE
+    title: Purchase
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: [
+            #DEFAULT#
+            t-PageBody--noContentPadding
+        ]
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region item-group-purchase (
+        name: Item Group Purchase
+        type: chart
+        layout {
+            sequence: 30
+            slot: body
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-group-revenue-bar-chart (
+            name: Item Group Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select x.root_id,
+                           getitemname(x.root_id) As RootName,
+                           Sum(a.totalamount) Amount
+                      From bi_prevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                  -- '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.PbpassDate = c.Fin_Date  
+                       and To_Char(a.PbpassDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                    
+                    --   And :P116_ITEMGROUP Is Null
+                    --    Or X.ROOT_ID = &P116_ITEMGROUP
+                    --   And (&P116_ITEMGROUP Is Null Or
+                    --instr(':' || &P116_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By x.root_id
+                    ```
+                pageItemsToSubmit: [
+                    P116_ITEMGROUP
+                    P116_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ROOTNAME
+                label: ROOTNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_ITEMGROUP',&ROOT_ID.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region item-group-supplier-purchase (
+        name: Item Group Supplier Purchase
+        type: chart
+        layout {
+            sequence: 40
+            slot: body
+            startNewRow: false
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P116_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P116_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    'CO' AS LOCATIONCODE,B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_prevenue a,
+                           PARTY B,
+                           BI_DateTime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       And A.PARTYCODE = B.PARTYCODE
+                       and a.pbpassDate = c.Fin_Date  
+                       and To_Char(a.pbpassDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                    
+                       And (:P116_ITEMGROUP Is Null  Or X.ROOT_ID = :P116_ITEMGROUP)
+                    --   And (&P116_ITEMGROUP Is Null Or
+                    --instr(':' || &P116_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By B.PARTYCODE, B.PARTYNAME
+                     order by 6 desc
+                    
+                    /*
+                    Select
+                          b.PartyCode,
+                          GetPartyName(b.PartyCode) PartyName,
+                          sum(b.TotalAmount)Amount
+                    From  BI_DateTime a, BI_SRevenue b
+                    Where a.Fin_Date = b.CCInvoiceDate
+                      and b.ItemCode like nvl(:P116_ITEM,'%')
+                      and To_Char(b.CCInvoiceDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                      and a.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                      and replace(a.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                    Group by b.PartyCode
+                    */
+                    ```
+                pageItemsToSubmit: [
+                    P116_ITEM
+                    P116_MONTH
+                    P116_QUARTER
+                ]
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 75
+                    items: {
+                        P75_COMPANY: 1
+                        P75_FROMDATE: &FROMDATE.
+                        P75_TODATE: &TODATE.
+                        P75_ITEMGROUP: &P116_ITEMGROUP.
+                        P75_LOCATION: &LOCATIONCODE.
+                    }
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region item-purchase (
+        name: Item Purchase
+        type: chart
+        layout {
+            sequence: 50
+            slot: body
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select Nvl(X.PARENTCODE, X.ITEMCODE) As PARENTCODE,
+                           getitemname(Nvl(X.PARENTCODE, X.ITEMCODE)) As RootName,
+                           Sum(a.totalamount) Amount
+                      From bi_prevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                  -- '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.PBPassDate = c.Fin_Date  
+                       and To_Char(a.PBPassDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                    
+                       And (:P116_ITEMGROUP Is Null
+                        Or X.ROOT_ID = :P116_ITEMGROUP)
+                    --   And (&P116_ITEMGROUP Is Null Or
+                    --instr(':' || &P116_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By Nvl(X.PARENTCODE, X.ITEMCODE)
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P116_ITEM
+                    P116_ITEMGROUP
+                ]
+            }
+            columnMapping {
+                seriesName: ROOTNAME
+                label: ROOTNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_ITEM',&PARENTCODE.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region item-spec-supplier-purchase (
+        name: item spec Supplier Purchase
+        type: chart
+        layout {
+            sequence: 80
+            slot: body
+            startNewRow: false
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        legend {
+            show: false
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P116_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P116_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    'CO' AS LOCATIONCODE,B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_prevenue a,
+                           PARTY B,
+                           BI_DateTime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                  -- '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       And A.PARTYCODE = B.PARTYCODE
+                       and a.PBPassDate = c.Fin_Date  
+                       and To_Char(a.PBPassDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                       And (:P116_ITEMGROUP Is Null    Or X.ROOT_ID = :P116_ITEMGROUP)
+                       And (:P116_ITEM Is Null Or NVL(X.PARENTCODE,X.ITEMCODE) = :P116_ITEM)
+                       and (:P116_ITEMSPECIFICATION IS NULL OR A.ITEMSPECIFICATIONCODE = :P116_ITEMSPECIFICATION)
+                     Group By B.PARTYCODE, B.PARTYNAME
+                     order by 6 desc
+                    ```
+                pageItemsToSubmit: P116_ITEMSPECIFICATION
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 75
+                    items: {
+                        P75_COMPANY: 1
+                        P75_FROMDATE: &FROMDATE.
+                        P75_TODATE: &TODATE.
+                        P75_ITEMGROUP: &P116_ITEMGROUP.
+                        P75_PARTYNAME: &PARTYCODE.
+                        P75_ITEM: &P116_ITEM.
+                        P75_ITEMSPECIFICATION: &P116_ITEMSPECIFICATION.
+                    }
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region item-specification-purchase (
+        name: Item Specification Purchase
+        type: chart
+        layout {
+            sequence: 70
+            slot: body
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select A.ITEMSPECIFICATIONCODE As ITEMSPECIFICATIONCODE,
+                           --getitemSPECIFICATIONNAME(A.ITEMCODE, A.ITEMSPECIFICATIONCODE) As ItemSpecificationName,
+                           A.ITEMSPECIFICATIONCODE As ITEMSPECIFICATIONNAME,
+                           Sum(a.totalamount) Amount
+                      From bi_prevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.PBPassDate = c.Fin_Date  
+                       and To_Char(a.PBPassDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                    
+                       And (:P116_ITEMGROUP Is Null
+                        Or X.ROOT_ID = :P116_ITEMGROUP)
+                       And (:P116_ITEM Is Null
+                        Or NVL(X.PARENTCODE,X.ITEMCODE) = :P116_ITEM)
+                    --   And (&P116_ITEMGROUP Is Null Or
+                    --instr(':' || &P116_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By a.itemcode, a.itemspecificationcode
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P116_ITEMSPECIFICATION
+                    P116_ITEMGROUP
+                    P116_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ITEMSPECIFICATIONNAME
+                label: ITEMSPECIFICATIONNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_ITEMSPECIFICATION',&ITEMSPECIFICATIONCODE.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region item-supplier-purchase (
+        name: Item Supplier Purchase
+        type: chart
+        layout {
+            sequence: 60
+            slot: body
+            startNewRow: false
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueAsc
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-supplier-revenue-bar-chart (
+            name: Item Supplier Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P116_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P116_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    'CO' AS LOCATIONCODE,
+                    B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_prevenue a,
+                           PARTY B,
+                           BI_DateTime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       And A.PARTYCODE = B.PARTYCODE
+                       and a.PBPassDate = c.Fin_Date  
+                       and To_Char(a.PBPassDate,'YYYYMM') like nvl(:P116_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P116_FINYEAR,'%')
+                       And (:P116_ITEMGROUP Is Null    Or X.ROOT_ID = :P116_ITEMGROUP)
+                       And (:P116_ITEM Is Null Or NVL(X.PARENTCODE,X.ITEMCODE) = :P116_ITEM)
+                     Group By B.PARTYCODE, B.PARTYNAME
+                     order by 6 desc
+                    ```
+                pageItemsToSubmit: [
+                    P116_ITEM
+                    P116_MONTH
+                    P116_QUARTER
+                ]
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 75
+                    items: {
+                        P75_COMPANY: 1
+                        P75_FROMDATE: &FROMDATE.
+                        P75_TODATE: &TODATE.
+                        P75_LOCATION: &LOCATIONCODE.
+                        P75_ITEM: &P116_ITEM.
+                    }
+                    clearCache: 75
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region purchase (
+        name: Purchase
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--showIcon
+                t-Region--accent14
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+                margin-top-none
+                margin-bottom-sm
+                margin-left-sm
+                margin-right-sm
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region purchase-by-months (
+        name: Purchase by Months
+        type: chart
+        layout {
+            sequence: 30
+            parentRegion: @purchase
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--accent7
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 250
+        }
+        legend {
+            show: false
+        }
+
+        series months-bar-chart (
+            name: Months Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select
+                          b.Fin_Qtr,
+                          b.Fin_Month,
+                          To_Char(a.PBPassDate,'MON-YYYY') as Month,
+                          To_Char(a.PBPassDate,'YYYYMM') as Monthyy,
+                          sum(a.TotalAmount)Amount
+                    From  BI_PRevenue a, BI_DateTime b
+                    Where a.PBPassDate = b.Fin_date
+                      --and b.Fin_Qtr like nvl(:P116_FIN_QTR,'%')
+                      --and b.Fin_year like nvl(:P116_FINYEAR,'%')
+                        and (b.Fin_Qtr = :P116_FIN_QTR or :P116_FIN_QTR is null)
+                        and (replace(b.Fin_year,'-','') = :P116_FINYEAR or :P116_FINYEAR is null)
+                    Group by b.Fin_Qtr,
+                             b.Fin_Month,
+                             To_Char(a.PBPassDate,'MON-YYYY'),
+                             To_Char(a.PBPassDate,'YYYYMM')
+                    Order by  2 --To_Char(a.PBPassDate,'YYYYMM')
+                    ```
+                pageItemsToSubmit: [
+                    P116_MONTH
+                    P116_FIN_QTR
+                    P116_FINYEAR
+                ]
+            }
+            columnMapping {
+                label: MONTH
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_MONTH',&MONTHYY.);
+            }
+            label {
+                show: true
+                position: outsideBarEdge
+                fontSize: 10
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region purchase-by-quarters (
+        name: Purchase by Quarters
+        type: chart
+        layout {
+            sequence: 20
+            parentRegion: @purchase
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--accent5
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: pie
+        }
+        chartLayout {
+            height: 250
+        }
+        dataCursor {
+            cursor: true
+            behavior: smooth
+        }
+        settings {
+            pieSelectionEffect: highlightAndExplode
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+        }
+
+        series quater-pie-chart (
+            name: Quater Pie Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select
+                          a.Fin_Qtr_Name,
+                          a.Fin_Qtr,
+                          sum(c.TotalAmount)Amount
+                    From  BI_DateTime a, BI_Prevenue c
+                    Where a.Fin_Date = c.PBPassDate
+                      and replace(a.Fin_Year,'-','') like nvl(:P116_FINYEAR,'%')
+                    Group by a.Fin_Qtr_Name,
+                             a.Fin_Qtr
+                    Order by 2
+                    ```
+                pageItemsToSubmit: P116_FINYEAR
+            }
+            columnMapping {
+                label: FIN_QTR_NAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_FIN_QTR',&FIN_QTR.);
+            }
+            label {
+                show: true
+                position: outsideSlice
+                displayAs: percentageValue
+                fontSize: 10
+            }
+        )
+
+    )
+
+    region yearly-purchase (
+        name: Yearly Purchase
+        type: chart
+        layout {
+            sequence: 10
+            parentRegion: @purchase
+            slot: subRegions
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--accent1
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: pie
+        }
+        chartLayout {
+            height: 250
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+        }
+
+        series yearly-revenue (
+            name: Yearly Revenue
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select
+                          a.Fin_Year FYNAME,
+                          REPLACE(a.Fin_Year,'-','') FYCODE,
+                          sum(TotalAmount)Amount
+                    From  BI_DateTime a, BI_PRevenue b
+                    Where a.Fin_Date = b.PBPassDate
+                    Group by a.Fin_Year
+                    ```
+            }
+            columnMapping {
+                label: FYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: JavaScript:$s('P116_FINYEAR' ,&FYCODE. );
+            }
+            label {
+                show: true
+                position: outsideSlice
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    pageItem P116_FINYEAR (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @yearly-purchase
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P116_FIN_QTR (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @purchase-by-quarters
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P116_ITEM (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @item-purchase
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P116_ITEMGROUP (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @item-group-purchase
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P116_ITEMSPECIFICATION (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @item-specification-purchase
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P116_MONTH (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @purchase-by-months
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P116_QUARTER (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @purchase-by-months
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    dynamicAction refresh (
+        name: REFRESH
+        execution {
+            sequence: 110
+        }
+        when {
+            selectionType: items
+            items: P116_ITEMSPECIFICATION
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-supplier-purchase
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-customer-region (
+        name: Refresh Customer Region
+        execution {
+            sequence: 70
+        }
+        when {
+            selectionType: items
+            items: P116_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-group-supplier-purchase
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-item (
+        name: REFRESH ITEM
+        execution {
+            sequence: 80
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P116_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-purchase
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT NULL FROM DUAL
+                itemsToSubmit: P116_ITEM
+            }
+            affectedElements {
+                selectionType: items
+                items: P116_ITEM
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-item-region (
+        name: Refresh Item Region
+        execution {
+            sequence: 50
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P116_MONTH
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P116_ITEMGROUP
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-item-specification (
+        name: REFRESH ITEM SPECIFICATION
+        execution {
+            sequence: 100
+        }
+        when {
+            selectionType: items
+            items: P116_ITEM
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-supplier-purchase
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-specification-purchase
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-3 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-supplier-purchase
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-itemspecification (
+        name: REFRESH ITEMSPECIFICATION
+        execution {
+            sequence: 90
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P116_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-specification-purchase
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-supplier-purchase
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-month-chart (
+        name: Refresh Month Chart
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P116_FIN_QTR
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P116_MONTH
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @purchase-by-months
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-quarter-chart (
+        name: Refresh Quarter Chart
+        execution {
+            sequence: 30
+        }
+        when {
+            selectionType: items
+            items: P116_FINYEAR
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: [
+                    P116_FIN_QTR
+                    P116_MONTH
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @purchase-by-quarters
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

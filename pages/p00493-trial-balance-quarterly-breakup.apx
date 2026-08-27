@@ -1,0 +1,2187 @@
+page 493 (
+    name: Trial Balance Quarterly Breakup
+    alias: TRIAL-BALANCE-QUARTERLY-BREAKUP
+    title: Trial Balance Quarterly Breakup
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        authentication: public
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region new (
+        name: New
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select a.partycode,
+                       a.partyname,
+                       A.QUARTERLYVERIFICATIONUSERCODE,
+                       b.Bossusername,
+                       getTrialBalancePosition(a.PartyCode) As currentposition,
+                       a.partytypecode,
+                       c.AccountLevel,
+                       c.openingamount,
+                       c.q1debitamount,
+                       c.q1creditamount,
+                       c.q2debitamount,
+                       c.q2creditamount,
+                       c.q3debitamount,
+                       c.q3creditamount,
+                       c.q4debitamount,
+                       c.q4creditamount,
+                       Case
+                         When A.PARTYTYPECODE != 'ACCOUNTGROUP' Then
+                          99999
+                         Else
+                          c.accountlevel
+                       End colorlevel
+                
+                --CASE WHEN nvl(:P493_LedgerOnly,'NO') = 'NO' and A.partytypecode='ACCOUNTGROUP' and NVL(:P493_WITHINDENT,'NO') = 'YES' then
+                /*CASE WHEN  A.partytypecode='ACCOUNTGROUP' and NVL(:P493_WITHINDENT,'NO') = 'YES' then
+                  
+                      '<B>'||'<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||401||':'||:APP_SESSION||'::::'||'P493_ACCOUNTCODE,P493_FROMDATE,P493_ACCOUNTLEVEL,P493_ACCOUNTCODE,P493_TODATE,P493_WITHINDENT'||':'||A.PARTYCODE||','||nvl(:P493_FROMDATE,:P400_FROMDATE)||','||C.ACCOUNTLEVEL ||','||A.PARTYCODE||','||NVL(:P493_TODATE,:P400_TODATE)||','||'YES'||':NO')||'">'||rpad('-',2 * (C.AccountLevel),'-')  || A.PARTYNAME||'</a>'||'</b>'
+                 
+                   WHEN   A.partytypecode='ACCOUNTGROUP' and NVL(:P493_WITHINDENT,'NO') = 'NO' then
+                 
+                      '<B>'||'<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||401||':'||:APP_SESSION||'::::'||'P493_ACCOUNTCODE,P493_FROMDATE,P493_ACCOUNTLEVEL,P493_ACCOUNTCODE,P493_TODATE,P493_WITHINDENT'||':'||A.PARTYCODE||','||nvl(:P493_FROMDATE,:P400_FROMDATE)||','||C.ACCOUNTLEVEL ||','||A.PARTYCODE||','||NVL(:P493_TODATE,:P400_TODATE)||','||'YES'||':NO')||'">'||A.PARTYNAME||'</a>'||'</b>'
+                 
+                   WHEN  A.partytypecode ! ='ACCOUNTGROUP' and NVL(:P493_WITHINDENT,'NO') = 'YES' then
+                     --  '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':141:'||:APP_SESSION||'::'||'P141_fromdate:'|| c.fromdate||':'||'P141_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||a.partyname||'</a>'  
+                      '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':11:'||:APP_SESSION||'::'||'P11_fromdate:'|| c.fromdate||':'||'P11_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||rpad('-',2 * (C.AccountLevel ),'-')  || A.PARTYNAME||'</a>'
+                 
+                   WHEN  A.partytypecode ! ='ACCOUNTGROUP' and NVL(:P493_WITHINDENT,'NO') = 'NO' then
+                     --  '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':141:'||:APP_SESSION||'::'||'P141_fromdate:'|| c.fromdate||':'||'P141_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||a.partyname||'</a>'  
+                      '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':11:'||:APP_SESSION||'::'||'P11_fromdate:'|| c.fromdate||':'||'P11_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||A.PARTYNAME||'</a>'
+                end ACCOUNTNAMEDISPLAY
+                */
+                  From Party a,
+                       (Select b.LocationCode,
+                               b.CompanyCode,
+                               a.AccountCode,
+                               b.FromDate,
+                               b.ToDate,
+                               b.IncludeChild,
+                               b.creator,
+                               a.AccountLevel,
+                               a.TrialBalancePosition,
+                               --b.financialyearcode,
+                               Sum(nvl(b.openingamount, 0)) As OpeningAmount,
+                               Sum(nvl(b.q1debitamount, 0)) As q1debitamount,
+                               Sum(nvl(b.q1creditamount, 0)) As q1creditamount,
+                               Sum(nvl(b.q2debitamount, 0)) As q2debitamount,
+                               Sum(nvl(b.q2creditamount, 0)) As q2creditamount,
+                               Sum(nvl(b.q3debitamount, 0)) As q3debitamount,
+                               Sum(nvl(b.q3creditamount, 0)) As q3creditamount,
+                               Sum(nvl(b.q4debitamount, 0)) As q4debitamount,
+                               Sum(nvl(b.q4creditamount, 0)) As q4creditamount
+                          From MyAccountIncludeRevised a, TRIALBALANCEQUARTER b
+                         Where a.ChildCode = b.AccountCode
+                           And NVL(A.LOCATIONCODE, 'NULL') = NVL(B.LOCATIONCODE, 'NULL')
+                              
+                           And a.CompanyCode = b.CompanyCode
+                           And a.FromDate = b.FromDate
+                           And a.ToDate = b.ToDate
+                           And a.Creator = b.Creator
+                           And a.fromdate = :P493_FROMDATE
+                           And a.todate = :P493_TODATE
+                        
+                         Group By b.LocationCode,
+                                  b.CompanyCode,
+                                  a.AccountCode,
+                                  b.FromDate,
+                                  b.ToDate,
+                                  b.IncludeChild,
+                                  b.creator,
+                                  
+                                  a.AccountLevel,
+                                  a.TrialBalancePosition
+                        
+                        ) c,
+                       Bossuser b
+                 Where 1 = 1
+                   And a.QUARTERLYVERIFICATIONUSERCODE = b.bossusercode(+)
+                   And C.CREATOR = '&APP_USER.'
+                   And a.PartyCode = c.AccountCode
+                
+                  
+                ---
+                
+                and (
+                     exists (
+                           select
+                                aa.ChildCode
+                           from MyAccountIncludeRevised aa
+                           where aa.CompanyCode = :P493_CompanyCode
+                               and aa.FromDate = :P493_FromDate
+                               and aa.ToDate = :P493_ToDate
+                               and nvl(aa.LocationCode, 'NULL') = nvl(:P493_LocationCode, 'NULL')
+                               and aa.AccountCode = :P493_AccountCode
+                
+                               and (:P493_ACCOUNTCODE is null or aa.AccountCode = :P493_AccountCode)
+                               and aa.ChildCode = a.PartyCode
+                     )
+                     or
+                     :P493_AccountCode is null
+                )
+                
+                and ( 
+                     nvl(:P493_LedgerOnly,'NO') = 'YES'          
+                     or
+                     c.AccountLevel <= nvl(:P493_AccountLevel,1)
+                     
+                )
+                and ( 
+                     nvl(:P493_LedgerOnly,'NO') = 'NO' 
+                     OR
+                     a.PartyTypeCode != 'ACCOUNTGROUP'
+                )
+                and (
+                     nvl(:P493_IncludeZeroTransaction ,'NO') = 'YES'
+                     or ( 
+                         nvl(c.Q1DEBITAMOUNT,0) != 0
+                         or
+                         nvl(c.Q1CreditAmount,0) != 0
+                         or
+                         nvl(c.Q2DebitAmount,0) != 0
+                         or
+                         nvl(c.Q2CreditAmount,0) != 0
+                         or
+                         nvl(c.Q3DebitAmount,0) != 0
+                         or
+                         nvl(c.Q3CreditAmount,0) != 0
+                         or
+                         nvl(c.Q4CreditAmount,0) != 0
+                         or
+                         nvl(c.Q4CreditAmount,0) != 0
+                     )     
+                )
+                
+                 and c.FromDate = '&P493_FROMDATE.'--TO_DATE(:P493_FROMDATE,'DD-MM-RRRR')
+                 and c.ToDate = '&P493_TODATE.'--TO_DATE(:P493_TODATE,'DD-MM-RRRR')
+                
+                and c.CompanyCode = :P493_COMPANYCODE
+                 and ( :P493_LOCATIONCODE is null or c.locationcode = :P493_LOCATIONCODE)
+                
+                --ORDER BY getTrialBalancePosition(a.PartyCode), a.PartyName
+                
+                ```
+            pageItemsToSubmit: [
+                P493_FROMDATE
+                P493_TODATE
+                P493_WITHINDENT
+                P493_LEDGERONLY
+                P493_NARRATION
+                P493_PRINTDRCR
+                P493_LOCATIONCODE
+                P493_ACCOUNTCODE
+                P493_INCLUDECHILD
+                P493_INCLUDEZEROTRANSACTION
+                P493_NEW
+                P493_REPORTTITLE
+                P493_DIVISIONWISE
+                P493_ACCOUNTLEVEL
+                P493_DETAILLEVEL
+                P493_EXCLUDE0CLOSING
+                P493_COMPANYCODE
+                P493_FINANCIALYEARCODE
+                P493_QTR1END
+                P493_QTR2END
+                P493_QTR3END
+                P493_QTR4END
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: td
+            regionDisplaySelector: true
+        }
+        toolbar {
+            controls: [
+                searchField
+                actionsMenu
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        heading {
+            fixedTo: region
+            fixedReportHeight: 450
+        }
+        advanced {
+            savedReportMappingIdentifier: 31172478751772148
+        }
+
+        savedReport 18950 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @CURRENTPOSITION
+                layout {
+                    show: false
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @COLORLEVEL
+                layout {
+                    show: false
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @PARTYCODE
+                layout {
+                    show: false
+                    width: 100
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    width: 255
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @QUARTERLYVERIFICATIONUSERCODE
+                layout {
+                    show: false
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @PARTYTYPECODE
+                layout {
+                    show: false
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @ACCOUNTLEVEL
+                layout {
+                    show: false
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @OPENINGAMOUNT
+                layout {
+                    show: false
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @Q1DEBITAMOUNT
+                layout {
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @Q1CREDITAMOUNT
+                layout {
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @Q2DEBITAMOUNT
+                layout {
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @Q2CREDITAMOUNT
+                layout {
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @Q3DEBITAMOUNT
+                layout {
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @Q3CREDITAMOUNT
+                layout {
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @Q4DEBITAMOUNT
+                layout {
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @Q4CREDITAMOUNT
+                layout {
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @BOSSUSERNAME
+                layout {
+                    sequence: 18
+                }
+            )
+
+            sort (
+                column: @CURRENTPOSITION
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: @PARTYNAME
+                sort {
+                    nulls: last
+                    sequence: 2
+                }
+            )
+
+            highlight account (
+                name: ACCOUNT
+                condition {
+                    column: @COLORLEVEL
+                    value: 99999
+                }
+                colors {
+                    background: #ffffff
+                }
+                execution {
+                    sequence: 35
+                }
+            )
+
+            highlight level (
+                name: LEVEL 2
+                condition {
+                    column: @COLORLEVEL
+                    value: 2
+                }
+                colors {
+                    background: #d0f1cc
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+            highlight level-2 (
+                name: LEVEL 3
+                condition {
+                    column: @COLORLEVEL
+                    value: 3
+                }
+                colors {
+                    background: #cce5ff
+                }
+                execution {
+                    sequence: 15
+                }
+            )
+
+            highlight level-3 (
+                name: LEVEL 1
+                condition {
+                    column: @COLORLEVEL
+                    value: 1
+                }
+                colors {
+                    background: #fdbafb
+                }
+                execution {
+                    sequence: 5
+                }
+            )
+
+            highlight level-4 (
+                name: LEVEL 4
+                condition {
+                    column: @COLORLEVEL
+                    value: 4
+                }
+                colors {
+                    background: #ffd6d2
+                }
+                execution {
+                    sequence: 20
+                }
+            )
+
+            highlight level-5 (
+                name: LEVEL 6
+                condition {
+                    column: @COLORLEVEL
+                    value: 6
+                }
+                colors {
+                    background: #e2ea84
+                }
+                execution {
+                    sequence: 30
+                }
+            )
+
+            highlight level-6 (
+                name: LEVEL 5
+                condition {
+                    column: @COLORLEVEL
+                    value: 5
+                }
+                colors {
+                    background: #e8e8e8
+                }
+                execution {
+                    sequence: 25
+                }
+            )
+
+        )
+
+        columnGroup balance-as-on-1st-qtr (
+            heading: Balance as on 1st Qtr
+        )
+
+        columnGroup balance-as-on-2nd-qtr (
+            heading: Balance as on 2nd Qtr
+        )
+
+        columnGroup balance-as-on-3rd-qtr (
+            heading: Balance as on 3rd Qtr
+        )
+
+        columnGroup balance-as-on-4th-qtr (
+            heading: Balance as on 4th Qtr
+        )
+
+        column ACCOUNTLEVEL (
+            type: numberField
+            heading {
+                heading: Accountlevel
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ACCOUNTLEVEL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column BOSSUSERNAME (
+            type: textField
+            heading {
+                heading: Bossusername
+            }
+            layout {
+                sequence: 200
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: BOSSUSERNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column COLORLEVEL (
+            type: numberField
+            heading {
+                heading: Colorlevel
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: COLORLEVEL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column CURRENTPOSITION (
+            type: textField
+            heading {
+                heading: Currentposition
+            }
+            layout {
+                sequence: 180
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: CURRENTPOSITION
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                controlBreakAggregate: false
+            }
+        )
+
+        column OPENINGAMOUNT (
+            type: numberField
+            heading {
+                heading: Openingamount
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: OPENINGAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PARTYCODE (
+            type: textField
+            heading {
+                heading: Partycode
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                valueRequired: true
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARTYNAME (
+            type: textField
+            heading {
+                heading: Partyname
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARTYTYPECODE (
+            type: textField
+            heading {
+                heading: Partytypecode
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYTYPECODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column Q1CREDITAMOUNT (
+            type: numberField
+            heading {
+                heading: Credit
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+                group: @balance-as-on-1st-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q1CREDITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q1DEBITAMOUNT (
+            type: numberField
+            heading {
+                heading: Debit
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+                group: @balance-as-on-1st-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q1DEBITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q2CREDITAMOUNT (
+            type: numberField
+            heading {
+                heading: Credit
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+                group: @balance-as-on-2nd-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q2CREDITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q2DEBITAMOUNT (
+            type: numberField
+            heading {
+                heading: Debit
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+                group: @balance-as-on-2nd-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q2DEBITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q3CREDITAMOUNT (
+            type: numberField
+            heading {
+                heading: Credit
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+                group: @balance-as-on-3rd-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q3CREDITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q3DEBITAMOUNT (
+            type: numberField
+            heading {
+                heading: Debit
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+                group: @balance-as-on-3rd-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q3DEBITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q4CREDITAMOUNT (
+            type: numberField
+            heading {
+                heading: Credit
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+                group: @balance-as-on-4th-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q4CREDITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column Q4DEBITAMOUNT (
+            type: numberField
+            heading {
+                heading: Debit
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+                group: @balance-as-on-4th-qtr
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                databaseColumn: Q4DEBITAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column QUARTERLYVERIFICATIONUSERCODE (
+            type: textField
+            heading {
+                heading: Quarterlyverificationusercode
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: QUARTERLYVERIFICATIONUSERCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region trial-balance-quarterly-breakup (
+        name: Trial Balance  Quarterly Breakup
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: fullWidthContent
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-useLocalStorage
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    pageItem P493_ACCOUNTCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 110
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT 1 FROM PARTY WHERE 1 != 1
+        }
+    )
+
+    pageItem P493_ACCOUNTLEVEL (
+        type: textField
+        label {
+            label: Detail Level
+            alignment: left
+        }
+        layout {
+            sequence: 170
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        default {
+            type: static
+            staticValue: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_COMPANYCODE (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select Distinct CompanyName, Companycode from company
+        }
+        layout {
+            sequence: 10
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_DETAILLEVEL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 180
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_DIVISIONWISE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_EXCLUDE0CLOSING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 190
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_FINANCIALYEARCODE (
+        type: popupLov
+        label {
+            label: F.Year
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: "select financialyearcode d ,financialyearcode r from financialyear "
+        }
+        layout {
+            sequence: 20
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARCODE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 40
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARBEGIN
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_INCLUDECHILD (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 120
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_INCLUDEZEROTRANSACTION (
+        type: checkbox
+        label {
+            label: IncludeZeroTransaction
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 80
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_LEDGERONLY (
+        type: checkbox
+        label {
+            label: Ledger Only
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 70
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            alignment: left
+            column: 4
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        source {
+            used: always
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_LOCATIONCODE (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d, LocationCode r From Location Where ISDIVISION = 'YES'
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        source {
+            used: always
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT 1 FROM PARTY WHERE 1 != 1
+        }
+    )
+
+    pageItem P493_NARRATION (
+        type: hidden
+        layout {
+            sequence: 90
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_NEW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 140
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_PRINTDRCR (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 100
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: STATE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_QTR1END (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 230
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+    )
+
+    pageItem P493_QTR2END (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 260
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+    )
+
+    pageItem P493_QTR3END (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 240
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+    )
+
+    pageItem P493_QTR4END (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 250
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+    )
+
+    pageItem P493_REPORTTITLE (
+        type: hidden
+        layout {
+            sequence: 150
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: Account Ledger
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 200
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: STATUS
+        }
+    )
+
+    pageItem P493_TODATE (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT TRUNC(SYSDATE) FROM DUAL;
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P493_WITHINDENT (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button create (
+        buttonName: Create
+        label: Create
+        layout {
+            sequence: 220
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button show (
+        buttonName: Show
+        label: Show
+        layout {
+            sequence: 210
+            region: @trial-balance-quarterly-breakup
+            slot: regionBody
+            column: 7
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 30
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P493_FINANCIALYEARCODE
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select a.financialyearbegin,
+                           case when trunc(sysdate) < A.Financialyearend then
+                                trunc(sysdate)
+                                else a.financialyearend
+                            end financialyearend
+                    from financialyear a
+                    where a.financialyearcode = :P493_FINANCIALYEARCODE;
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P493_FROMDATE
+                    P493_TODATE
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action set-qtr (
+            name: SET QTR 1
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q1'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR1END
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action set-qtr-2 (
+            name: SET QTR 2
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q2'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR2END
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action set-qtr-3 (
+            name: SET QTR 3
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q3'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR3END
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action set-qtr-4 (
+            name: SET QTR 4
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q4'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR4END
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 40
+        }
+        when {
+            event: ready
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select a.financialyearbegin,
+                           case when trunc(sysdate) < A.Financialyearend then
+                                trunc(sysdate)
+                                else a.financialyearend
+                            end financialyearend
+                    from financialyear a
+                    where a.financialyearcode = :P493_FINANCIALYEARCODE;
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P493_FROMDATE
+                    P493_TODATE
+                ]
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action set-qtr (
+            name: SET QTR 1
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q1'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR1END
+            }
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action set-qtr-2 (
+            name: SET QTR 2
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q2'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR2END
+            }
+            execution {
+                sequence: 30
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action set-qtr-3 (
+            name: SET QTR 3
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q3'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR3END
+            }
+            execution {
+                sequence: 40
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action set-qtr-4 (
+            name: SET QTR 4
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT X.todate FROM (
+                    Select a.fromdate,
+                           a.todate,
+                            Case
+                             When to_char(a.fromdate, 'MM') In ('04', '05', '06') Then
+                              'Q1'
+                             When to_char(a.fromdate, 'MM') In ('07', '08', '08') Then
+                              'Q2'
+                             When to_char(a.fromdate, 'MM') In ('10', '11', '12') Then
+                              'Q3'
+                             When to_char(a.fromdate, 'MM') In ('01', '02', '03') Then
+                              'Q4'
+                           End QUARTER
+                      From PERIODLIST A, FINANCIALYEAR B
+                     Where B.FINANCIALYEARCODE = :P493_FINANCIALYEARCODE
+                       And FROMDATE >= B.FINANCIALYEARBEGIN
+                       And TODATE <= B.FINANCIALYEAREND
+                       And PERIODTYPE = 'QUATER'
+                        ) X
+                        WHERE X.QUARTER='Q4'
+                    ```
+                itemsToSubmit: P493_FINANCIALYEARCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P493_QTR4END
+            }
+            execution {
+                sequence: 50
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    dynamicAction new-3 (
+        name: New_2
+        execution {
+            sequence: 50
+        }
+        when {
+            event: apexafterrefresh
+            selectionType: region
+            region: @new
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    alert($(this).text());
+                    $('td[headers="ACCOUNTLEVEL"]').each(function() {
+                      if ( $(this).text() = '1' ) {
+                        $(this).closest('tr').find('td').css({"background-color":"#COLOUR !important"});
+                      }
+                      
+                    });
+                    ```
+            }
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-4 (
+        name: New_3
+        execution {
+            sequence: 70
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @show
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-5 (
+        name: New_4
+        execution {
+            sequence: 80
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @create
+        }
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @create
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    BEGIN
+                    		declare
+                                	tFromDate Date := to_date(:P493_FromDate,'DD-MM-RRRR');
+                    				tToDate Date := to_date(:P493_ToDate,'DD-MM-RRRR');
+                    				tStartDate Date := GetFinancialYearBegin(:P493_FinancialYearCode);
+                    				tDetailLevel number := :P493_DetailLevel;
+                                    tFinancialyearcode  varchar2(30) ;
+                    				tLedgerOnly Varchar2(30) := :P493_LedgerOnly;
+                    				tIncludeChild Varchar2(30) := :P493_IncludeChild;		
+                    				tLocationCode Varchar2(30) := :P493_LocationCode;
+                    				-- tLocationName Varchar2(2000) := :P493_LocationName;
+                    				tDivisionWise Varchar2(3) := :P493_DivisionWise;
+                    		begin 
+                                   -- RAISE_APPLICATION_ERROR(-20025,' c '||:P493_COMPANYCODE||' L '||:P493_LOCATIONCODE|| 'from date '||tfromdate||' to date '||ttodate); 
+                                 Delete From MyAccountIncludeRevised a
+                                   Where a.CompanyCode = :P493_CompanyCode
+                                     And a.FromDate = tFromDate
+                                     And a.ToDate = tToDate
+                                     and (a.locationcode is null or a.locationcode = :P493_LOCATIONCODE)
+                                     and a.creator='&APP_USER.'
+                                     ;
+                                     COMMIT;
+                                    APEX_CreateMyAccountIncludeRevised(:P493_CompanyCode, :P493_LOCATIONCODE, tFromDate, tToDate);
+                                    --RefreshMyAccountIncludeForAll;
+                                  --  COMMIT;
+                    
+                                             
+                                    /*----------------------------
+                    				-- EXECUTE REFRESH OPENING ON INSTRUCTION FROM TIWARI SIR DATE 30 APR 2018
+                    				*/
+                                  -- RefreshOpening(nvl(:P493_FinancialYearCode,tFinancialyearcode), :P493_CompanyCode);			
+                    				
+                    				/*----------------------------*/
+                    				
+                    				delete 
+                    						from TRIALBALANCEQUARTER a 
+                    						where a.CompanyCode = :P493_CompanyCode
+                    								and nvl(a.LocationCode, 'null') = nvl(tLocationCode, 'null')
+                    								and a.FromDate = tFromDate
+                    								and a.ToDate = tToDate
+                    								and a.Creator = '&APP_USER.'
+                    				;
+                                  --  RAISE_APPLICATION_ERROR(-20025,'CALLED'); 
+                     				CreateTrialBalanceQuarter(:P493_CompanyCode,:P493_FinancialYearCode,:P493_LOCATIONCODE,'&APP_USER.',:P493_FROMDATE,:P493_TODATE);
+                    
+                    		end;  
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P493_COMPANYCODE
+                    P493_FINANCIALYEARCODE
+                    P493_LOCATIONCODE
+                    P493_FROMDATE
+                    P493_TODATE
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("#apex_wait_overlay").remove();
+                    $(".u-Processing").remove();
+                    ```
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction show-spinner (
+        name: show spinner
+        execution {
+            sequence: 60
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @create
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @create
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action show-spinner (
+            name: show spinner
+            action: executeJsCode
+            settings {
+                jsCode: var lSpinner$ = apex.util.showSpinner( $( "#td" ) );
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process create (
+        name: create
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                		declare
+                            	tFromDate Date := to_date(:P493_FromDate,'DD-MM-RRRR');
+                				tToDate Date := to_date(:P493_ToDate,'DD-MM-RRRR');
+                				tStartDate Date := GetFinancialYearBegin(:P493_FinancialYearCode);
+                				tDetailLevel number := :P493_DetailLevel;
+                                tFinancialyearcode  varchar2(30) ;
+                				tLedgerOnly Varchar2(30) := :P493_LedgerOnly;
+                				tIncludeChild Varchar2(30) := :P493_IncludeChild;		
+                				tLocationCode Varchar2(30) := :P493_LocationCode;
+                				tLocationName Varchar2(2000) := :P493_LocationName;
+                				tDivisionWise Varchar2(3) := :P493_DivisionWise;
+                		begin 
+                               /* Select aa.financialyearcode,aa.financialyearbegin 
+                                into tFinancialyearcode,tStartDate
+                                From financialyear aa
+                                Where to_date(:P493_fromdate,'DD-MM-RRRR') Between aa.financialyearbegin And aa.financialyearend ;
+                 */
+                                
+                                DELETE FROM MyAccountIncludeRevised 
+                                WHERE CREATOR = '&APP_USER.' ;
+                                
+                                DELETE FROM MyAccountIncludeRevised 
+                                WHERE CREATOR = 'APEX_PUBLIC_USER' ;
+                                           
+                                
+                                CreateMyAccountIncludeRevised(:P493_CompanyCode, tLocationCode, tFromDate, tToDate);
+                                --RefreshMyAccountIncludeForAll;
+                  
+                                 UPDATE MyAccountIncludeRevised 
+                                  SET CREATOR = '&APP_USER.'
+                                WHERE CREATOR = 'APEX_PUBLIC_USER' ;
+                   
+                                
+                                /*----------------------------
+                				-- EXECUTE REFRESH OPENING ON INSTRUCTION FROM TIWARI SIR DATE 30 APR 2018
+                				*/
+                              -- RefreshOpening(nvl(:P493_FinancialYearCode,tFinancialyearcode), :P493_CompanyCode);			
+                				
+                				/*----------------------------*/
+                				
+                				delete 
+                						from TRIALBALANCEQUARTER a 
+                						where a.CompanyCode = :P493_CompanyCode
+                								and nvl(a.LocationCode, 'null') = nvl(tLocationCode, 'null')
+                								and a.FromDate = tFromDate
+                								and a.ToDate = tToDate
+                								--and a.Creator = '&APP_USER.'
+                				;
+                                --RAISE_APPLICATION_ERROR(-20001,'COM '||:P493_COMPANYCODE||'F.Y '||:P493_FINANCIALYEARCODE||' L '||TLOCATIONCODE);
+                				CreateTrialBalanceQuarter_temp(:P493_CompanyCode,:P493_FinancialYearCode,:P493_LOCATIONCODE,:APP_USER_ID) ;
+                                --CreateTrialBalanceQuarter('1','24-25',Null,'boss') ;
+                						
+                				/*update TrialBalanceRevised a
+                						set a.ClosingAmount = nvl(a.OpeningAmount,0) - nvl(a.Debitamount,0) +  nvl(a.CreditAmount,0) - nvl(a.PDebitamount,0) +  nvl(a.PCreditAmount,0),
+                                        CREATOR = '&APP_USER.'
+                				where a.CompanyCode = :P493_CompanyCode
+                						and a.FromDate = tFromDate
+                						and a.ToDate = tToDate
+                						and nvl(a.IncludeChild,'NO') = nvl(tIncludeChild, 'NO' )
+                				;
+                				*/
+                				commit;
+                				/*CreateMyAccountIncludeRevised(:P493_CompanyCode, tLocationCode, tFromDate, tToDate);*/
+                				commit;
+                
+                		end;  
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 31170055591772124
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+)
+

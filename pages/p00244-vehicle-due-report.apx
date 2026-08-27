@@ -1,0 +1,330 @@
+page 244 (
+    name: Vehicle Due Report
+    alias: VEHICLE-DUE-REPORT
+    title: Vehicle Due Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region vehicle-due-report (
+        name: Vehicle Due Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region vehicle-due-report-2 (
+        name: Vehicle Due Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                --     &P_GROUPBY as GroupField,
+                --     &P_ORDERBY as OrderField,
+                --     1 as mysno,
+                --     a.TNO ,
+                     row_number() over(order by a.CompanyVehicleNo) SerialNo,  
+                     a.CompanyVehicleNo,
+                     c.VehicleNecessityName,
+                     b.RenewalPeriodInMonth,
+                     b.RenewalDistanceInKM--,
+                --    GetNecessityBalanceDueDays(b.VehicleNecessityCode, a.CompanyVehicleNo, :P244_FROMDATE) as BalanceDueDays,
+                  --  GetNecessityLastPaidDate(b.VehicleNecessityCode, a.CompanyVehicleNo, :P244_FROMDATE) as LastPaidDate--,
+                 --   GetNecessityLastPaidAmount(b.VehicleNecessityCode, a.CompanyVehicleNo, :P244_FROMDATE) as LastPaidAmount--,
+                --    dt.AsOnDate + GetNecessityBalanceDueDays(b.VehicleNecessityCode, a.CompanyVehicleNo, :P244_FROMDATE)  as DueDate
+                from  CompanyVehicle a, CompanyVehicleDetail b, VehicleNecessity c, VehicleNecessity nt, ( select :P244_FROMDATE as ASOnDate from Dual )  dt
+                where a.TNO = b.TNO
+                and a.CompanyCode = :P244_COMPANYCODE
+                and b.VehicleNecessityCode  = c.VehicleNecessityCode(+)
+                and c.NecessityTypeCode = nt.VehicleNecessityCode(+)
+                and b.RenewalPeriodInMonth > 0
+                and a.OwnerCode = 'SELF'
+                --and ( &P_REPORTCONDITION );
+                
+                ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 24153906706643306
+        }
+
+        column COMPANYVEHICLENO (
+            type: plainText
+            heading {
+                heading: Company Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column RENEWALDISTANCEINKM (
+            type: plainText
+            heading {
+                heading: Renewal Distance In KM
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column RENEWALPERIODINMONTH (
+            type: plainText
+            heading {
+                heading: Renewal Period In Month
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column VEHICLENECESSITYNAME (
+            type: plainText
+            heading {
+                heading: Vehicle Necessity Name
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Vehicle Due Report
+        }
+
+        savedReport 243477 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn COMPANYVEHICLENO (
+                sequence: 2
+            )
+
+            displayColumn RENEWALDISTANCEINKM (
+                sequence: 5
+            )
+
+            displayColumn RENEWALPERIODINMONTH (
+                sequence: 4
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn VEHICLENECESSITYNAME (
+                sequence: 3
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P244_COMPANYCODE (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct CompanyName d,
+                CompanyCode r
+                From Company;
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @vehicle-due-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P244_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @vehicle-due-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 10
+            region: @vehicle-due-report
+            slot: create
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

@@ -1,0 +1,828 @@
+page 478 (
+    name: Salary Sheet (A/HPC)
+    alias: SALARY-SHEET-A-HPC
+    title: Salary Sheet (A/HPC)
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region salary-sheet-a-hpc (
+        name: Salary Sheet (A/HPC)
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-expanded
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region salary-sheet-a-hpc-2 (
+        name: Salary Sheet (A/HPC)
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select b.EmployeeID,
+                       b.UAN,
+                       b.EmployeeName,
+                       d.DesignationName,
+                       SUM(decode(c.salaryheadcode, 'PR', c.SALARYHEADAMOUNT))    AS P,
+                       SUM(decode(c.salaryheadcode, 'WD', c.SALARYHEADAMOUNT))    AS OFF,
+                       --------24-01-2025 -------HIDE OT COLUMN-----------
+                       --SUM(decode(c.salaryheadcode, 'OT', c.SALARYHEADAMOUNT))    AS OT,
+                       SUM(decode(c.salaryheadcode, 'APD', c.SALARYHEADAMOUNT))   AS Actual_Paid_Days,
+                       SUM(decode(c.salaryheadcode, 'MAP', c.SALARYHEADAMOUNT))   AS Present_Age_Days,
+                       SUM(decode(c.salaryheadcode, 'PD', c.SALARYHEADAMOUNT))    AS Total_Present_Days,
+                       SUM(decode(c.salaryheadcode, 'BASIC', c.SALARYHEADAMOUNT)) AS Wage_Rate,
+                       SUM(decode(c.salaryheadcode, 'EARNEDBASIC', c.SALARYHEADAMOUNT)) AS Gross_Earning,
+                       SUM(decode(c.salaryheadcode, 'CANTEENDED', c.SALARYHEADAMOUNT)) AS Food_Etc,
+                       SUM(decode(c.salaryheadcode, 'PFEMPLOYEE', c.SALARYHEADAMOUNT)) AS PF,
+                       SUM(decode(c.salaryheadcode, 'ESICEMPLOYEECONTRIBUTION', c.SALARYHEADAMOUNT)) AS ESIC,
+                       SUM(decode(c.salaryheadcode, 'PTAX', c.SALARYHEADAMOUNT)) AS PT,
+                       SUM(decode(c.salaryheadcode, 'RUNNINGADVANCEDED', c.SALARYHEADAMOUNT)) AS Running_Advance,
+                       SUM(decode(c.salaryheadcode, 'SALARYADVANCEDED', c.SALARYHEADAMOUNT)) AS Salary_Advance,
+                       SUM(decode(c.salaryheadcode, 'GROSSDEDUCTION', c.SALARYHEADAMOUNT)) AS Total_Deduction,
+                       SUM(decode(c.salaryheadcode, 'OTHER INCOME', c.SALARYHEADAMOUNT)) AS Other_Income,
+                       SUM(decode(c.salaryheadcode, 'OTHERDEDUCTION', c.SALARYHEADAMOUNT)) AS Other_Deduction,
+                       SUM(decode(c.salaryheadcode, 'NETEARNING', c.SALARYHEADAMOUNT)) AS Net_Earning,
+                       GetLocationName(a.LocationCode) Location,
+                       a.SalaryNo Entry_No
+                From   Salary a,Employee b,SalaryDetail c,Designation d,EmployeeSalary e,SalaryScheme f
+                Where  a.EmployeeCode = b.EmployeeCode(+)
+                  and  a.TNo = c.TNo(+)
+                  and  b.DesignationCode = d.DesignationCode(+)
+                  and  a.EmployeeSalaryTno = e.Tno(+)
+                  and  e.Salaryschemecode = f.SalarySchemeCode(+)
+                  and  f.SalarySchemeCode = '99999999'
+                  and  to_char(a.SalaryFromDate,'MON-RRRR') = :P478_MONTH
+                  and  (:P478_COMPANY IS NULL OR instr(':'||:P478_COMPANY||':',':'||b.CompanyCode||':') > 0)
+                  and  (:P478_LOCATION IS NULL OR instr(':'||:P478_LOCATION||':',':'||a.LocationCode||':') > 0)
+                  and  (:P478_EMPLOYEE IS NULL OR instr(':'||:P478_EMPLOYEE||':',':'||b.EmployeeCode||':') > 0)
+                Group By b.EmployeeID,
+                       b.UAN,
+                       b.EmployeeName,
+                       d.DesignationName,
+                       GetLocationName(a.LocationCode) ,
+                       a.SalaryNo
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 43106592588347108
+        }
+
+        column ACTUAL_PAID_DAYS (
+            type: plainText
+            heading {
+                heading: Actual Paid Days
+                alignment: end
+            }
+            layout {
+                sequence: 8
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DESIGNATIONNAME (
+            type: plainText
+            heading {
+                heading: Designation
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column EMPLOYEEID (
+            type: plainText
+            heading {
+                heading: Employee ID
+            }
+            layout {
+                sequence: 1
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: plainText
+            heading {
+                heading: Employee Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ENTRY_NO (
+            type: plainText
+            heading {
+                heading: Entry No
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column ESIC (
+            type: plainText
+            heading {
+                heading: Esic
+                alignment: end
+            }
+            layout {
+                sequence: 15
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column FOOD_ETC (
+            type: plainText
+            heading {
+                heading: Food Etc@ 205/Day
+                alignment: end
+            }
+            layout {
+                sequence: 13
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column GROSS_EARNING (
+            type: plainText
+            heading {
+                heading: Gross Earning
+                alignment: end
+            }
+            layout {
+                sequence: 12
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column NET_EARNING (
+            type: plainText
+            heading {
+                heading: Net Earning
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column OFF (
+            type: plainText
+            heading {
+                heading: Off
+                alignment: end
+            }
+            layout {
+                sequence: 6
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column OTHER_DEDUCTION (
+            type: plainText
+            heading {
+                heading: Other Deduction
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column OTHER_INCOME (
+            type: plainText
+            heading {
+                heading: Other Income
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column P (
+            type: plainText
+            heading {
+                heading: P
+                alignment: end
+            }
+            layout {
+                sequence: 5
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column PF (
+            type: plainText
+            heading {
+                heading: Pf
+                alignment: end
+            }
+            layout {
+                sequence: 14
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column PRESENT_AGE_DAYS (
+            type: plainText
+            heading {
+                heading: Present Age Days
+                alignment: end
+            }
+            layout {
+                sequence: 9
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column PT (
+            type: plainText
+            heading {
+                heading: Pt
+                alignment: end
+            }
+            layout {
+                sequence: 16
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column RUNNING_ADVANCE (
+            type: plainText
+            heading {
+                heading: Running Advance
+                alignment: end
+            }
+            layout {
+                sequence: 17
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column SALARY_ADVANCE (
+            type: plainText
+            heading {
+                heading: Salary Advance
+                alignment: end
+            }
+            layout {
+                sequence: 18
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column TOTAL_DEDUCTION (
+            type: plainText
+            heading {
+                heading: Total Deduction
+                alignment: end
+            }
+            layout {
+                sequence: 19
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column TOTAL_PRESENT_DAYS (
+            type: plainText
+            heading {
+                heading: Total Present Days
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column UAN (
+            type: plainText
+            heading {
+                heading: UAN
+                alignment: end
+            }
+            layout {
+                sequence: 2
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column WAGE_RATE (
+            type: plainText
+            heading {
+                heading: Wage Rate
+                alignment: end
+            }
+            layout {
+                sequence: 11
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Salary Sheet (A/HPC)
+        }
+
+        savedReport 431231 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACTUAL_PAID_DAYS (
+                sequence: 9
+            )
+
+            displayColumn DESIGNATIONNAME (
+                sequence: 6
+            )
+
+            displayColumn EMPLOYEEID (
+                sequence: 1
+            )
+
+            displayColumn EMPLOYEENAME (
+                sequence: 3
+            )
+
+            displayColumn ENTRY_NO (
+                sequence: 4
+            )
+
+            displayColumn ESIC (
+                sequence: 17
+            )
+
+            displayColumn FOOD_ETC (
+                sequence: 15
+            )
+
+            displayColumn GROSS_EARNING (
+                sequence: 13
+            )
+
+            displayColumn LOCATION (
+                sequence: 5
+            )
+
+            displayColumn NET_EARNING (
+                sequence: 23
+            )
+
+            displayColumn OFF (
+                sequence: 8
+            )
+
+            displayColumn OTHER_DEDUCTION (
+                sequence: 21
+            )
+
+            displayColumn OTHER_INCOME (
+                sequence: 14
+            )
+
+            displayColumn P (
+                sequence: 7
+            )
+
+            displayColumn PF (
+                sequence: 16
+            )
+
+            displayColumn PRESENT_AGE_DAYS (
+                sequence: 10
+            )
+
+            displayColumn PT (
+                sequence: 18
+            )
+
+            displayColumn RUNNING_ADVANCE (
+                sequence: 19
+            )
+
+            displayColumn SALARY_ADVANCE (
+                sequence: 20
+            )
+
+            displayColumn TOTAL_DEDUCTION (
+                sequence: 22
+            )
+
+            displayColumn TOTAL_PRESENT_DAYS (
+                sequence: 11
+            )
+
+            displayColumn UAN (
+                sequence: 2
+            )
+
+            displayColumn WAGE_RATE (
+                sequence: 12
+            )
+
+        )
+
+    )
+
+    pageItem P478_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select  Distinct
+                        c.CompanyName d,
+                        c.CompanyCode r
+                From    Salary a,Employee b,Company c
+                Where   a.EmployeeCode = b.EmployeeCode(+)
+                  and   b.CompanyCode = c.CompanyCode(+)
+                  Order By 1
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @salary-sheet-a-hpc
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P478_EMPLOYEE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Employee
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select  Distinct
+                        b.EmployeeName d,
+                        b.EmployeeCode r
+                From    Salary a,Employee b
+                Where   a.EmployeeCode = b.EmployeeCode(+)
+                  Order By 1
+                ```
+        }
+        layout {
+            sequence: 40
+            region: @salary-sheet-a-hpc
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P478_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select  Distinct
+                        c.LocationName d,
+                        c.LocationCode r
+                From    Salary a,Employee b,Location c
+                Where   a.EmployeeCode = b.EmployeeCode(+)
+                  and   b.LocationCode = c.LocationCode(+)
+                  Order By 1
+                ```
+        }
+        layout {
+            sequence: 30
+            region: @salary-sheet-a-hpc
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P478_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @salary-sheet-a-hpc
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            formatMask: MON-RRRR
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 50
+            region: @salary-sheet-a-hpc
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

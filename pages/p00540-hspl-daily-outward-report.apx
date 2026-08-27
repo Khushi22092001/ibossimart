@@ -1,0 +1,518 @@
+page 540 (
+    name: HSPL  Daily Outward Report
+    alias: HSPL-DAILY-OUTWARD-REPORT
+    title: HSPL  Daily Outward Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region hspl-daily-outward-report (
+        name: HSPL Daily Outward Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                    b.PartyName,
+                    a.CCInvoiceNo,
+                   -- d.ItemName,
+                    SUM(c.Quantity1) as Quantity1,
+                   -- c.Rate,
+                    e.FreighttypeName
+                From CCInvoice a, Party b, CCInvoiceDetail c, Item d, Freighttype e, DespatchAdvice f, MaterialOut g 
+                Where a.PartyCode = b.PartyCode
+                and a.Tno = c.Tno
+                and c.ItemCode = d.ItemCode
+                and a.FreighttypeCode = e.FreighttypeCode
+                and a.DespatchTno = f.Tno(+)
+                and f.Tno = g.ReferenceTno(+)
+                --and g.MaterialGateOutDate is not null
+                AND A.PANEL = 'A'
+                and a.DoctypeCode in ('CHALANCUMINVOICE','CAPTIVECONSUMPTION','INTERUNITTRANSFER')
+                and  a.CCInvoiceDate between :P540_FROMDATE and :P540_TODATE
+                and ( :P540_COMPANY IS NULL OR instr(':'||:P540_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                and ( :P540_LOCATION IS NULL OR instr(':'||:P540_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                and ( :P540_PARTY IS NULL OR instr(':'||:P540_PARTY||':',':'||a.PartyCode||':') > 0 ) 
+                Group By 
+                    b.PartyName,
+                    a.CCInvoiceNo,
+                  --  d.ItemName,
+                  --  c.Rate,
+                    e.FreighttypeName
+                    ;
+                    
+                ```
+            pageItemsToSubmit: [
+                P540_COMPANY
+                P540_FROMDATE
+                P540_TODATE
+                P540_LOCATION
+                P540_PARTY
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 35751733751788941
+        }
+
+        column CCINVOICENO (
+            type: plainText
+            heading {
+                heading: CC Invoice No
+            }
+            layout {
+                sequence: 350
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column FREIGHTTYPENAME (
+            type: plainText
+            heading {
+                heading: FreightType Name
+            }
+            layout {
+                sequence: 320
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party Name
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:350px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 16
+            pageHeaderText: "   Freight Advance Report"
+        }
+
+        savedReport 126330 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CCINVOICENO (
+                sequence: 2
+            )
+
+            displayColumn FREIGHTTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 1
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    pageItem P540_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   a.CompanyName d,
+                   a.CompanyCode r
+                From Company a
+                Where exists
+                (Select
+                   aa.Tno
+                   From GRN aa
+                   Where aa.CompanyCode = a.CompanyCode) 
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @hspl-daily-outward-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P540_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @hspl-daily-outward-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: From Date
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE) - 1
+        }
+    )
+
+    pageItem P540_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                   a.LocationName d,
+                   a.LocationCode r
+                From Location a
+                Where exists
+                (Select
+                     aa.Tno
+                    From GRN aa
+                    Where aa.LocationCode = a.LocationCode);
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @hspl-daily-outward-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+    )
+
+    pageItem P540_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                   a.PartyName d,
+                   a.PartyCode r
+                From Party a
+                Where exists
+                (Select
+                     aa.Tno
+                    From GRN aa
+                    Where aa.PartyCode = a.PartyCode);
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @hspl-daily-outward-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Party Name
+        }
+    )
+
+    pageItem P540_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @hspl-daily-outward-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: To Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate) - 1
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 120
+            region: @hspl-daily-outward-report
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

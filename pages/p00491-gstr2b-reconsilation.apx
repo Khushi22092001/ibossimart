@@ -1,0 +1,2143 @@
+page 491 (
+    name: GSTR2B Reconsilation
+    alias: GSTR2B-RECONSILATION
+    title: GSTR2B Reconsilation
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region gstr2b-reconsilation (
+        name: GSTR2B Reconsilation
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent4
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+    )
+
+    region gstr2b-reconsilation-2 (
+        name: GSTR2B Reconsilation
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select 
+                to_char(a.fromdate, 'mon-rrrr') as SupplierDataForMonth,
+                a.VOUCHERDATE as TDATE,  
+                a.OurGSTINNo,
+                a.VOUCHERNO as VOUCHERNO                     ,
+                a.VOUCHERDATE as VOUCHERDATE            ,
+                b.PartyName  as PartyName,
+                a.GSTINNo  as GSTINNO                ,
+                a.InvoiceNo  as INVOICENO              ,
+                a.InvoiceDate  as INVOICEDATE            ,
+                
+                a.CGSTAMOUNT             ,
+                a.SGSTAMOUNT             ,
+                a.IGSTAMOUNT             ,
+                
+                a.MyDataOurGSTINNo,
+                a.MYDATAVOUCHERNO        ,
+                a.MYDATAVOUCHERDATE      ,
+                c.PartyName as MydataPartyName,
+                a.MYDATAGSTINNO          ,
+                a.MYDATAINVOICENO        ,
+                a.MYDATAINVOICEDATE      ,
+                a.MYDATACGSTAMOUNT       ,
+                a.MYDATASGSTAMOUNT       ,
+                a.MYDATAIGSTAMOUNT       ,
+                --
+                a.SupplierDataOurGSTINNo,
+                d.PartyName as SuplierDataPartyName,
+                a.SUPPLIERDATAGSTINNO    ,
+                a.SUPPLIERDATAINVOICENO  ,
+                a.SUPPLIERDATANOTENO  ,
+                a.GSTR1FillingDate,
+                a.SUPPLIERDATAINVOICEDATE,
+                a.SUPPLIERDATACGSTAMOUNT ,
+                a.SUPPLIERDATASGSTAMOUNT ,
+                a.SUPPLIERDATAIGSTAMOUNT ,
+                --
+                nvl(a.CGSTAMOUNT, 0)- nvl(a.MyDataCGSTAMOUNT, 0) CGST_Diff_LedgerAndTransaction,
+                nvl(a.SGSTAMOUNT, 0) - nvl(a.MyDataSGSTAMOUNT, 0) SGST_Diff_LedgerAndTransaction,
+                nvl(a.IGSTAMOUNT, 0)- nvl(a.MyDataIGSTAMOUNT, 0) IGST_Diff_LedgerAndTransaction,
+                --
+                nvl(a.MyDataCGSTAMOUNT, 0)- nvl(a.SupplierDataCGSTAMOUNT, 0) CGST_Diff_TransactionAndSupplier,
+                nvl(a.MyDataSGSTAMOUNT, 0) - nvl(a.SupplierDataSGSTAMOUNT, 0) SGST_Diff_TransactionAndSupplier,
+                nvl(a.MyDAtaIGSTAMOUNT, 0)- nvl(a.SupplierDataIGSTAMOUNT, 0) IGST_Diff_TransactionAndSupplier,
+                --
+                nvl(a.CGSTAMOUNT, 0)- nvl(a.SupplierDataCGSTAMOUNT, 0) CGST_Diff_LedgerAndSupplier,
+                nvl(a.SGSTAMOUNT, 0) - nvl(a.SupplierDataSGSTAMOUNT, 0) SGST_Diff_LedgerAndSupplier,
+                nvl(a.IGSTAMOUNT, 0)- nvl(a.SupplierDataIGSTAMOUNT, 0) IGST_Diff_LedgerAndSupplier
+                
+                from GSTR2BReconsilationData a, Party b, Party c, Party d
+                where a.PartyCode = b.PartyCode(+)
+                and a.MyDataPartyCode = c.PartyCode(+)
+                and a.SupplierDataPartyCode = d.PartyCode(+)
+                ```
+            pageItemsToSubmit: [
+                P491_COMPANY
+                P491_FROMDATE
+                P491_TODATE
+                P491_LEDGERDATADATE
+                P491_TRANSACTIONDATADATE
+                P491_SUPPLIERDATADATE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--noBorders
+            ]
+        }
+        advanced {
+            htmlDomId: gstr2breconsilation
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        download {
+            authorization: @candownload
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 500
+        }
+        advanced {
+            savedReportMappingIdentifier: 36957052544579142
+        }
+
+        column CGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Ledger Data CGST
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column CGST_DIFF_LEDGERANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: CGST Diff Ledger And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 390
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column CGST_DIFF_LEDGERANDTRANSACTION (
+            type: plainText
+            heading {
+                heading: CGST Diff Ledger And Transaction
+                alignment: end
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column CGST_DIFF_TRANSACTIONANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: CGST Diff Transaction And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 350
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column GSTINNO (
+            type: plainText
+            heading {
+                heading: Ledger Data Gstin No
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column GSTR1FILLINGDATE (
+            type: plainText
+            heading {
+                heading: Gstr1fillingdate
+            }
+            layout {
+                sequence: 380
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column IGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Ledger Data IGST
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column IGST_DIFF_LEDGERANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: IGST Diff Ledger And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 410
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column IGST_DIFF_LEDGERANDTRANSACTION (
+            type: plainText
+            heading {
+                heading: IGST Diff Ledger And Transaction
+                alignment: end
+            }
+            layout {
+                sequence: 340
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column IGST_DIFF_TRANSACTIONANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: IGST Diff Transaction And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 370
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: Ledger Data Invoice Date
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: Ledger Data Invoice No
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column MYDATACGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Transaction Dat CGST
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column MYDATAGSTINNO (
+            type: plainText
+            heading {
+                heading: Transaction Data GSTIN No
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column MYDATAIGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Transaction Data IGST
+                alignment: end
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column MYDATAINVOICEDATE (
+            type: plainText
+            heading {
+                heading: Transaction Data Invoice Date
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column MYDATAINVOICENO (
+            type: plainText
+            heading {
+                heading: Transaction Data Invoice No
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column MYDATAOURGSTINNO (
+            type: plainText
+            heading {
+                heading: Transaction Data Our GSTIN No
+            }
+            layout {
+                sequence: 430
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column MYDATAPARTYNAME (
+            type: plainText
+            heading {
+                heading: Transaction Data Party
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column MYDATASGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Transaction Data SGST
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column MYDATAVOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Transaction Data Voucher Date
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column MYDATAVOUCHERNO (
+            type: plainText
+            heading {
+                heading: Transaction Data Voucher No
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column OURGSTINNO (
+            type: plainText
+            heading {
+                heading: Ledger Data Our GSTIN No
+            }
+            layout {
+                sequence: 420
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Ledger Data Party
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column SGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Ledger Data SGST
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column SGST_DIFF_LEDGERANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: SGST Diff Ledger And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 400
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column SGST_DIFF_LEDGERANDTRANSACTION (
+            type: plainText
+            heading {
+                heading: SGST Diff Ledger And Transaction
+                alignment: end
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column SGST_DIFF_TRANSACTIONANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: SGST Diff Transaction And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column SUPLIERDATAPARTYNAME (
+            type: plainText
+            heading {
+                heading: Supplier Data Party
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column SUPPLIERDATACGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Supplier Data Cgst
+                alignment: end
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column SUPPLIERDATAFORMONTH (
+            type: plainText
+            heading {
+                heading: Supplier Data For Month
+            }
+            layout {
+                sequence: 450
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column SUPPLIERDATAGSTINNO (
+            type: plainText
+            heading {
+                heading: Supplier Data GSTIN No
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column SUPPLIERDATAIGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Supplier Data IGST
+                alignment: end
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column SUPPLIERDATAINVOICEDATE (
+            type: plainText
+            heading {
+                heading: Supplier Data Invoice Date
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column SUPPLIERDATAINVOICENO (
+            type: plainText
+            heading {
+                heading: Supplier Data Invoice No
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column SUPPLIERDATANOTENO (
+            type: plainText
+            heading {
+                heading: Supplier  Data Note No
+            }
+            layout {
+                sequence: 460
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column SUPPLIERDATAOURGSTINNO (
+            type: plainText
+            heading {
+                heading: Supplier Data Our GSTIN No
+            }
+            layout {
+                sequence: 440
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column SUPPLIERDATASGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Supplier Data Sgst
+                alignment: end
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column TDATE (
+            type: plainText
+            heading {
+                heading: Tdate
+            }
+            layout {
+                sequence: 280
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Ledger Data Voucher Date
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: Ledger Data Voucher No
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 43257 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 5
+            }
+
+            displayColumn CGSTAMOUNT (
+                sequence: 8
+            )
+
+            displayColumn CGST_DIFF_LEDGERANDSUPPLIER (
+                sequence: 37
+            )
+
+            displayColumn CGST_DIFF_LEDGERANDTRANSACTION (
+                sequence: 31
+            )
+
+            displayColumn CGST_DIFF_TRANSACTIONANDSUPPLIER (
+                sequence: 34
+            )
+
+            displayColumn GSTINNO (
+                sequence: 3
+            )
+
+            displayColumn GSTR1FILLINGDATE (
+                sequence: 30
+            )
+
+            displayColumn IGSTAMOUNT (
+                sequence: 10
+            )
+
+            displayColumn IGST_DIFF_LEDGERANDSUPPLIER (
+                sequence: 39
+            )
+
+            displayColumn IGST_DIFF_LEDGERANDTRANSACTION (
+                sequence: 33
+            )
+
+            displayColumn IGST_DIFF_TRANSACTIONANDSUPPLIER (
+                sequence: 36
+            )
+
+            displayColumn INVOICEDATE (
+                sequence: 7
+            )
+
+            displayColumn INVOICENO (
+                sequence: 6
+            )
+
+            displayColumn MYDATACGSTAMOUNT (
+                sequence: 18
+            )
+
+            displayColumn MYDATAGSTINNO (
+                sequence: 15
+            )
+
+            displayColumn MYDATAIGSTAMOUNT (
+                sequence: 20
+            )
+
+            displayColumn MYDATAINVOICEDATE (
+                sequence: 17
+            )
+
+            displayColumn MYDATAINVOICENO (
+                sequence: 16
+            )
+
+            displayColumn MYDATAOURGSTINNO (
+                sequence: 11
+            )
+
+            displayColumn MYDATAPARTYNAME (
+                sequence: 14
+            )
+
+            displayColumn MYDATASGSTAMOUNT (
+                sequence: 19
+            )
+
+            displayColumn MYDATAVOUCHERDATE (
+                sequence: 13
+            )
+
+            displayColumn MYDATAVOUCHERNO (
+                sequence: 12
+            )
+
+            displayColumn OURGSTINNO (
+                sequence: 1
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 2
+            )
+
+            displayColumn SGSTAMOUNT (
+                sequence: 9
+            )
+
+            displayColumn SGST_DIFF_LEDGERANDSUPPLIER (
+                sequence: 38
+            )
+
+            displayColumn SGST_DIFF_LEDGERANDTRANSACTION (
+                sequence: 32
+            )
+
+            displayColumn SGST_DIFF_TRANSACTIONANDSUPPLIER (
+                sequence: 35
+            )
+
+            displayColumn SUPLIERDATAPARTYNAME (
+                sequence: 22
+            )
+
+            displayColumn SUPPLIERDATACGSTAMOUNT (
+                sequence: 27
+            )
+
+            displayColumn SUPPLIERDATAFORMONTH (
+                sequence: 40
+            )
+
+            displayColumn SUPPLIERDATAGSTINNO (
+                sequence: 23
+            )
+
+            displayColumn SUPPLIERDATAIGSTAMOUNT (
+                sequence: 29
+            )
+
+            displayColumn SUPPLIERDATAINVOICEDATE (
+                sequence: 26
+            )
+
+            displayColumn SUPPLIERDATAINVOICENO (
+                sequence: 24
+            )
+
+            displayColumn SUPPLIERDATANOTENO (
+                sequence: 25
+            )
+
+            displayColumn SUPPLIERDATAOURGSTINNO (
+                sequence: 21
+            )
+
+            displayColumn SUPPLIERDATASGSTAMOUNT (
+                sequence: 28
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 5
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 4
+            )
+
+            aggregate (
+                column: CGSTAMOUNT
+            )
+
+            aggregate (
+                column: SGSTAMOUNT
+            )
+
+            aggregate (
+                column: IGSTAMOUNT
+            )
+
+            aggregate (
+                column: MYDATACGSTAMOUNT
+            )
+
+            aggregate (
+                column: MYDATASGSTAMOUNT
+            )
+
+            aggregate (
+                column: MYDATAIGSTAMOUNT
+            )
+
+            aggregate (
+                column: SUPPLIERDATACGSTAMOUNT
+            )
+
+            aggregate (
+                column: SUPPLIERDATASGSTAMOUNT
+            )
+
+            aggregate (
+                column: SUPPLIERDATAIGSTAMOUNT
+            )
+
+            aggregate (
+                column: CGST_DIFF_LEDGERANDTRANSACTION
+            )
+
+            aggregate (
+                column: IGST_DIFF_LEDGERANDTRANSACTION
+            )
+
+            aggregate (
+                column: SGST_DIFF_LEDGERANDTRANSACTION
+            )
+
+            aggregate (
+                column: CGST_DIFF_TRANSACTIONANDSUPPLIER
+            )
+
+            aggregate (
+                column: SGST_DIFF_TRANSACTIONANDSUPPLIER
+            )
+
+            aggregate (
+                column: IGST_DIFF_TRANSACTIONANDSUPPLIER
+            )
+
+        )
+
+    )
+
+    region gstr2b-reconsilation-duplicate (
+        name: GSTR2B Reconsilation duplicate
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select 
+                nvl(nvl(a.SupplierDataInvoiceDate, a.MyDataVoucherDate), a.VoucherDate) AS TDATE,
+                case when a.VoucherDate > dl.DayDate then null else a.VOUCHERNO end as VOUCHERNO                     ,
+                case when a.VoucherDate > dl.DayDate then null else a.VOUCHERDATE end as VOUCHERDATE            ,
+                case when a.VoucherDate > dl.DayDate then null else b.PartyName end as PartyName,
+                case when a.VoucherDate > dl.DayDate then null else a.GSTINNo end as GSTINNO                ,
+                case when a.VoucherDate > dl.DayDate then null else a.InvoiceNo end as INVOICENO              ,
+                case when a.VoucherDate > dl.DayDate then null else a.InvoiceDate end as INVOICEDATE            ,
+                
+                --a.CGSTAMOUNT             ,
+                --a.SGSTAMOUNT             ,
+                --a.IGSTAMOUNT             ,
+                case when a.VoucherDate > dl.DayDate then 0 else 1 end *  a.CGSTAMOUNT as CGSTAMOUNT            ,
+                case when a.VoucherDate > dl.DayDate then 0 else 1 end *  a.SGSTAMOUNT as SGSTAMOUNT            ,
+                case when a.VoucherDate > dl.DayDate then 0 else 1 end *  a.IGSTAMOUNT as IGSTAMOUNT            ,
+                
+                a.MYDATAVOUCHERNO        ,
+                a.MYDATAVOUCHERDATE      ,
+                c.PartyName as MydataPartyName,
+                a.MYDATAGSTINNO          ,
+                a.MYDATAINVOICENO        ,
+                a.MYDATAINVOICEDATE      ,
+                a.MYDATACGSTAMOUNT       ,
+                a.MYDATASGSTAMOUNT       ,
+                a.MYDATAIGSTAMOUNT       ,
+                d.PartyName as SuplierDataPartyName,
+                a.SUPPLIERDATAGSTINNO    ,
+                a.SUPPLIERDATAINVOICENO  ,
+                a.GSTR1FillingDate,
+                a.SUPPLIERDATAINVOICEDATE,
+                a.SUPPLIERDATACGSTAMOUNT ,
+                a.SUPPLIERDATASGSTAMOUNT ,
+                a.SUPPLIERDATAIGSTAMOUNT ,
+                nvl(a.CGSTAMOUNT, 0)- nvl(a.MyDataCGSTAMOUNT, 0) CGST_Diff_LedgerAndTransaction,
+                nvl(a.SGSTAMOUNT, 0) - nvl(a.MyDataSGSTAMOUNT, 0) SGST_Diff_LedgerAndTransaction,
+                nvl(a.IGSTAMOUNT, 0)- nvl(a.MyDataIGSTAMOUNT, 0) IGST_Diff_LedgerAndTransaction,
+                nvl(a.MyDataCGSTAMOUNT, 0)- nvl(a.SupplierDataCGSTAMOUNT, 0) CGST_Diff_TransactionAndSupplier,
+                nvl(a.MyDataSGSTAMOUNT, 0) - nvl(a.SupplierDataSGSTAMOUNT, 0) SGST_Diff_TransactionAndSupplier,
+                nvl(a.MyDAtaIGSTAMOUNT, 0)- nvl(a.SupplierDataIGSTAMOUNT, 0) IGST_Diff_TransactionAndSupplier
+                
+                from GSTR2BReconsilation a, Party b, Party c, Party d, DateList dl 
+                where a.PartyCode = b.PartyCode(+)
+                and a.MyDataPartyCode = c.PartyCode(+)
+                and a.SupplierDataPartyCode = d.PartyCode(+)
+                and dl.DayDAte = TO_DATE(:P491_TODATE)
+                and ( 
+                    a.voucherdate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                    or 
+                    a.voucherdate is null
+                )
+                /*
+                and  (:P491_COMPANY IS NULL OR instr(':'||:P491_COMPANY||':',':'||a.CompanyCode||':') > 0)
+                --and nvl(nvl(a.SupplierDataInvoiceDate, a.MyDataVoucherDate), a.VoucherDate) between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                and  (
+                    a.VoucherDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                    OR
+                    :P491_LEDGERDATADATE = 'NO'
+                )
+                and  (
+                    a.VoucherDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                    OR
+                    :P491_LEDGERDATADATE = 'NO'
+                )
+                and  (
+                    a.MyDataVoucherDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                    OR
+                    :P491_TRANSACTIONDATADATE= 'NO'
+                )
+                and  (
+                    a.GSTR1FillingDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                    OR
+                    :P491_SUPPLIERDATADATE= 'NO'
+                )
+                and (
+                    (
+                        (
+                            a.GSTR1FillingDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                            or 
+                            a.MyDataVoucherDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                            or
+                            a.VoucherDate between TO_DATE(:P491_FROMDATE) AND TO_DATE(:P491_TODATE)
+                        )
+                        and :P491_LEDGERDATADATE = 'NO'
+                        and :P491_TRANSACTIONDATADATE= 'NO'
+                        and :P491_SUPPLIERDATADATE= 'NO'
+                    )
+                    OR (
+                        'YES' IN (:P491_LEDGERDATADATE, :P491_TRANSACTIONDATADATE, :P491_SUPPLIERDATADATE)
+                    )
+                )
+                */
+                ```
+            pageItemsToSubmit: [
+                P491_COMPANY
+                P491_FROMDATE
+                P491_TODATE
+                P491_LEDGERDATADATE
+                P491_TRANSACTIONDATADATE
+                P491_SUPPLIERDATADATE
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--noBorders
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: 1=2
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        download {
+            authorization: @candownload
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 500
+        }
+        advanced {
+            savedReportMappingIdentifier: 4314486189800337
+        }
+
+        column CGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Ledger Data CGST
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CGST_DIFF_LEDGERANDTRANSACTION (
+            type: plainText
+            heading {
+                heading: CGST Diff Ledger And Transaction
+                alignment: end
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column CGST_DIFF_TRANSACTIONANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: CGST Diff Transaction And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column GSTINNO (
+            type: plainText
+            heading {
+                heading: Ledger Data Gstin No
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column GSTR1FILLINGDATE (
+            type: plainText
+            heading {
+                heading: Gstr1fillingdate
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column IGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Ledger Data IGST
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column IGST_DIFF_LEDGERANDTRANSACTION (
+            type: plainText
+            heading {
+                heading: IGST Diff Ledger And Transaction
+                alignment: end
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column IGST_DIFF_TRANSACTIONANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: IGST Diff Transaction And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: Ledger Data Invoice Date
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: Ledger Data Invoice No
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column MYDATACGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Transaction Dat CGST
+                alignment: end
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column MYDATAGSTINNO (
+            type: plainText
+            heading {
+                heading: Transaction Data GSTIN No
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column MYDATAIGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Transaction Data IGST
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column MYDATAINVOICEDATE (
+            type: plainText
+            heading {
+                heading: Transaction Data Invoice Date
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column MYDATAINVOICENO (
+            type: plainText
+            heading {
+                heading: Transaction Data Invoice No
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column MYDATAPARTYNAME (
+            type: plainText
+            heading {
+                heading: Transaction Data Party
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column MYDATASGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Transaction Data SGST
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column MYDATAVOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Transaction Data Voucher Date
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column MYDATAVOUCHERNO (
+            type: plainText
+            heading {
+                heading: Transaction Data Voucher No
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Ledger Data Party
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column SGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Ledger Data SGST
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SGST_DIFF_LEDGERANDTRANSACTION (
+            type: plainText
+            heading {
+                heading: SGST Diff Ledger And Transaction
+                alignment: end
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column SGST_DIFF_TRANSACTIONANDSUPPLIER (
+            type: plainText
+            heading {
+                heading: SGST Diff Transaction And Supplier
+                alignment: end
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column SUPLIERDATAPARTYNAME (
+            type: plainText
+            heading {
+                heading: Supplier Data Party
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column SUPPLIERDATACGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Supplier Data Cgst
+                alignment: end
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column SUPPLIERDATAGSTINNO (
+            type: plainText
+            heading {
+                heading: Supplier Data GSTIN No
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column SUPPLIERDATAIGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Supplier Data IGST
+                alignment: end
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column SUPPLIERDATAINVOICEDATE (
+            type: plainText
+            heading {
+                heading: Supplier Data Invoice Date
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column SUPPLIERDATAINVOICENO (
+            type: plainText
+            heading {
+                heading: Supplier Data Invoice No
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column SUPPLIERDATASGSTAMOUNT (
+            type: plainText
+            heading {
+                heading: Supplier Data Sgst
+                alignment: end
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column TDATE (
+            type: plainText
+            heading {
+                heading: Tdate
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Ledger Data Voucher Date
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: Ledger Data Voucher No
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    pageItem P491_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select  Distinct 
+                        b.CompanyName d,
+                        b.CompanyCode r
+                From Company b
+                Order By 1
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @gstr2b-reconsilation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P491_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @gstr2b-reconsilation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT MIN(A.FINANCIALYEARBEGIN) FROM FINANCIALYEAR A WHERE A.FINANCIALYEAREND > TRUNC(SYSDATE)
+        }
+    )
+
+    pageItem P491_LEDGERDATADATE (
+        type: hidden
+        layout {
+            sequence: 40
+            region: @gstr2b-reconsilation
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: YES
+        }
+    )
+
+    pageItem P491_SUPPLIERDATADATE (
+        type: hidden
+        layout {
+            sequence: 60
+            region: @gstr2b-reconsilation
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P491_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @gstr2b-reconsilation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 8
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE)-1
+        }
+    )
+
+    pageItem P491_TRANSACTIONDATADATE (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @gstr2b-reconsilation
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @gstr2b-reconsilation
+            slot: regionBody
+            startNewRow: false
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--large
+                t-Button--stretch
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refesh (
+        name: Refesh
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-alert (
+            action: alert
+            settings {
+                title: "Reconsilation Data Refresh "
+                message: Reconsilation Data Refreshed.
+            }
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+        )
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @refresh
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @refresh
+            }
+            execution {
+                sequence: 60
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: PrepareGSTR2BReconsilationData('1', :P491_FROMDATE, :P491_TODATE);
+                itemsToSubmit: [
+                    P491_COMPANY
+                    P491_FROMDATE
+                    P491_TODATE
+                ]
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: var lSpinner$ = apex.util.showSpinner( $( "#gstr2breconsilation" ) );
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code-2 (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("#apex_wait_overlay").remove();
+                    $(".u-Processing").remove();
+                    ```
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @gstr2b-reconsilation-2
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

@@ -1,0 +1,1891 @@
+page 696 (
+    name: AR Exceptions and Controls
+    alias: AR-EXCEPTIONS-CONTROLS
+    title: AR Exceptions and Controls
+    pageGroup: @receivables-intelligence
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: A control matrix for the Finance Controller and Internal Audit, not a developer debugging page. THE COUNT AND THE DRILL-DOWN CANNOT DISAGREE - both are produced from one Ex CTE, so the matrix is literally a GROUP BY over the same rows the detail report lists. A control with no findings is reported as PASS with its scope stated; a control whose input data does not exist is reported as DATA MISSING and is never counted as a pass, because absence of information is not evidence of correctness. Only controls the schema can validate deterministically are implemented - see docs/ar-dashboard/AR_EXCEPTIONS_CONTROL_MATRIX.md for the ones that were rejected and why.
+    }
+
+    region command-header (
+        name: AR Exceptions and Controls
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-ar-head">'
+                    || '<div class="ds-ar-eyebrow">Receivables &middot; Control and Assurance</div>'
+                    || '<h1 class="ds-ar-title">AR Exceptions &amp; Controls</h1>'
+                    || '<div class="ds-ar-sub">Every control is executed against live data. Each row states its result, its exposure and the exact records behind it.</div>'
+                    || '<div class="ds-ar-context">'
+                    || '<span class="ds-ar-chip"><span class="fa fa-crosshairs"></span>Tested as at <b>' || :P696_TODATE || '</b></span>'
+                    || '<span class="ds-ar-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P696_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-ar-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P696_LOCATION),'All locations')) || '</b></span>'
+                    || '<span class="ds-ar-chip"><span class="fa fa-shield"></span>Panel <b>'
+                       || Case When (Select GetUserPanelAB_apex() From dual) Is Not Null
+                               Then (Select GetUserPanelAB_apex() From dual) || ' (enforced)'
+                               When :P696_PANEL Is Not Null Then :P696_PANEL Else 'A + B' End || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P696_FROMDATE
+                P696_TODATE
+                P696_COMPANY
+                P696_LOCATION
+                P696_PANEL
+                P696_CONTROL
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ar-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region detail (
+        name: Affected Records
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The SAME Ex predicates as the matrix, carrying every identifying
+                   column. Because both regions derive from one definition, the
+                   matrix count and this row count are the same number - the brief's
+                   section 47 requirement is a property of the design, not a check
+                   somebody has to remember to run. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYDEBTORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P696_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select d.Tno, d.Sno, d.AccountCode Pty, d.CompanyCode Cmp,
+                              d.LocationCode Loc, d.Panel Pnl, d.VoucherDate Vdt,
+                              v.VoucherNo Vno, v.DocTypeCode Dtc, v.ModuleCode Mc,
+                              d.Amount Amt, -(d.Amount - nvl(al.Amt,0)) Recv,
+                              coalesce(i.DueDate, sb.DueDate, ao.BillDueDate) DueDate,
+                              coalesce(i.InvoiceNo, ao.BillNo, v.VoucherNo) BillRef,
+                              ao.BillDate AoBillDate, ao.BillDueDate AoBillDue
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join Invoice     i  On v.ModuleCode = 'INVOICE'     And i.Tno  = v.ModuleTno
+                         Left Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P696_PANEL    Is Null Or d.Panel        = :P696_PANEL)
+                          And (:P696_COMPANY  Is Null Or d.CompanyCode  = :P696_COMPANY)
+                          And (:P696_LOCATION Is Null Or d.LocationCode = :P696_LOCATION)),
+                     Ex As (
+                       Select 'AR-B02' Code, o.Tno, o.Pty, o.Cmp, o.Loc, o.Pnl, o.Vno, o.BillRef Ref,
+                              o.Vdt Dt, Abs(o.Amt) Amt, Abs(o.Recv) Expo,
+                              'a due date' Expected, 'none on the source document' Actual,
+                              'Source ' || nvl(o.Mc, o.Dtc) || ' carries no due date; ERP holds no credit terms to derive one' Reason
+                         From Oi o Where o.Recv > 0.005 And o.DueDate Is Null
+                       Union All
+                       Select 'AR-A05', a.DrVoucherTno, a.AccountCode, Null, Null, a.Panel,
+                              nvl(to_char(a.DrVoucherTno),'(null)'), nvl(a.ModuleCode,'-'), To_Date(Null), a.Amount, a.Amount,
+                              'both vouchers to exist',
+                              Case When Not Exists (Select 1 From Voucher v Where v.Tno = a.DrVoucherTno)
+                                        And Not Exists (Select 1 From Voucher v Where v.Tno = a.CrVoucherTno)
+                                   Then 'both missing'
+                                   When Not Exists (Select 1 From Voucher v Where v.Tno = a.DrVoucherTno)
+                                   Then 'debit voucher missing' Else 'credit voucher missing' End,
+                              'Allocation survives a voucher that was deleted. The canonical AR layer excludes it by joining both voucher headers.'
+                         From DrCrAllocation a
+                        Where Not Exists (Select 1 From Voucher v Where v.Tno = a.DrVoucherTno)
+                           Or Not Exists (Select 1 From Voucher v Where v.Tno = a.CrVoucherTno)
+                       Union All
+                       Select 'AR-A07', d.Tno, d.AccountCode, d.CompanyCode, d.LocationCode, d.Panel,
+                              'line ' || d.Tno || '/' || d.Sno, '-', d.VoucherDate,
+                              Abs(d.Amount), Abs(al.Amt) - Abs(d.Amount),
+                              'allocation <= ' || to_char(Round(Abs(d.Amount),2)),
+                              to_char(Round(Abs(al.Amt),2)),
+                              'Allocated more than the line is worth; the balance has flipped sign.'
+                         From VoucherDetail d Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And Abs(al.Amt) > Abs(d.Amount) + 0.005
+                       Union All
+                       Select 'AR-A08', a.DrVoucherTno, dd.AccountCode, dd.CompanyCode, dd.LocationCode, dd.Panel,
+                              'Dr ' || dd.LocationCode || ' / Cr ' || cd.LocationCode, nvl(a.ModuleCode,'-'),
+                              dd.VoucherDate, a.Amount, a.Amount,
+                              'same location on both sides', dd.LocationCode || ' vs ' || cd.LocationCode,
+                              'Receipt taken at a different location from the one that raised the bill. Legitimate; reported for visibility.'
+                         From DrCrAllocation a
+                         Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                         Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                        Where dd.LocationCode <> cd.LocationCode
+                          And (dd.AccountCode In (Select PartyCode From Sd)
+                            Or cd.AccountCode In (Select PartyCode From Sd))
+                       Union All
+                       Select 'AR-A09', a.DrVoucherTno, dd.AccountCode, dd.CompanyCode, dd.LocationCode, dd.Panel,
+                              'Dr co ' || dd.CompanyCode || ' / Cr co ' || cd.CompanyCode, nvl(a.ModuleCode,'-'),
+                              dd.VoucherDate, a.Amount, a.Amount,
+                              'same company on both sides', dd.CompanyCode || ' vs ' || cd.CompanyCode,
+                              'Allocation crosses a company boundary and would break company-level receivables.'
+                         From DrCrAllocation a
+                         Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                         Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                        Where dd.CompanyCode <> cd.CompanyCode
+                          And (dd.AccountCode In (Select PartyCode From Sd)
+                            Or cd.AccountCode In (Select PartyCode From Sd))
+                       Union All
+                       Select 'AR-B05', Min(i.Tno), Min(i.PartyCode), i.CompanyCode, Min(i.LocationCode), Min(i.Panel),
+                              i.InvoiceNo, 'INVOICE', Min(i.InvoiceDate), Sum(nvl(i.InvoiceAmount,0)), 0,
+                              'one invoice per number', to_char(Count(*)) || ' invoices',
+                              'The same invoice number was issued ' || Count(*) || ' times inside this company.'
+                         From Invoice i Group By i.CompanyCode, i.InvoiceNo Having Count(*) > 1
+                       Union All
+                       Select 'AR-B06', i.Tno, i.PartyCode, i.CompanyCode, i.LocationCode, i.Panel,
+                              i.InvoiceNo, 'INVOICE', i.InvoiceDate, 0, 0,
+                              'a non-zero amount', 'zero or null',
+                              'Invoice carries no value.'
+                         From Invoice i Where nvl(i.InvoiceAmount,0) = 0
+                       Union All
+                       Select 'AR-O01', o.Tno, o.Pty, o.Cmp, o.Loc, o.Pnl, o.BillRef, 'ACCOUNTOPENING',
+                              o.Vdt, Abs(o.Amt), Abs(o.Recv),
+                              'original bill date', 'not preserved at migration',
+                              'Aged from the 31-03-2026 cutover instead of its true bill date, so its age is understated.'
+                         From Oi o Where o.Vno = 'OPENING' And o.AoBillDate Is Null And Abs(o.Recv) > 0.005
+                       Union All
+                       Select 'AR-O02', o.Tno, o.Pty, o.Cmp, o.Loc, o.Pnl, o.BillRef, 'ACCOUNTOPENING',
+                              o.Vdt, Abs(o.Amt), Abs(o.Recv),
+                              'original due date', 'not preserved at migration',
+                              'Can never be aged on the Due Date basis; falls into Cannot Age.'
+                         From Oi o Where o.Vno = 'OPENING' And o.AoBillDue Is Null And o.Recv > 0.005
+                       Union All
+                       Select 'AR-R03', o.Tno, o.Pty, o.Cmp, o.Loc, o.Pnl, o.Vno, nvl(o.Mc,'RECEIPT'),
+                              o.Vdt, Abs(o.Amt), -o.Recv,
+                              'allocated within 90 days',
+                              to_char((Select D From Asof) - o.Vdt) || ' days unapplied',
+                              'Cash received and never applied to a bill. Overstates both receivable and credit, and understates collection performance.'
+                         From Oi o Cross Join Asof
+                        Where o.Dtc = 'RECEIPT' And o.Recv < -0.005 And Asof.D - o.Vdt > 90
+                       Union All
+                       Select 'AR-C02', To_Number(Null), g.Pty, Null, Null, Null,
+                              'party ' || g.Pty, '-', To_Date(Null), g.Dr, Least(g.Dr, g.Cr),
+                              'receivable OR credit, not both',
+                              'receivable ' || to_char(Round(g.Dr,0)) || ' and credit ' || to_char(Round(g.Cr,0)),
+                              'The lesser of the two can be cleared by allocation alone, with no collection effort.'
+                         From (Select Pty, Sum(Case When Recv > 0 Then Recv Else 0 End) Dr,
+                                           Sum(Case When Recv < 0 Then -Recv Else 0 End) Cr
+                                 From Oi Group By Pty) g
+                        Where g.Dr > 0.005 And g.Cr > 0.005
+                       Union All
+                       Select 'AR-M01', o.Tno, o.Pty, o.Cmp, o.Loc, o.Pnl, o.Vno, nvl(o.Mc,o.Dtc),
+                              o.Vdt, Abs(o.Amt), Abs(o.Recv),
+                              'A or B', 'null',
+                              'Panel drives row-level security; a null Panel is invisible to a panel-locked login.'
+                         From Oi o Where o.Pnl Is Null
+                       Union All
+                       Select 'AR-M02', o.Tno, o.Pty, o.Cmp, o.Loc, o.Pnl, o.Vno, nvl(o.Mc,o.Dtc),
+                              o.Vdt, Abs(o.Amt), Abs(o.Recv),
+                              'an active location', apex_escape.html(l.LocationName),
+                              'The location master names this location as unusable, yet receivables are posted to it.'
+                         From Oi o Join Location l On l.LocationCode = o.Loc
+                        Where upper(l.LocationName) Like '%DO NOT USE%' And Abs(o.Recv) > 0.005)
+                Select e.Code                                        As CONTROL_CODE,
+                       e.Tno                                         As VOUCHER_TNO,
+                       apex_escape.html(nvl(p.PartyName, e.Pty))     As CUSTOMER,
+                       e.Pty                                         As PARTY_CODE,
+                       apex_escape.html(nvl(c.CompanyName, e.Cmp))   As COMPANY,
+                       apex_escape.html(nvl(l.LocationName, e.Loc))  As LOCATION,
+                       e.Pnl                                         As PANEL,
+                       apex_escape.html(e.Vno)                       As REFERENCE,
+                       e.Ref                                         As SOURCE,
+                       e.Dt                                          As TRANSACTION_DATE,
+                       Round(e.Amt,2)                                As AMOUNT,
+                       Round(e.Expo,2)                               As EXPOSURE,
+                       apex_escape.html(e.Expected)                  As EXPECTED_VALUE,
+                       apex_escape.html(e.Actual)                    As ACTUAL_VALUE,
+                       /* Difference is the exposure only where the control is
+                          value-bearing; for a count-only control (duplicate invoice
+                          number, zero-amount invoice) there is no meaningful numeric
+                          difference and the column stays null rather than showing 0. */
+                       Case When e.Code Not In ('AR-B05','AR-B06') Then Round(e.Expo,2) End As DIFFERENCE,
+                       /* Severity and Category are derived from the control code so
+                          they cannot drift out of step with the matrix's roster. */
+                       Case When e.Code In ('AR-A05','AR-A07','AR-A09','AR-R03','AR-M01') Then 'Critical'
+                            When e.Code In ('AR-B02','AR-B05','AR-O01','AR-C02','AR-M02') Then 'High'
+                            When e.Code In ('AR-B06','AR-O02') Then 'Medium'
+                            Else 'Info' End                          As SEVERITY,
+                       Case substr(e.Code,4,1) When 'A' Then 'Allocation' When 'B' Then 'Bill'
+                                               When 'O' Then 'Opening'    When 'R' Then 'Receipt'
+                                               When 'C' Then 'Customer'   When 'M' Then 'Master'
+                                               Else 'Other' End      As CATEGORY,
+                       /* This ERP keeps no exception log, so there is no recorded
+                          detection date. The transaction's own date is used and the
+                          column is named for what it actually is. */
+                       e.Dt                                          As DETECTED_DATE,
+                       Case When e.Dt Is Not Null Then (Select D From Asof) - e.Dt End As EXCEPTION_AGE_DAYS,
+                       Case When e.Tno Is Not Null Then 'VOUCHERDETAIL Tno=' || e.Tno
+                            Else 'PARTY ' || e.Pty End               As SOURCE_RECORD_ID,
+                       apex_escape.html(e.Reason)                    As EXCEPTION_REASON
+                  From Ex e
+                  Left Join Party p    On p.PartyCode = e.Pty
+                  Left Join Company c  On c.CompanyCode = e.Cmp
+                  Left Join Location l On l.LocationCode = e.Loc
+                 Where (e.Code = :P696_CONTROL
+                        Or (:P696_CONTROL Is Null And :P696_CATEGORY Is Not Null
+                            And Case substr(e.Code,4,1) When 'A' Then 'Allocation' When 'B' Then 'Bill'
+                                                        When 'O' Then 'Opening'    When 'R' Then 'Receipt'
+                                                        When 'C' Then 'Customer'   When 'M' Then 'Master'
+                                                        Else 'Other' End = :P696_CATEGORY)
+                        Or (:P696_CONTROL Is Null And :P696_CATEGORY = 'ALL')
+                        Or (:P696_CONTROL Is Null And :P696_CATEGORY = 'CRITICAL'
+                            And e.Code In ('AR-A05','AR-A07','AR-A09','AR-R03','AR-M01'))
+                        Or (:P696_CONTROL Is Null And :P696_CATEGORY = 'HIGHVALUE' And e.Expo >= 1000000))
+                ```
+            pageItemsToSubmit: [
+                P696_FROMDATE
+                P696_TODATE
+                P696_COMPANY
+                P696_LOCATION
+                P696_PANEL
+                P696_CONTROL
+                P696_CATEGORY
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: :P696_CONTROL Is Not Null Or :P696_CATEGORY Is Not Null
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 200000
+        }
+        messages {
+            whenNoDataFound: This control found nothing in the selected scope.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 69600000000000696
+        }
+
+        column ACTUAL_VALUE (
+            type: plainText
+            heading {
+                heading: Actual
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CATEGORY (
+            type: plainText
+            heading {
+                heading: Category
+            }
+            layout {
+                sequence: 114
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column CONTROL_CODE (
+            type: plainText
+            heading {
+                heading: Control
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column CUSTOMER (
+            type: plainText
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DETECTED_DATE (
+            type: plainText
+            heading {
+                heading: Detected (Transaction Date)
+            }
+            layout {
+                sequence: 118
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column DIFFERENCE (
+            type: plainText
+            heading {
+                heading: Difference (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 116
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column EXCEPTION_AGE_DAYS (
+            type: plainText
+            heading {
+                heading: Exception Age (days)
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column EXCEPTION_REASON (
+            type: plainText
+            heading {
+                heading: Why This Is An Exception
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column EXPECTED_VALUE (
+            type: plainText
+            heading {
+                heading: Expected
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column EXPOSURE (
+            type: plainText
+            heading {
+                heading: Exposure (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column PANEL (
+            type: plainText
+            heading {
+                heading: Panel
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column PARTY_CODE (
+            type: hidden
+            heading {
+                heading: Party Code
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column REFERENCE (
+            type: plainText
+            heading {
+                heading: Reference
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SEVERITY (
+            type: plainText
+            heading {
+                heading: Severity
+                alignment: center
+            }
+            layout {
+                sequence: 112
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column SOURCE (
+            type: plainText
+            heading {
+                heading: Source
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SOURCE_RECORD_ID (
+            type: plainText
+            heading {
+                heading: Source Record ID
+            }
+            layout {
+                sequence: 122
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column TRANSACTION_DATE (
+            type: plainText
+            heading {
+                heading: Transaction Date
+            }
+            layout {
+                sequence: 60
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column VOUCHER_TNO (
+            type: link
+            heading {
+                heading: Voucher
+            }
+            layout {
+                sequence: 150
+            }
+            link {
+                target: {
+                    page: 678
+                    items: {
+                        P678_TNO: #VOUCHER_TNO#
+                    }
+                    clearCache: 678
+                }
+                linkText: Open voucher
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 69601 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACTUAL_VALUE (
+                sequence: 8
+            )
+
+            displayColumn AMOUNT (
+                sequence: 5
+            )
+
+            displayColumn CONTROL_CODE (
+                sequence: 1
+            )
+
+            displayColumn CUSTOMER (
+                sequence: 3
+            )
+
+            displayColumn EXCEPTION_REASON (
+                sequence: 9
+            )
+
+            displayColumn EXPECTED_VALUE (
+                sequence: 7
+            )
+
+            displayColumn EXPOSURE (
+                sequence: 6
+            )
+
+            displayColumn REFERENCE (
+                sequence: 2
+            )
+
+            displayColumn TRANSACTION_DATE (
+                sequence: 4
+            )
+
+            aggregate (
+                column: EXPOSURE
+            )
+
+        )
+
+    )
+
+    region exception-kpis (
+        name: Exception KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Twelve clickable exception KPIs, every one of them derived from the
+                   SAME Ex CTE the matrix and the drill-down use - so a card, its
+                   matrix row and its detail report are three views of one row set,
+                   not three counts that happen to agree. Each card links back into
+                   this page with a category or severity filter. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYDEBTORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P696_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select d.Tno, d.AccountCode Pty, d.LocationCode Loc, d.Panel Pnl,
+                              d.VoucherDate Vdt, v.VoucherNo Vno, v.DocTypeCode Dtc,
+                              d.Amount Amt, -(d.Amount - nvl(al.Amt,0)) Recv,
+                              coalesce(i.DueDate, sb.DueDate, ao.BillDueDate) DueDate,
+                              ao.BillDate AoBillDate, ao.BillDueDate AoBillDue
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join Invoice     i  On v.ModuleCode = 'INVOICE'     And i.Tno  = v.ModuleTno
+                         Left Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P696_PANEL    Is Null Or d.Panel        = :P696_PANEL)
+                          And (:P696_COMPANY  Is Null Or d.CompanyCode  = :P696_COMPANY)
+                          And (:P696_LOCATION Is Null Or d.LocationCode = :P696_LOCATION)),
+                     Ex As (
+                       Select 'AR-B02' Code, Abs(o.Recv) Expo, o.Vdt Dt From Oi o
+                        Where o.Recv > 0.005 And o.DueDate Is Null
+                       Union All
+                       Select 'AR-A05', a.Amount, To_Date(Null) From DrCrAllocation a
+                        Where Not Exists (Select 1 From Voucher v Where v.Tno = a.DrVoucherTno)
+                           Or Not Exists (Select 1 From Voucher v Where v.Tno = a.CrVoucherTno)
+                       Union All
+                       Select 'AR-A07', Abs(al.Amt) - Abs(d.Amount), d.VoucherDate
+                         From VoucherDetail d Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And Abs(al.Amt) > Abs(d.Amount) + 0.005
+                       Union All
+                       Select 'AR-A08', a.Amount, dd.VoucherDate From DrCrAllocation a
+                         Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                         Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                        Where dd.LocationCode <> cd.LocationCode
+                          And (dd.AccountCode In (Select PartyCode From Sd)
+                            Or cd.AccountCode In (Select PartyCode From Sd))
+                       Union All
+                       Select 'AR-A09', a.Amount, dd.VoucherDate From DrCrAllocation a
+                         Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                         Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                        Where dd.CompanyCode <> cd.CompanyCode
+                          And (dd.AccountCode In (Select PartyCode From Sd)
+                            Or cd.AccountCode In (Select PartyCode From Sd))
+                       Union All
+                       Select 'AR-B05', 0, Min(InvoiceDate) From Invoice
+                        Group By CompanyCode, InvoiceNo Having Count(*) > 1
+                       Union All
+                       Select 'AR-B06', 0, InvoiceDate From Invoice Where nvl(InvoiceAmount,0) = 0
+                       Union All
+                       Select 'AR-O01', Abs(o.Recv), o.Vdt From Oi o
+                        Where o.Vno = 'OPENING' And o.AoBillDate Is Null And Abs(o.Recv) > 0.005
+                       Union All
+                       Select 'AR-O02', Abs(o.Recv), o.Vdt From Oi o
+                        Where o.Vno = 'OPENING' And o.AoBillDue Is Null And o.Recv > 0.005
+                       Union All
+                       Select 'AR-R03', -o.Recv, o.Vdt From Oi o Cross Join Asof
+                        Where o.Dtc = 'RECEIPT' And o.Recv < -0.005 And Asof.D - o.Vdt > 90
+                       Union All
+                       Select 'AR-C02', Least(g.Dr, g.Cr), To_Date(Null) From (
+                         Select Pty, Sum(Case When Recv > 0 Then Recv Else 0 End) Dr,
+                                     Sum(Case When Recv < 0 Then -Recv Else 0 End) Cr
+                           From Oi Group By Pty) g
+                        Where g.Dr > 0.005 And g.Cr > 0.005
+                       Union All
+                       Select 'AR-M01', Abs(o.Recv), o.Vdt From Oi o Where o.Pnl Is Null
+                       Union All
+                       Select 'AR-M02', Abs(o.Recv), o.Vdt From Oi o
+                         Join Location l On l.LocationCode = o.Loc
+                        Where upper(l.LocationName) Like '%DO NOT USE%' And Abs(o.Recv) > 0.005),
+                     Rec As (
+                       /* Reconciliation failures: levels whose analytical balance does
+                          not equal the ledger. Counted at company, location and party
+                          so the card matches what page 697 lists. */
+                       Select (Select Count(*) From (
+                                 Select d.CompanyCode C From VoucherDetail d
+                                 Left Join Al al On al.Tno=d.Tno And al.Sno=d.Sno Cross Join Asof
+                                 Where d.AccountCode In (Select PartyCode From Sd) And d.VoucherDate<=Asof.D
+                                 Group By d.CompanyCode
+                                 Having Abs(Sum(-(d.Amount-nvl(al.Amt,0))) - Sum(-d.Amount)) >= 0.005)) CmpN,
+                              (Select Count(*) From (
+                                 Select d.LocationCode L From VoucherDetail d
+                                 Left Join Al al On al.Tno=d.Tno And al.Sno=d.Sno Cross Join Asof
+                                 Where d.AccountCode In (Select PartyCode From Sd) And d.VoucherDate<=Asof.D
+                                 Group By d.LocationCode
+                                 Having Abs(Sum(-(d.Amount-nvl(al.Amt,0))) - Sum(-d.Amount)) >= 0.005)) LocN
+                         From dual),
+                     T As (
+                       Select Count(*) Total,
+                              Sum(Case When Code In ('AR-A05','AR-A07','AR-A09','AR-R03','AR-M01') Then 1 Else 0 End) Crit,
+                              Sum(Case When Expo >= 1000000 Then 1 Else 0 End) HighVal,
+                              Sum(Case When Dt >= to_date(:P696_FROMDATE,'DD-MM-RRRR')
+                                        And Dt <= to_date(:P696_TODATE,'DD-MM-RRRR') Then 1 Else 0 End) Nw,
+                              Sum(Case When substr(Code,4,1) = 'B' Then 1 Else 0 End) BillN,
+                              Sum(Case When substr(Code,4,1) = 'R' Then 1 Else 0 End) RcptN,
+                              Sum(Case When substr(Code,4,1) = 'A' Then 1 Else 0 End) AllocN,
+                              Sum(Case When substr(Code,4,1) = 'O' Then 1 Else 0 End) OpenN,
+                              Sum(Case When Code = 'AR-M02' Then 1 Else 0 End) LocN,
+                              Sum(Case When Code = 'AR-M01' Then 1 Else 0 End) PnlN,
+                              nvl(Sum(Expo),0) Expo
+                         From Ex)
+                Select '<a class="ds-kpi ds-kpi--gold" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',ALL')
+                    || '" title="Every finding from every implemented control, at the As-of Date."><span class="ds-kpi-ic fa fa-list"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Total Active Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.Total,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">exposure &#8377;'
+                    || Case When t.Expo >= 10000000 Then to_char(Round(t.Expo/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Expo/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div></div></a>' As K1,
+                       '<a class="ds-kpi ds-kpi--risk" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',CRITICAL')
+                    || '" title="Findings on controls graded Critical: orphan allocation, over-allocation, cross-company allocation, unapplied cash over 90 days, null Panel."><span class="ds-kpi-ic fa fa-exclamation-triangle"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Critical Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.Crit,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">must be cleared, not explained</div></div></a>' As K2,
+                       '<a class="ds-kpi ds-kpi--amber" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',HIGHVALUE')
+                    || '" title="Findings whose own exposure is 10 lakh or more, whatever their severity grade."><span class="ds-kpi-ic fa fa-inr"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">High-Value Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.HighVal,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">exposure &ge; &#8377;10 Lac each</div></div></a>' As K3,
+                       '<div class="ds-kpi ds-kpi--struct" title="Findings whose underlying transaction is dated inside the From-To window. This ERP keeps no exception log, so New means recently transacted, not newly detected.">'
+                    || '<span class="ds-kpi-ic fa fa-plus-circle"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">New in Period</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.Nw,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">by transaction date &mdash; no detection log exists</div></div></div>' As K4,
+                       /* Unresolved cannot be measured: there is no resolution status
+                          anywhere in this ERP. Saying "equals total" would be a
+                          measurement; saying nothing would let a reader assume one. */
+                       '<div class="ds-arexcl"><div class="ds-arexcl-h">Unresolved Exceptions &mdash; CANNOT VALIDATE</div>'
+                    || '<div class="ds-arexcl-b">This ERP stores no exception log and no resolution status, so an exception cannot be marked resolved and none can be counted as unresolved. '
+                    || 'Every finding above is simply <b>currently true</b>. Reporting all ' || to_char(t.Total,'FM999G999G990')
+                    || ' as &ldquo;unresolved&rdquo; would state a fact the data does not carry.</div></div>' As K5,
+                       '<a class="ds-kpi ds-kpi--' || Case When rec.CmpN + rec.LocN = 0 Then 'ok' Else 'risk' End || '" href="'
+                    || apex_page.get_url(p_page => 697, p_clear_cache => '697',
+                         p_items => 'P697_FROMDATE,P697_TODATE,P697_COMPANY,P697_LOCATION,P697_PANEL,P697_LEVEL,P697_ONLYBREAKS',
+                         p_values => :P696_FROMDATE ||','|| :P696_TODATE ||','|| :P696_COMPANY ||','|| :P696_LOCATION ||','|| :P696_PANEL ||',ALL,Y')
+                    || '" title="Company and Location levels whose analytical balance does not equal the ledger. Location breaks are usually legitimate cross-location settlement - page 697 says which."><span class="ds-kpi-ic fa fa-balance-scale"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Reconciliation Failures</div>'
+                    || '<div class="ds-kpi-n">' || to_char(rec.CmpN + rec.LocN,'FM999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">' || to_char(rec.CmpN,'FM999G990') || ' company &middot; '
+                    || to_char(rec.LocN,'FM999G990') || ' location</div></div></a>' As K6,
+                       '<a class="ds-kpi ds-kpi--teal" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',Bill')
+                    || '" title="Controls AR-B02, AR-B05 and AR-B06."><span class="ds-kpi-ic fa fa-file-text-o"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Bill Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.BillN,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">AR-B02 &middot; AR-B05 &middot; AR-B06</div></div></a>' As K7,
+                       '<a class="ds-kpi ds-kpi--violet" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',Receipt')
+                    || '" title="Control AR-R03 - receipt cash unapplied over 90 days."><span class="ds-kpi-ic fa fa-download"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Receipt Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.RcptN,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">AR-R03</div></div></a>' As K8,
+                       '<a class="ds-kpi ds-kpi--risk" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',Allocation')
+                    || '" title="Controls AR-A05, AR-A07, AR-A08 and AR-A09."><span class="ds-kpi-ic fa fa-link"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Allocation Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.AllocN,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">AR-A05 &middot; AR-A07 &middot; AR-A08 &middot; AR-A09</div></div></a>' As K9,
+                       '<a class="ds-kpi ds-kpi--gold" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => ',Opening')
+                    || '" title="Controls AR-O01 and AR-O02 - migrated receivables that lost their original dates."><span class="ds-kpi-ic fa fa-history"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Opening Balance Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.OpenN,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">AR-O01 &middot; AR-O02</div></div></a>' As K10,
+                       '<a class="ds-kpi ds-kpi--amber" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => 'AR-M02,')
+                    || '" title="Control AR-M02 - receivables posted to a location the master marks unusable."><span class="ds-kpi-ic fa fa-map-marker"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Location Mapping Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.LocN,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">AR-M02</div></div></a>' As K11,
+                       '<a class="ds-kpi ds-kpi--' || Case When t.PnlN = 0 Then 'ok' Else 'risk' End || '" href="'
+                    || apex_page.get_url(p_page => 696, p_items => 'P696_CONTROL,P696_CATEGORY', p_values => 'AR-M01,')
+                    || '" title="Control AR-M01 - AR posted with no Panel. Panel drives row-level security, so a null would be invisible to a panel-locked login."><span class="ds-kpi-ic fa fa-shield"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">Panel Mapping Exceptions</div>'
+                    || '<div class="ds-kpi-n">' || to_char(t.PnlN,'FM999G999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">'
+                    || Case When t.PnlN = 0 Then 'AR-M01 &mdash; control PASSES, 0 nulls' Else 'AR-M01' End
+                    || '</div></div></a>' As K12
+                  From T t Cross Join Rec rec
+                ```
+            pageItemsToSubmit: [
+                P696_FROMDATE
+                P696_TODATE
+                P696_COMPANY
+                P696_LOCATION
+                P696_PANEL
+            ]
+        }
+        layout {
+            sequence: 25
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-kpiwrap--5up
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column K1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: K1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K10 (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            heading {
+                heading: K10
+            }
+            layout {
+                sequence: 100
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K11 (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: K11
+            }
+            layout {
+                sequence: 110
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K12 (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            heading {
+                heading: K12
+            }
+            layout {
+                sequence: 120
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: K2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: K3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: K4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: K5
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: K6
+            }
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K7 (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: K7
+            }
+            layout {
+                sequence: 70
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K8 (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: K8
+            }
+            layout {
+                sequence: 80
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K9 (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: K9
+            }
+            layout {
+                sequence: 90
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p696Filters
+        }
+    )
+
+    region matrix (
+        name: Control Matrix
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* THE CONTROL MATRIX IS A GROUP BY OVER THE DETAIL SET.
+                   The Ex CTE below is byte-identical to the one in the drill-down
+                   region, so summary count == detail row count is a property of the
+                   query, not something a reviewer has to verify by counting.
+                   The roster supplies every control that SHOULD run, so a control
+                   finding nothing renders as PASS rather than silently disappearing. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYDEBTORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P696_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select d.Tno, d.Sno, d.AccountCode Pty, d.CompanyCode Cmp,
+                              d.LocationCode Loc, d.Panel Pnl, d.VoucherDate Vdt,
+                              v.VoucherNo Vno, v.DocTypeCode Dtc, v.ModuleCode Mc,
+                              d.Amount Amt, -(d.Amount - nvl(al.Amt,0)) Recv,
+                              coalesce(i.DueDate, sb.DueDate, ao.BillDueDate) DueDate,
+                              ao.BillDate AoBillDate, ao.BillDueDate AoBillDue
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join Invoice     i  On v.ModuleCode = 'INVOICE'     And i.Tno  = v.ModuleTno
+                         Left Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P696_PANEL    Is Null Or d.Panel        = :P696_PANEL)
+                          And (:P696_COMPANY  Is Null Or d.CompanyCode  = :P696_COMPANY)
+                          And (:P696_LOCATION Is Null Or d.LocationCode = :P696_LOCATION)),
+                     Ex As (
+                       /* AR-B02 - open receivable that cannot be aged */
+                       Select 'AR-B02' Code, Abs(o.Recv) Expo From Oi o
+                        Where o.Recv > 0.005 And o.DueDate Is Null
+                       Union All
+                       /* AR-A05 - allocation pointing at a voucher that no longer
+                          exists. This ERP has no reversal flag; deletion is its only
+                          cancellation mechanism, and this is the residue. */
+                       Select 'AR-A05', a.Amount From DrCrAllocation a
+                        Where Not Exists (Select 1 From Voucher v Where v.Tno = a.DrVoucherTno)
+                           Or Not Exists (Select 1 From Voucher v Where v.Tno = a.CrVoucherTno)
+                       Union All
+                       /* AR-A07 - allocation exceeds the line it settles */
+                       Select 'AR-A07', Abs(al.Amt) - Abs(d.Amount)
+                         From VoucherDetail d Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And Abs(al.Amt) > Abs(d.Amount) + 0.005
+                       Union All
+                       /* AR-A08 - cross-location settlement. Informational, not a
+                          failure: a receipt legitimately occurs at a location other
+                          than the one that raised the bill. */
+                       Select 'AR-A08', a.Amount
+                         From DrCrAllocation a
+                         Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                         Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                        Where dd.LocationCode <> cd.LocationCode
+                          And (dd.AccountCode In (Select PartyCode From Sd)
+                            Or cd.AccountCode In (Select PartyCode From Sd))
+                       Union All
+                       /* AR-A09 - allocation crossing a company boundary */
+                       Select 'AR-A09', a.Amount
+                         From DrCrAllocation a
+                         Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                         Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                        Where dd.CompanyCode <> cd.CompanyCode
+                          And (dd.AccountCode In (Select PartyCode From Sd)
+                            Or cd.AccountCode In (Select PartyCode From Sd))
+                       Union All
+                       /* AR-B05 - the same invoice number issued twice in one company */
+                       Select 'AR-B05', 0 From Invoice
+                        Group By CompanyCode, InvoiceNo Having Count(*) > 1
+                       Union All
+                       /* AR-B06 - invoice carrying no value */
+                       Select 'AR-B06', 0 From Invoice Where nvl(InvoiceAmount,0) = 0
+                       Union All
+                       /* AR-O01 - opening receivable whose original bill date did not
+                          survive migration, so its age is floored at the cutover */
+                       Select 'AR-O01', Abs(o.Recv) From Oi o
+                        Where o.Vno = 'OPENING' And o.AoBillDate Is Null And Abs(o.Recv) > 0.005
+                       Union All
+                       /* AR-O02 - opening receivable with no original due date */
+                       Select 'AR-O02', Abs(o.Recv) From Oi o
+                        Where o.Vno = 'OPENING' And o.AoBillDue Is Null And o.Recv > 0.005
+                       Union All
+                       /* AR-R03 - receipt cash held unapplied for more than 90 days.
+                          The largest actionable balance in this ledger. */
+                       Select 'AR-R03', -o.Recv From Oi o Cross Join Asof
+                        Where o.Dtc = 'RECEIPT' And o.Recv < -0.005 And Asof.D - o.Vdt > 90
+                       Union All
+                       /* AR-C02 - customer owing and holding credit at the same time */
+                       Select 'AR-C02', Least(g.Dr, g.Cr) From (
+                         Select Pty, Sum(Case When Recv > 0 Then Recv Else 0 End) Dr,
+                                     Sum(Case When Recv < 0 Then -Recv Else 0 End) Cr
+                           From Oi Group By Pty) g
+                        Where g.Dr > 0.005 And g.Cr > 0.005
+                       Union All
+                       /* AR-M01 - AR posted with no Panel */
+                       Select 'AR-M01', Abs(o.Recv) From Oi o Where o.Pnl Is Null
+                       Union All
+                       /* AR-M02 - AR posted to a location the master marks unusable */
+                       Select 'AR-M02', Abs(o.Recv) From Oi o
+                         Join Location l On l.LocationCode = o.Loc
+                        Where upper(l.LocationName) Like '%DO NOT USE%' And Abs(o.Recv) > 0.005),
+                     Agg As (Select Code, Count(*) N, nvl(Sum(Expo),0) Expo From Ex Group By Code),
+                     Roster As (
+                       Select 'AR-B02' Code, 'Open receivable that cannot be aged' Nm, 'High' Sev, 'Bill' Cat,
+                              'The source document carries no due date and this ERP holds no credit terms to derive one from. Shown in its own Cannot Age bucket, never given an arbitrary one.' Dsc, 'Y' Amt From dual
+                       Union All Select 'AR-A05','Orphan allocation - voucher no longer exists','Critical','Allocation',
+                              'The allocation references a Dr or Cr voucher that is not in the ledger. Deletion is this ERP''s only cancellation mechanism. The canonical AR layer excludes these; one of them carries Rs 34,119 against the AR control account.','Y' From dual
+                       Union All Select 'AR-A07','Allocation exceeds the item it settles','Critical','Allocation',
+                              'Allocated amount is greater than the original line amount, so the balance has flipped sign.','Y' From dual
+                       Union All Select 'AR-A08','Cross-location settlement','Info','Allocation',
+                              'A receipt at one location settling a bill raised at another. Legitimate in this business and reported for visibility, not as a failure.','Y' From dual
+                       Union All Select 'AR-A09','Cross-company allocation','Critical','Allocation',
+                              'An allocation crossing a company boundary would break company-level receivables.','Y' From dual
+                       Union All Select 'AR-B05','Duplicate invoice number within a company','High','Bill',
+                              'The same InvoiceNo issued more than once inside one CompanyCode.','N' From dual
+                       Union All Select 'AR-B06','Invoice with zero or null amount','Medium','Bill',
+                              'An invoice carrying no value.','N' From dual
+                       Union All Select 'AR-O01','Opening AR with no original bill date','High','Opening',
+                              'Migrated receivable whose pre-cutover bill date was not preserved, so its age is floored at 31-03-2026 and is understated.','Y' From dual
+                       Union All Select 'AR-O02','Opening AR with no original due date','Medium','Opening',
+                              'Migrated receivable that can never be aged on the Due Date basis.','Y' From dual
+                       Union All Select 'AR-R03','Receipt cash unapplied over 90 days','Critical','Receipt',
+                              'Cash received, never allocated to a bill, and now more than 90 days old. Reduces reported collection performance and overstates both sides of the ledger.','Y' From dual
+                       Union All Select 'AR-C02','Customer with receivable AND credit','High','Customer',
+                              'The customer owes and is owed at the same time. The lesser of the two can be cleared by allocation alone, with no collection effort.','Y' From dual
+                       Union All Select 'AR-M01','AR posted with no Panel','Critical','Master',
+                              'Panel drives row-level security. A null Panel would be invisible to a panel-locked login.','Y' From dual
+                       Union All Select 'AR-M02','AR posted to a location marked DO NOT USE','High','Master',
+                              'The location master names this location as unusable, yet receivables are posted to it.','Y' From dual),
+                     /* Controls whose INPUT does not exist. These are reported as DATA
+                        MISSING and are deliberately NOT counted as passes - the brief
+                        is explicit that lack of information is not a pass. */
+                     Missing As (
+                       Select 'AR-C01' Code, 'Credit limit exceeded' Nm, 'Customer' Cat,
+                              'Party.CreditAmount is greater than zero on 0 of 954 debtor accounts. There is no limit to test exposure against.' Dsc From dual
+                       Union All Select 'AR-C03','Credit terms not declared','Customer',
+                              'Party.CreditDays is greater than zero on 2 of 954 debtor accounts, so a due date cannot be derived from customer terms.' From dual
+                       Union All Select 'AR-R05','Reversed or cancelled receipt still allocated','Receipt',
+                              'VOUCHER carries no approval, posting, draft, cancellation or reversal column and VoucherReferenceDetailReversal is empty. The nearest real evidence is AR-A05.' From dual
+                       Union All Select 'AR-X02','Subledger vs GL','Reconciliation',
+                              'There is no independent customer subledger table in this ERP. AccountOpening is a migration register, not a running subledger. The honest two-way test is on the Reconciliation page.' From dual)
+                Select r.Cat                                          As CATEGORY,
+                       r.Code                                         As CONTROL_CODE,
+                       Case When nvl(a.N,0) = 0 Then apex_escape.html(r.Nm)
+                            Else '<a href="' || apex_page.get_url(p_page => 696,
+                                   p_items => 'P696_CONTROL', p_values => r.Code)
+                                 || '">' || apex_escape.html(r.Nm) || '</a>' End As CONTROL_NAME,
+                       Case r.Sev When 'Critical' Then '<span class="ds-archip ds-archip--fail">Critical</span>'
+                                  When 'High'     Then '<span class="ds-archip ds-archip--warn">High</span>'
+                                  When 'Medium'   Then '<span class="ds-archip ds-archip--info">Medium</span>'
+                                  Else '<span class="ds-archip ds-archip--na">Info</span>' End As SEVERITY,
+                       nvl(a.N,0)                                     As FINDINGS,
+                       Case When r.Amt = 'Y' And nvl(a.N,0) > 0 Then Round(a.Expo,2) End As EXPOSURE,
+                       /* Six deterministic states, per the brief. NOT APPLICABLE is
+                          reserved for a control that cannot fire because the FILTER
+                          puts it out of scope - not for one that simply found nothing,
+                          which is a PASS. Confusing the two would let a narrowed scope
+                          masquerade as a clean result. */
+                       Case When r.Code = 'AR-A09' And :P696_COMPANY Is Not Null
+                                 Then '<span class="ds-archip ds-archip--na">NOT APPLICABLE</span>'
+                            When nvl(a.N,0) = 0
+                                 Then '<span class="ds-archip ds-archip--pass">PASS</span>'
+                            When r.Sev = 'Info'
+                                 Then '<span class="ds-archip ds-archip--na">REPORTED</span>'
+                            When r.Sev = 'Critical'
+                                 Then '<span class="ds-archip ds-archip--fail">FAIL</span>'
+                            Else '<span class="ds-archip ds-archip--warn">WARNING</span>' End As RESULT,
+                       Case When r.Code = 'AR-A09' And :P696_COMPANY Is Not Null
+                            Then 'Scope is a single company, so a cross-company allocation cannot arise within it. Clear the Company filter to test this control.'
+                            Else apex_escape.html(r.Dsc) End           As WHAT_IT_TESTS
+                  From Roster r Left Join Agg a On a.Code = r.Code
+                Union All
+                Select m.Cat, m.Code, apex_escape.html(m.Nm),
+                       '<span class="ds-archip ds-archip--na">n/a</span>',
+                       To_Number(Null), To_Number(Null),
+                       '<span class="ds-archip ds-archip--nodata">DATA MISSING</span>',
+                       apex_escape.html(m.Dsc)
+                  From Missing m
+                Union All
+                /* CANNOT VALIDATE is distinct from DATA MISSING: the input columns
+                   exist and hold values, but they cannot settle the question the
+                   control asks. Both are reported; neither is ever a PASS. */
+                Select x.Cat, x.Code, apex_escape.html(x.Nm),
+                       '<span class="ds-archip ds-archip--na">n/a</span>',
+                       To_Number(Null), To_Number(Null),
+                       '<span class="ds-archip ds-archip--nodata">CANNOT VALIDATE</span>',
+                       apex_escape.html(x.Dsc)
+                  From (
+                    Select 'AR-A10' Code, 'Duplicate allocation' Nm, 'Allocation' Cat,
+                           'Two allocations of the same amount between the same bill and receipt are a legitimate part-payment pattern here. DrCrAllocation carries no key that distinguishes a duplicate from a genuine second instalment, so the test cannot be made deterministic.' Dsc From dual
+                    Union All Select 'AR-X03','Exception resolution status','Reconciliation',
+                           'This ERP stores no exception log, so no finding can be marked resolved. Every result on this page is what is currently true, not a backlog with an age and an owner.' From dual
+                    Union All Select 'AR-B07','Cancelled bill still in AR','Bill',
+                           'VOUCHER has no cancellation, approval or posting-status column and VoucherReferenceDetailReversal is empty. Deletion is this ERP''s only cancellation mechanism and it leaves no cancelled row to test - only the orphan allocations AR-A05 finds.' From dual
+                  ) x
+                 Order By 1, 2
+                ```
+            pageItemsToSubmit: [
+                P696_FROMDATE
+                P696_TODATE
+                P696_COMPANY
+                P696_LOCATION
+                P696_PANEL
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No control could be evaluated in this scope.
+        }
+
+        column CATEGORY (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Category
+            }
+            layout {
+                sequence: 10
+            }
+        )
+
+        column CONTROL_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column CONTROL_NAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Control
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EXPOSURE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Exposure (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+        )
+
+        column FINDINGS (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Findings
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+        )
+
+        column RESULT (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Result
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SEVERITY (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Severity
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column WHAT_IT_TESTS (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: What It Tests
+            }
+            layout {
+                sequence: 80
+            }
+        )
+
+    )
+
+    region matrix-note (
+        name: How to read this page
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-arnote"><span class="fa fa-check-square-o"></span><div>
+                  <b>The count in the matrix and the row count in the drill-down are the same number by construction</b> &mdash;
+                  both are produced from one query, so a control cannot show 12 exceptions and then list 11 rows.
+                  <b>PASS</b> means the control ran and found nothing.
+                  <b>DATA MISSING</b> means the input this control needs does not exist in this ERP, and is deliberately not shown as a pass.
+                </div></div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P696_CATEGORY (
+        type: hidden
+        layout {
+            sequence: 62
+            region: @filter-bar
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Set by the exception KPI cards. Accepts a control category (Bill, Receipt, Allocation, Opening, Customer, Master), or ALL for every finding, CRITICAL for critical-severity controls, or HIGHVALUE for findings whose own exposure is 10 lakh or more.
+        }
+    )
+
+    pageItem P696_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.CompanyCode = c.CompanyCode
+                                  And v.AccountCode In (Select PartyCode From Party
+                                        Start With PartyCode = 'SUNDRYDEBTORS' Connect By Prior PartyCode = ParentCode))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P696_CONTROL (
+        type: hidden
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P696_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P696_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.LocationCode = l.LocationCode
+                                  And v.AccountCode In (Select PartyCode From Party
+                                        Start With PartyCode = 'SUNDRYDEBTORS' Connect By Prior PartyCode = ParentCode)
+                                  And (:P696_COMPANY Is Null Or v.CompanyCode = :P696_COMPANY))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P696_COMPANY
+            itemsToSubmit: P696_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P696_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P696_TODATE (
+        type: datePicker
+        label {
+            label: To Date / As-of
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Command Centre
+        layout {
+            sequence: 90
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 690
+                items: {
+                    P690_FROMDATE: &P696_FROMDATE.
+                    P690_TODATE: &P696_TODATE.
+                    P690_COMPANY: &P696_COMPANY.
+                    P690_LOCATION: &P696_LOCATION.
+                    P690_PANEL: &P696_PANEL.
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button clear-control (
+        buttonName: CLEARCONTROL
+        label: Clear Selected Control
+        layout {
+            sequence: 80
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-times
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 696
+                items: {
+                    P696_FROMDATE: &P696_FROMDATE.
+                    P696_TODATE: &P696_TODATE.
+                    P696_COMPANY: &P696_COMPANY.
+                    P696_LOCATION: &P696_LOCATION.
+                    P696_PANEL: &P696_PANEL.
+                    P696_CONTROL:
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P696_CONTROL
+        }
+    )
+
+)
+

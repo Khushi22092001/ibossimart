@@ -1,0 +1,560 @@
+page 185 (
+    name: Entry Statistics
+    alias: ENTRY-STATISTICS
+    title: Entry Statistics
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/Stock+Journal.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P185_FROMDATE').val());
+              var toDate = new Date($('#P185_TODATE').val());
+            
+            var reportParams = 
+                  '&P_FROMDATE='+ $('#P185_FROMDATE').val() +  
+                  '&P_TODATE=' + $('#P185_TODATE').val() +  
+                  '&P_MODULE=' +$('#P185_MODULE').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region entry-statistics (
+        name: Entry Statistics
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region entry-statistics-2 (
+        name: Entry Statistics
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                       row_number() over(order by C.DAYDATE) SerialNo,
+                       b.modulecode,
+                       b.modulename,
+                       C.DAYDATE,
+                       GetModuleRecordsEntered(b.modulecode, c.daydate, c.daydate, '1') As Entry
+                  From datelist c, Module b
+                 Where b.mastertablename Is Not Null
+                     And b.transactiondatecolumn Is Not Null
+                     --And C.DAYDATE Between nvl(:P185_FROMDATE,TRUNC(SYSDATE-1)) And NVL(:P185_TODATE,TRUNC(SYSDATE))
+                     AND C.DAYDATE BETWEEN :P185_FROMDATE AND :P185_TODATE
+                     and ( :P185_MODULE IS NULL OR instr(':'||:P185_MODULE||':',':'||B.MODULECODE||':') > 0 ) 
+                     And Nvl(GetModuleRecordsEntered(b.modulecode, c.daydate, c.daydate, '1'),
+                            0) > 0
+                  And Exists
+                 (Select 1
+                          From MODULEPRIVILEGE AA, BOSSUSER BB
+                         Where AA.MODULECODE = B.MODULECODE
+                           And AA.BOSSUSERCODE = BB.BOSSUSERCODE
+                           And BB.BOSSUSERNAME = '&APP_USER.'
+                           And (AA.VIEWPRIVILEGE = 'YES' Or AA.INSERTPRIVILEGE = 'YES'))
+                 Order By 1
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 40511338477796191
+        }
+
+        column DAYDATE (
+            type: plainText
+            heading {
+                heading: Daydate
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column ENTRY (
+            type: plainText
+            heading {
+                heading: Entry
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column MODULECODE (
+            type: plainText
+            heading {
+                heading: Modulecode
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column MODULENAME (
+            type: plainText
+            heading {
+                heading: Modulename
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serialno
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Entry Statistics
+        }
+
+        savedReport 175020 (
+            visibility: primaryDefault
+            view {
+                pivot: true
+                default: pivot
+                rowsPerPage: 50
+            }
+
+            displayColumn DAYDATE (
+                sequence: 3
+            )
+
+            displayColumn ENTRY (
+                sequence: 4
+            )
+
+            displayColumn MODULECODE (
+                sequence: 1
+            )
+
+            displayColumn MODULENAME (
+                sequence: 2
+            )
+
+            sort (
+                column: STOCKJOURNALDATE
+                sort {
+                    sequence: 1
+                }
+            )
+
+            pivotColumn (
+                column: DAYDATE
+                layout {
+                    sequence: 1
+                }
+            )
+
+            pivotRowColumn (
+                column: MODULENAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+            pivotAggregate ir-pivot-agg (
+                heading: No
+                aggregate {
+                    function: sum
+                    column: ENTRY
+                    displaySum: true
+                }
+                appearance {
+                    formatMask: 999G999G999G999G990
+                }
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P185_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @entry-statistics
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: From Date
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P185_MODULE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: TO ITEM NATURE
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT ModuleName d, ModuleCode r from Module B where MasterTableName is not null 
+                	 And Exists
+                 (Select 1
+                          From MODULEPRIVILEGE AA, BOSSUSER BB
+                         Where AA.MODULECODE = B.MODULECODE
+                           And AA.BOSSUSERCODE = BB.BOSSUSERCODE
+                           And BB.BOSSUSERNAME = '&APP_USER.'
+                           And (AA.VIEWPRIVILEGE = 'YES' Or AA.INSERTPRIVILEGE = 'YES'))
+                order by 1
+                ```
+        }
+        layout {
+            sequence: 60
+            region: @entry-statistics
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P185_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @entry-statistics
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: To Date
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @entry-statistics-2
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @entry-statistics
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P185_SJNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P185_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P185_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 18929232038645075
+        }
+    )
+
+)
+

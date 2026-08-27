@@ -1,0 +1,764 @@
+page 443 (
+    name: TDS Payable Summary Copy
+    alias: TDS-PAYABLE-SUMMARY-COPY
+    title: TDS Payable Summary Copy
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT  
+                    TO_CHAR(max(b.VoucherDate),('MON-YY')) AS Month,
+                    GETPARTYNAME(A.PARTYCODE) AS PARTY,
+                    F.TDSNATURENAME,
+                    F.TDSNATURECODE,
+                    co.CompanyName,
+                    A.PANNO,
+                    b.companycode,
+                    A.PARTYCODE,
+                    ROUND(sum(A.TDSDEDUCTEDON),2) AS BASICAMOUNT,
+                    sum(A.TDSAMOUNT) as TDSAmount,
+                    'DETAIL'
+                FROM VOUCHERTDSDEDUCTED  A,VOUCHER B,JBPASS C, EXTERNALSERVICESENTRY D,PAYMENTADVICE E,TDSTAXCATEGORY G,PARTY H,COMPANY CO, TDSNature F,
+                         (SELECT A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          FROM CHALLAN                  A,
+                               TDSCHALLAN               C,
+                               TDSCHALLANDEDUCTEEDETAIL D,
+                               BANK                     E
+                         WHERE  A.DOCTYPECODE = 'TDSCHALLAN'
+                           AND A.MODULETNO = C.TNO
+                           AND C.TNO = D.TNO
+                           AND A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           AND A.DEPOSITEDINBANKCODE = E.BANKCODE
+                       ) CHLN,
+                       (
+                          Select
+                                a.Tno
+                         From Voucher a
+                         Where exists(
+                                     Select
+                                        aa.Tno
+                                     From VoucherDetail aa, TDSNature bb
+                                     Where aa.AccountCode = bb.TDSAccountCode
+                                       and aa.Tno = a.Tno
+                                     )) x
+                WHERE A.TNO = B.TNO
+                   AND B.MODULETNO = C.TNO(+)
+                   AND B.MODULETNO = D.TNO(+)
+                   AND B.MODULETNO = E.TNO(+)
+                   AND A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                  and A.PARTYCODE = H.PARTYCODE
+                  and B.COMPANYCODE = CO.COMPANYCODE
+                  and a.TDSNatureCode = f.TDSNatureCode
+                  AND B.MODULETNO = CHLN.MODULETNO(+)
+                  AND A.TNO = X.TNO
+                
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                  and TO_CHAR(TO_DATE(b.VoucherDate),('MON-RRRR')) = :P443_MONTH
+                -- and ( :P443_LOCATION IS NULL OR instr(':'||:P443_LOCATION||':',':'||B.LocationCode||':') > 0)
+                  and ( :P443_COMPANY IS NULL OR instr(':'||:P443_COMPANY||':',':'||b.CompanyCode||':') > 0 )
+                  and ( :P443_PARTY IS NULL OR instr(':'||:P443_PARTY||':',':'||h.partycode||':') > 0 )
+                -- and B.ModuleCode like nvl(:P443_MODULECODE,'%')
+                  and ( :P443_SECTION IS NULL OR instr(':'||:P443_SECTION||':',':'||F.TAXSECTIONCODE||':') > 0 )
+                  and ( :P443_TDSNATURE IS NULL OR instr(':'||:P443_TDSNATURE||':',':'||F.TDSNATURECODE||':') > 0 )
+                
+                Group by a.PANNO,
+                        A.PARTYCODE,
+                        F.TDSNATURENAME,
+                        F.TDSNATURECODE,
+                        b.companycode,
+                        co.CompanyName
+                
+                ORDER BY 1,2,3,4
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 66354952357767746
+        }
+
+        column 'DETAIL' (
+            type: link
+            heading {
+                heading: DETAIL
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            link {
+                target: {
+                    page: 444
+                    items: {
+                        P444_PARTY: #PARTYCODE#
+                        P444_MONTH: &P443_MONTH.
+                        P444_COMPANY: #COMPANYCODE#
+                        P444_TDSNATURE: #TDSNATURECODE#
+                    }
+                    clearCache: 444
+                }
+                linkText: DETAIL
+                linkAttributes: class="t-Button t-Button--simple t-Button--hot t-Button--stretch"
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column BASICAMOUNT (
+            type: plainText
+            heading {
+                heading: Basic Amount
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Companyname
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column MONTH (
+            type: plainText
+            heading {
+                heading: Month
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column PANNO (
+            type: plainText
+            heading {
+                heading: PAN No
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: Party
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column TDSAMOUNT (
+            type: plainText
+            heading {
+                heading: TDS Amount
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column TDSNATURECODE (
+            type: plainText
+            heading {
+                heading: Tdsnaturecode
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column TDSNATURENAME (
+            type: plainText
+            heading {
+                heading: TDS Nature
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+
+        savedReport 167286 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn 'DETAIL' (
+                sequence: 7
+            )
+
+            displayColumn BASICAMOUNT (
+                sequence: 5
+            )
+
+            displayColumn MONTH (
+                sequence: 1
+            )
+
+            displayColumn PANNO (
+                sequence: 4
+            )
+
+            displayColumn PARTY (
+                sequence: 2
+            )
+
+            displayColumn TDSAMOUNT (
+                sequence: 6
+            )
+
+            displayColumn TDSNATURENAME (
+                sequence: 3
+            )
+
+            aggregate (
+                column: BASICAMOUNT
+            )
+
+            aggregate (
+                column: TDSAMOUNT
+            )
+
+        )
+
+    )
+
+    region tds-payable-summary (
+        name: "TDS Payable Summary "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P443_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.CompanyName d,
+                a.CompanyCode r                                                
+                From Voucher b,Company a
+                 Where b.CompanyCode = a.CompanyCode;
+                
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @tds-payable-summary
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P443_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @tds-payable-summary
+            slot: regionBody
+        }
+    )
+
+    pageItem P443_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @tds-payable-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            formatMask: MON-RRRR
+            width: 15
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)-7
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P443_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select distinct
+                    B.pARTYNAME D,
+                    B.pARTYCODE R
+                    From vouchertdsdeducted a, party b
+                    where a.partycode = b.partycode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @tds-payable-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Party
+        }
+    )
+
+    pageItem P443_SECTION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Section
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                B.TAXSECTIONCODE D,
+                B.TAXSECTIONCODE R
+                From VOUCHERTDSDEDUCTED   A,TDSNATURE   B
+                Where a.TDSNATURECODE = B.TDSNATURECODE
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @tds-payable-summary
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P443_TDSNATURE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: TDS Nature
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                B.TDSNATURENAME D,
+                B.TDSNATURECODE R
+                From VOUCHERTDSDEDUCTED   A,TDSNATURE   B
+                Where a.TDSNATURECODE = B.TDSNATURECODE
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @tds-payable-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P443_TODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @tds-payable-summary
+            slot: regionBody
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @tds-payable-summary
+            slot: regionBody
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction set-date-value (
+        name: Set Date Value
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P443_MONTH
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_DATE(:P443_MONTH, 'MON-RRRR'), TRUNC(LAST_DAY(TO_DATE(:P443_MONTH, 'MON-RRRR'))) From DUAL
+                    
+                    ```
+                itemsToSubmit: P443_MONTH
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P443_FROMDATE
+                    P443_TODATE
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

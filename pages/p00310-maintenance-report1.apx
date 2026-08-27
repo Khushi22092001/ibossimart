@@ -1,0 +1,982 @@
+page 310 (
+    name: Maintenance Report
+    alias: MAINTENANCE-REPORT1
+    title: Maintenance Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region maintenance-report (
+        name: Maintenance Report
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                 DECLARE
+                  jobtype_list varchar2(4000);
+                  query_str    varchar2(4000);
+                BEGIN
+                  Select '''' || LISTAGG(jobtypename || ''',''') WITHIN Group(Order By jobtypename) || '''' As concatenated_string
+                  Into jobtype_list
+                  From (Select Distinct JOBTYPENAME
+                          From SERVICEENTRYSHEETDETAIL A, JOBTYPE B, ServiceEntrySheet c, EquipmentMaintenanceOrder d, 
+                                MaintenanceRequest e, Equipment f
+                         Where A.JOBTYPECODE = B.JOBTYPECODE
+                           and a.tno = c.tno
+                           and c.EquipmentMaintenanceorderTno=d.tno(+)
+                           and d.MaintenanceRequestTno=e.tno(+)
+                           and e.EquipmentTno = f.tno(+)
+                           --- Filter Condition
+                          and e.CompanyCode = :P310_COMPANY
+                          --and e.FinancialYearCode = :global_FinancialYearCode
+                          and e.MaintenanceRequestDate between  nvl(to_date(:P310_FROMDATE,'DD-MM-RRRR'),trunc(sysdate) - 3) AND NVL(TO_DATE(:P310_TODATE,'DD-MM-RRRR'),TRUNC(SYSDATE))
+                          and ( :P310_LOCATION IS NULL OR instr(':'||:P310_LOCATION||':',':'||e.LocationCode||':') > 0)
+                          --and ( :P241_DOCTYPE IS NULL OR dc.DOCTYPECODE = :P241_DOCTYPE)
+                          --and GetDoctypePrivilege(dc.doctypecode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                         --and GetLocationPrivilege(dc.LocationCode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                
+                         );
+                
+                -- query_str := 'SELECT *
+                --     FROM jobcarddetail a
+                --     PIVOT (
+                --       COUNT(jobtypecode)
+                --       FOR jobtypecode IN (' || jobtype_list || ')
+                --     )';
+                
+                -- query_str :=  'Select *
+                --   From (Select e.EquipmentName,
+                --                c.MaintenancerequestDate,
+                --                c.DueDate,
+                --                b.JobTypename
+                --           From serviceentrysheetdetail   a,
+                --                jobtype                   b,
+                --                maintenancerequest        c,
+                --                EquipmentMaintenanceorder d,
+                --                Equipment                 e,
+                --                ServiceEntrySheet         a1
+                --          Where a.jobtypecode = b.jobtypecode
+                --            And a.tno = a1.tno
+                --            And a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                --            And d.maintenancerequesttno = c.tno(+)
+                --            And d.Equipmenttno = e.tno(+)
+                --            and c.CompanyCode = :P310_COMPANY
+                --           and c.MaintenanceRequestDate between :P310_FROMDATE AND :P310_TODATE
+                --            )
+                --            PIVOT (
+                --       COUNT(jobtypename)
+                --       FOR jobtypename IN (' || jobtype_list || ')
+                --     )';   
+                query_str := 'SELECT EQUIPMENTNAME, MAINTENANCEREQUESTDATE, DUEDATE, ' || jobtype_list || '
+                              FROM (
+                                SELECT e.EquipmentName, c.MaintenancerequestDate, c.DueDate, b.JobTypename
+                                FROM serviceentrysheetdetail a, jobtype b, maintenancerequest c, EquipmentMaintenanceOrder d, Equipment e, ServiceEntrySheet a1
+                                WHERE a.jobtypecode = b.jobtypecode
+                                AND a.tno = a1.tno
+                                AND a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                                AND d.maintenancerequesttno = c.tno(+)
+                                AND d.Equipmenttno = e.tno(+)
+                                AND c.CompanyCode = :P310_COMPANY
+                                AND c.MaintenanceRequestDate BETWEEN :P310_FROMDATE AND :P310_TODATE
+                              )
+                              PIVOT (
+                                COUNT(jobtypename)
+                                FOR jobtypename IN (' || jobtype_list || ')
+                              )';
+                
+                  RETURN (query_str);
+                END;
+                ```
+            pageItemsToSubmit: [
+                P310_COMPANY
+                P310_LOCATION
+                P310_FROMDATE
+                P310_TODATE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 25480157014404801
+        }
+
+        savedReport 254861 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @EQUIPMENTNAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @MAINTENANCEREQUESTDATE
+                layout {
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @DUEDATE
+                layout {
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @''
+                layout {
+                    sequence: 4
+                }
+            )
+
+        )
+
+        column '' (
+            type: textField
+            heading {
+                heading: &#x27;&#x27;
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: ''
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column DUEDATE (
+            type: datePicker
+            heading {
+                heading: Duedate
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: DUEDATE
+                dataType: date
+            }
+        )
+
+        column EQUIPMENTNAME (
+            type: textarea
+            heading {
+                heading: Equipmentname
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EQUIPMENTNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column MAINTENANCEREQUESTDATE (
+            type: datePicker
+            heading {
+                heading: Maintenancerequestdate
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: MAINTENANCEREQUESTDATE
+                dataType: date
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Maintenance Report
+        }
+    )
+
+    region new (
+        name: New
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select e.EquipmentName,
+                               c.MaintenancerequestDate,
+                               c.DueDate,
+                               b.JobTypename
+                          From serviceentrysheetdetail   a,
+                               jobtype                   b,
+                               maintenancerequest        c,
+                               EquipmentMaintenanceorder d,
+                               Equipment                 e,
+                               ServiceEntrySheet         a1
+                         Where a.jobtypecode = b.jobtypecode
+                           And a.tno = a1.tno
+                           And a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                           And d.maintenancerequesttno = c.tno(+)
+                           And d.Equipmenttno = e.tno(+)
+                           and c.CompanyCode = :P310_COMPANY
+                          and c.MaintenanceRequestDate between :P310_FROMDATE AND :P310_TODATE
+                ```
+            pageItemsToSubmit: [
+                P310_COMPANY
+                P310_LOCATION
+                P310_FROMDATE
+                P310_TODATE
+                P310_EQUIPMENT
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 25971197592584348
+        }
+
+        column DUEDATE (
+            type: plainText
+            heading {
+                heading: Duedate
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column EQUIPMENTNAME (
+            type: plainText
+            heading {
+                heading: Equipmentname
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column JOBTYPENAME (
+            type: plainText
+            heading {
+                heading: Jobtypename
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column MAINTENANCEREQUESTDATE (
+            type: plainText
+            heading {
+                heading: Maintenancerequestdate
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: New
+        }
+
+        savedReport 285169 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DUEDATE (
+                sequence: 3
+            )
+
+            displayColumn EQUIPMENTNAME (
+                sequence: 1
+            )
+
+            displayColumn JOBTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn MAINTENANCEREQUESTDATE (
+                sequence: 2
+            )
+
+        )
+
+    )
+
+    pageItem P310_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT COMPANYNAME D, COMPANYCODE R FROM COMPANY
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 5
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P310_EQUIPMENT (
+        type: popupLov
+        label {
+            label: Equipment
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT EQUIPMENTNAME D, TNO FROM EQUIPMENT
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 5
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P310_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 5
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P310_JOBTYPENAME (
+        type: textarea
+        label {
+            label: Jobtypename
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+            height: 5
+        }
+    )
+
+    pageItem P310_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT LOCATIONNAME D, LOCATIONCODE R FROM LOCATION
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P310_TODATE (
+        type: datePicker
+        label {
+            label: Todate
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button new (
+        buttonName: New
+        label: New
+        layout {
+            sequence: 70
+            region: @filter
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @new
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                     DECLARE
+                      jobtype_list varchar2(4000);
+                      query_str    varchar2(4000);
+                      fromdate  date := :P310_FROMDATE;
+                      todate  date := :P310_TODATE;
+                      TLOCATION VARCHAR2(30) := :P310_LOCATION;
+                      TCOMPANY VARCHAR2(30) := :P310_COMPANY;
+                      
+                    BEGIN
+                      Select '''' || LISTAGG(jobtypename || ''',''') WITHIN Group(Order By jobtypename) || '''' As concatenated_string
+                      Into jobtype_list
+                      From (Select Distinct JOBTYPENAME
+                              From SERVICEENTRYSHEETDETAIL A, JOBTYPE B, ServiceEntrySheet c, EquipmentMaintenanceOrder d, 
+                                    MaintenanceRequest e, Equipment f
+                             Where A.JOBTYPECODE = B.JOBTYPECODE
+                               and a.tno = c.tno
+                               and c.EquipmentMaintenanceorderTno=d.tno(+)
+                               and d.MaintenanceRequestTno=e.tno(+)
+                               and e.EquipmentTno = f.tno(+)
+                               --- Filter Condition
+                              and e.CompanyCode = TCOMPANY
+                              and e.FinancialYearCode = :global_FinancialYearCode
+                              and e.MaintenanceRequestDate between  FROMDATE AND todate
+                              and ( TLOCATION IS NULL OR instr(':'|| TLOCATION||':',':'||e.LocationCode||':') > 0)
+                              --and ( :P241_DOCTYPE IS NULL OR dc.DOCTYPECODE = :P241_DOCTYPE)
+                              --and GetDoctypePrivilege(dc.doctypecode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                             --and GetLocationPrivilege(dc.LocationCode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                    
+                             );
+                    
+                    -- query_str := 'SELECT *
+                    --     FROM jobcarddetail a
+                    --     PIVOT (
+                    --       COUNT(jobtypecode)
+                    --       FOR jobtypecode IN (' || jobtype_list || ')
+                    --     )';
+                    
+                    -- query_str :=  'Select *
+                    --   From (Select e.EquipmentName,
+                    --                c.MaintenancerequestDate,
+                    --                c.DueDate,
+                    --                b.JobTypename
+                    --           From serviceentrysheetdetail   a,
+                    --                jobtype                   b,
+                    --                maintenancerequest        c,
+                    --                EquipmentMaintenanceorder d,
+                    --                Equipment                 e,
+                    --                ServiceEntrySheet         a1
+                    --          Where a.jobtypecode = b.jobtypecode
+                    --            And a.tno = a1.tno
+                    --            And a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                    --            And d.maintenancerequesttno = c.tno(+)
+                    --            And d.Equipmenttno = e.tno(+)
+                    --            and c.CompanyCode = :P310_COMPANY
+                    --           and c.MaintenanceRequestDate between :P310_FROMDATE AND :P310_TODATE
+                    --            )
+                    --            PIVOT (
+                    --       COUNT(jobtypename)
+                    --       FOR jobtypename IN (' || jobtype_list || ')
+                    --     )';   
+                    query_str := 'create or replace view pivot_test as (SELECT EQUIPMENTNAME, MAINTENANCEREQUESTDATE, DUEDATE, ' || jobtype_list || '
+                                  FROM (
+                                    SELECT e.EquipmentName, c.MaintenancerequestDate, c.DueDate, b.JobTypename
+                                    FROM serviceentrysheetdetail a, jobtype b, maintenancerequest c, EquipmentMaintenanceOrder d, Equipment e, ServiceEntrySheet a1
+                                    WHERE a.jobtypecode = b.jobtypecode
+                                    AND a.tno = a1.tno
+                                    AND a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                                    AND d.maintenancerequesttno = c.tno(+)
+                                    AND d.Equipmenttno = e.tno(+)
+                                   -- AND c.CompanyCode = TCOMPANY
+                                   -- AND c.MaintenanceRequestDate BETWEEN FROMDATE AND todate
+                                  )
+                                  PIVOT (
+                                    COUNT(jobtypename)
+                                    FOR jobtypename IN (' || jobtype_list || ')
+                                  ))';
+                        :P310_JOBTYPENAME := query_str;
+                        execute immediate query_str;
+                      --RETURN (query_str);
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P310_COMPANY
+                    P310_LOCATION
+                    P310_FROMDATE
+                    P310_TODATE
+                ]
+                itemsToReturn: P310_JOBTYPENAME
+                showProcessing: true
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: expression
+                plsqlExpression: 1 != 1
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlFunctionBody
+                plsqlFunctionBody:
+                    ```plsql
+                     DECLARE
+                      jobtype_list varchar2(4000);
+                      query_str    varchar2(4000);
+                    BEGIN
+                      Select '''' || LISTAGG(jobtypename || ''',''') WITHIN Group(Order By jobtypename) || '''' As concatenated_string
+                      Into jobtype_list
+                      From (Select Distinct JOBTYPENAME
+                              From SERVICEENTRYSHEETDETAIL A, JOBTYPE B, ServiceEntrySheet c, EquipmentMaintenanceOrder d, 
+                                    MaintenanceRequest e, Equipment f
+                             Where A.JOBTYPECODE = B.JOBTYPECODE
+                               and a.tno = c.tno
+                               and c.EquipmentMaintenanceorderTno=d.tno(+)
+                               and d.MaintenanceRequestTno=e.tno(+)
+                               and e.EquipmentTno = f.tno(+)
+                               --- Filter Condition
+                              and e.CompanyCode = :P310_COMPANY
+                              --and e.FinancialYearCode = :global_FinancialYearCode
+                              and e.MaintenanceRequestDate between  nvl(to_date(:P310_FROMDATE,'DD-MM-RRRR'),trunc(sysdate) - 3) AND NVL(TO_DATE(:P310_TODATE,'DD-MM-RRRR'),TRUNC(SYSDATE))
+                              and ( :P310_LOCATION IS NULL OR instr(':'||:P310_LOCATION||':',':'||e.LocationCode||':') > 0)
+                              --and ( :P241_DOCTYPE IS NULL OR dc.DOCTYPECODE = :P241_DOCTYPE)
+                              --and GetDoctypePrivilege(dc.doctypecode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                             --and GetLocationPrivilege(dc.LocationCode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                    
+                             );
+                    
+                    -- query_str := 'SELECT *
+                    --     FROM jobcarddetail a
+                    --     PIVOT (
+                    --       COUNT(jobtypecode)
+                    --       FOR jobtypecode IN (' || jobtype_list || ')
+                    --     )';
+                    
+                    query_str :=  'Select *
+                      From (Select e.EquipmentName,
+                                   c.MaintenancerequestDate,
+                                   c.DueDate,
+                                   b.JobTypename
+                              From serviceentrysheetdetail   a,
+                                   jobtype                   b,
+                                   maintenancerequest        c,
+                                   EquipmentMaintenanceorder d,
+                                   Equipment                 e,
+                                   ServiceEntrySheet         a1
+                             Where a.jobtypecode = b.jobtypecode
+                               And a.tno = a1.tno
+                               And a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                               And d.maintenancerequesttno = c.tno(+)
+                               And d.Equipmenttno = e.tno(+)
+                               and c.CompanyCode = :P310_COMPANY
+                              and c.MaintenanceRequestDate between :P310_FROMDATE AND :P310_TODATE
+                               )
+                               PIVOT (
+                          COUNT(jobtypename)
+                          FOR jobtypename IN (' || jobtype_list || ')
+                        )';   
+                    
+                      RETURN query_str;
+                    END;
+                    
+                    ```
+                itemsToSubmit: [
+                    P310_COMPANY
+                    P310_LOCATION
+                    P310_FROMDATE
+                    P310_TODATE
+                    P310_EQUIPMENT
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: P310_NEW
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: plsqlFunctionBody
+                plsqlFunctionBody:
+                    ```plsql
+                     DECLARE
+                      jobtype_list varchar2(4000);
+                      query_str    varchar2(4000);
+                    BEGIN
+                      Select '''' || LISTAGG(jobtypename || ''',''') WITHIN Group(Order By jobtypename) || '''' As concatenated_string
+                      Into jobtype_list
+                      From (Select Distinct JOBTYPENAME
+                              From SERVICEENTRYSHEETDETAIL A, JOBTYPE B, ServiceEntrySheet c, EquipmentMaintenanceOrder d, 
+                                    MaintenanceRequest e, Equipment f
+                             Where A.JOBTYPECODE = B.JOBTYPECODE
+                               and a.tno = c.tno
+                               and c.EquipmentMaintenanceorderTno=d.tno(+)
+                               and d.MaintenanceRequestTno=e.tno(+)
+                               and e.EquipmentTno = f.tno(+)
+                               --- Filter Condition
+                              and e.CompanyCode = :P310_COMPANY
+                              --and e.FinancialYearCode = :global_FinancialYearCode
+                              and e.MaintenanceRequestDate between  nvl(to_date(:P310_FROMDATE,'DD-MM-RRRR'),trunc(sysdate) - 3) AND NVL(TO_DATE(:P310_TODATE,'DD-MM-RRRR'),TRUNC(SYSDATE))
+                              and ( :P310_LOCATION IS NULL OR instr(':'||:P310_LOCATION||':',':'||e.LocationCode||':') > 0)
+                              --and ( :P241_DOCTYPE IS NULL OR dc.DOCTYPECODE = :P241_DOCTYPE)
+                              --and GetDoctypePrivilege(dc.doctypecode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                             --and GetLocationPrivilege(dc.LocationCode,:P241_MODULECODE, bk.companycode,:global_loginname) = 'YES'
+                    
+                             );
+                    
+                    -- query_str := 'SELECT *
+                    --     FROM jobcarddetail a
+                    --     PIVOT (
+                    --       COUNT(jobtypecode)
+                    --       FOR jobtypecode IN (' || jobtype_list || ')
+                    --     )';
+                    
+                    query_str :=  'Select *
+                      From (Select e.EquipmentName,
+                                   c.MaintenancerequestDate,
+                                   c.DueDate,
+                                   b.JobTypename
+                              From serviceentrysheetdetail   a,
+                                   jobtype                   b,
+                                   maintenancerequest        c,
+                                   EquipmentMaintenanceorder d,
+                                   Equipment                 e,
+                                   ServiceEntrySheet         a1
+                             Where a.jobtypecode = b.jobtypecode
+                               And a.tno = a1.tno
+                               And a1.EquipmentMaintenanceOrdertno = d.tno(+)
+                               And d.maintenancerequesttno = c.tno(+)
+                               And d.Equipmenttno = e.tno(+)
+                               and c.CompanyCode = :P310_COMPANY
+                              and c.MaintenanceRequestDate between :P310_FROMDATE AND :P310_TODATE
+                               )
+                               PIVOT (
+                          COUNT(jobtypename)
+                          FOR jobtypename IN (' || jobtype_list || ')
+                        )';   
+                    
+                       RETURN query_str;
+                    END;
+                    
+                    ```
+                itemsToSubmit: [
+                    P310_COMPANY
+                    P310_LOCATION
+                    P310_FROMDATE
+                    P310_TODATE
+                    P310_EQUIPMENT
+                ]
+                escapeSpecialChars: false
+            }
+            affectedElements {
+                selectionType: items
+                items: P310_JOBTYPENAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+                stopExecutionOnError: false
+            }
+        )
+
+        action native-set-value-3 (
+            action: setValue
+            settings {
+                type: plsqlFunctionBody
+                plsqlFunctionBody:
+                    ```plsql
+                    DECLARE
+                      jobtype_list varchar2(4000);
+                      query_str    varchar2(4000);
+                    BEGIN
+                      SELECT '''' || LISTAGG(jobtypecode || ''',''') WITHIN GROUP (ORDER BY jobtypecode) || '''' AS concatenated_string
+                      INTO jobtype_list
+                      FROM (SELECT DISTINCT jobtypecode FROM jobcarddetail);
+                    
+                      query_str := 'SELECT *
+                        FROM jobcarddetail a
+                        PIVOT (
+                          COUNT(jobtypecode)
+                          FOR jobtypecode IN (' || jobtype_list || ')
+                        )';
+                    
+                      RETURN query_str;
+                    END;
+                    ```
+            }
+            affectedElements {
+                selectionType: items
+                items: P310_NEW
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @new
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-3 (
+        name: New_2
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @new
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @maintenance-report
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

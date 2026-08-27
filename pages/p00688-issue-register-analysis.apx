@@ -1,0 +1,1205 @@
+page 688 (
+    name: Issue Register
+    alias: ISSUE-REGISTER-ANALYSIS
+    title: Issue Register
+    pageGroup: @store-intelligence
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: Transaction level issue register, reached from the Department and Cost Centre analytics on the Store Command Centre (page 684) with the clicked dimension already applied. Every filter is a real page item, so the selection stays active until the user changes it. The spine is the IssueRegister view, so figures agree line for line with the Issue Register report and with the analytics that linked here. Four columns named in the original specification are absent because this ERP does not record them: Warehouse and Store have no master (Location and StorageLocation are the only place dimensions), Project has no link to any issue (Requisition.ProjectTno is unpopulated on every row), and Approved By and Status have no stored value (DocumentStatusCode is null on every issue line, so there is no approval workflow to report).
+    }
+
+    region command-header (
+        name: Issue Register
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-store-head">'
+                    || '<div class="ds-store-eyebrow">Store &middot; Issue Register</div>'
+                    || '<h1 class="ds-store-title">Issue Register</h1>'
+                    || '<div class="ds-store-sub">Every issue line matching the current selection, traceable to its document</div>'
+                    || '<div class="ds-store-context">'
+                    || '<span class="ds-store-chip"><span class="fa fa-calendar"></span>Period <b>'
+                       || :P688_FROMDATE || ' &rarr; ' || :P688_TODATE || '</b></span>'
+                    || '<span class="ds-store-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P688_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-store-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P688_LOCATION),'All locations')) || '</b></span>'
+                    || Case When :P688_DEPARTMENT Is Not Null Then
+                            '<span class="ds-store-chip ds-store-chip--live"><span class="fa fa-sitemap"></span>Department <b>'
+                            || apex_escape.html(nvl((Select d.DepartmentName From Department d Where d.DepartmentCode = :P688_DEPARTMENT),:P688_DEPARTMENT))
+                            || '</b></span>' End
+                    || Case When :P688_COSTCENTRE Is Not Null Then
+                            '<span class="ds-store-chip ds-store-chip--live"><span class="fa fa-pie-chart"></span>Cost Centre <b>'
+                            || apex_escape.html(nvl((Select cc.CostCentreName From CostCentre cc Where cc.CostCentreCode = :P688_COSTCENTRE),:P688_COSTCENTRE))
+                            || '</b></span>' End
+                    || Case When :P688_DOCTYPE Is Not Null Then
+                            '<span class="ds-store-chip"><span class="fa fa-tag"></span>Type <b>'
+                            || apex_escape.html(:P688_DOCTYPE) || '</b></span>' End
+                    || Case When :P688_ITEM Is Not Null Then
+                            '<span class="ds-store-chip"><span class="fa fa-cube"></span>Item <b>'
+                            || apex_escape.html(nvl((Select i.ItemName From Item i Where i.ItemCode = :P688_ITEM),:P688_ITEM))
+                            || '</b></span>' End
+                    || '<span class="ds-store-chip"><span class="fa fa-shield"></span>Panel <b>'
+                       || Case When (Select GetUserPanelAB_apex() From dual) Is Not Null
+                               Then (Select GetUserPanelAB_apex() From dual) || ' (enforced)'
+                               When :P688_PANEL Is Not Null Then :P688_PANEL
+                               Else 'A + B' End || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P688_FROMDATE
+                P688_TODATE
+                P688_COMPANY
+                P688_LOCATION
+                P688_PANEL
+                P688_DEPARTMENT
+                P688_COSTCENTRE
+                P688_ITEM
+                P688_DOCTYPE
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-store-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p688Filters
+        }
+    )
+
+    region issue-lines (
+        name: Issue Transactions
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Line level register. WORK_CENTRE comes through CostCentre.WorkCentreCode
+                   because no issue table carries a work centre directly; note only one
+                   distinct work centre is populated across the whole database, so the
+                   column is present for traceability rather than as an analytic axis.
+                   Requested By resolves through the linked requisition; Issued By is the
+                   user who created the issue document. */
+                Select a.Tno                                       As ISSUETNO,
+                       nvl(a.IssueNo,'(unnumbered)')               As ISSUE_NO,
+                       to_char(a.IssueDate,'DD-MM-RRRR')           As ISSUE_DATE,
+                       nvl(c.CompanyName, a.CompanyCode)           As COMPANY,
+                       nvl(i9.Panel,'-')                           As PANEL,
+                       nvl(a.LocationName, a.LocationCode)         As LOCATION,
+                       nvl(sl.StorageLocationName,'-')             As STORAGE_LOCATION,
+                       nvl(a.DepartmentName, a.DepartmentCode)     As DEPARTMENT,
+                       nvl(a.CostCentreName, a.CostCentreCode)     As COST_CENTRE,
+                       nvl(wc.WorkCentreName, nvl(cc.WorkCentreCode,'-')) As WORK_CENTRE,
+                       nvl(a.DocTypeCode,'-')                      As DOC_TYPE,
+                       Case When a.DocTypeCode = 'CAPITAL' Then 'Capital' Else 'Revenue' End As CLASSIFICATION,
+                       a.ItemCode                                  As ITEMCODE,
+                       nvl(a.ItemName, a.ItemCode)                 As ITEM,
+                       nvl(sp.ItemSpecificationName,'-')           As SPECIFICATION,
+                       Round(nvl(a.Quantity1,0),3)                 As QUANTITY,
+                       nvl(it.MeasuringUnitCode1,'-')              As UNIT,
+                       Round(nvl(a.Rate,0),2)                      As RATE,
+                       Round(nvl(a.Amount,0),2)                    As ISSUE_VALUE,
+                       Round(nvl(a.NetAmount,0),2)                 As NET_VALUE,
+                       nvl(nvl(er.EmployeeName, r.EmployeeCode),'-') As REQUESTED_BY,
+                       nvl(a.IssueToEmployee,'-')                  As ISSUED_TO,
+                       nvl(a.UserRaisedBy,'-')                     As ISSUED_BY,
+                       nvl(a.RequisitionNo,'-')                    As REQUISITION_NO,
+                       nvl(a.GRNNo,'-')                            As SOURCE_GRN
+                  From IssueRegister a
+                  Left Join Issue i9              On i9.Tno = a.Tno
+                  Left Join Company c             On c.CompanyCode = a.CompanyCode
+                  Left Join Requisition r         On r.Tno = a.RequisitionTno
+                  Left Join Employee er           On er.EmployeeCode = r.EmployeeCode
+                  Left Join CostCentre cc         On cc.CostCentreCode = a.CostCentreCode
+                  Left Join WorkCentre wc         On wc.WorkCentreCode = cc.WorkCentreCode
+                  Left Join Item it               On it.ItemCode = a.ItemCode
+                  Left Join ItemSpecification sp  On sp.ItemSpecificationCode = a.ItemSpecificationCode
+                  Left Join StorageLocation sl    On sl.StorageLocationCode = (Select Max(s2.StorageLocationCode)
+                                                                                 From UsedStock u2 Join Stock s2 On s2.Tno = u2.StockTno
+                                                                                Where u2.ModuleCode = 'ISSUE'
+                                                                                  And u2.ModuleTno = a.Tno
+                                                                                  And u2.ModuleSNo = a.SNo)
+                 Where a.IssueDate >= to_date(:P688_FROMDATE,'DD-MM-RRRR')
+                   And a.IssueDate <  to_date(:P688_TODATE,'DD-MM-RRRR') + 1
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or (Select i8.Panel From Issue i8 Where i8.Tno = a.Tno) = (Select GetUserPanelAB_apex() From dual))
+                   And (:P688_PANEL      Is Null Or (Select i8.Panel From Issue i8 Where i8.Tno = a.Tno) = :P688_PANEL)
+                   And (:P688_COMPANY    Is Null Or a.CompanyCode    = :P688_COMPANY)
+                   And (:P688_LOCATION   Is Null Or a.LocationCode   = :P688_LOCATION)
+                   And (:P688_DEPARTMENT Is Null Or a.DepartmentCode = :P688_DEPARTMENT)
+                   And (:P688_COSTCENTRE Is Null Or a.CostCentreCode = :P688_COSTCENTRE)
+                   And (:P688_ITEM       Is Null Or a.ItemCode       = :P688_ITEM)
+                   And (:P688_DOCTYPE    Is Null Or a.DocTypeCode    = :P688_DOCTYPE)
+                 Order By a.IssueDate Desc, a.Tno, a.SNo
+                ```
+            pageItemsToSubmit: [
+                P688_FROMDATE
+                P688_TODATE
+                P688_COMPANY
+                P688_LOCATION
+                P688_PANEL
+                P688_DEPARTMENT
+                P688_COSTCENTRE
+                P688_ITEM
+                P688_DOCTYPE
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+            cssClasses: ds-register
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+            maxRowsToProcess: 200000
+        }
+        advanced {
+            savedReportMappingIdentifier: 31369356242505313
+        }
+
+        column CLASSIFICATION (
+            type: plainText
+            heading {
+                heading: Class
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column COST_CENTRE (
+            type: plainText
+            heading {
+                heading: Cost Centre
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column DEPARTMENT (
+            type: plainText
+            heading {
+                heading: Department
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DOC_TYPE (
+            type: plainText
+            heading {
+                heading: Doc Type
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column ISSUED_BY (
+            type: plainText
+            heading {
+                heading: Issued By
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column ISSUED_TO (
+            type: plainText
+            heading {
+                heading: Issued To
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column ISSUETNO (
+            type: plainText
+            heading {
+                heading: Issue Tno
+            }
+            layout {
+                sequence: 15
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ISSUE_DATE (
+            type: plainText
+            heading {
+                heading: Issue Date
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ISSUE_NO (
+            type: link
+            heading {
+                heading: Issue No
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 686
+                    items: {
+                        P686_ISSUETNO: #ISSUETNO#
+                    }
+                    clearCache: 686
+                }
+                linkText: #ISSUE_NO#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ISSUE_VALUE (
+            type: plainText
+            heading {
+                heading: Issue Value
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column ITEM (
+            type: plainText
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column ITEMCODE (
+            type: link
+            heading {
+                heading: Item Code
+            }
+            layout {
+                sequence: 120
+            }
+            link {
+                target: {
+                    page: 679
+                    items: {
+                        P679_ITEMCODE: #ITEMCODE#
+                        P679_COMPANY: &P688_COMPANY.
+                        P679_LOCATION: &P688_LOCATION.
+                    }
+                    clearCache: 679
+                }
+                linkText: #ITEMCODE#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column NET_VALUE (
+            type: plainText
+            heading {
+                heading: Net Value
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column PANEL (
+            type: plainText
+            heading {
+                heading: Panel
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column QUANTITY (
+            type: plainText
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: Rate
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column REQUESTED_BY (
+            type: plainText
+            heading {
+                heading: Requested By
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column REQUISITION_NO (
+            type: plainText
+            heading {
+                heading: Requisition No
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column SOURCE_GRN (
+            type: plainText
+            heading {
+                heading: Source GRN
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column SPECIFICATION (
+            type: plainText
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column STORAGE_LOCATION (
+            type: plainText
+            heading {
+                heading: Storage Location
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column UNIT (
+            type: plainText
+            heading {
+                heading: Unit
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column WORK_CENTRE (
+            type: plainText
+            heading {
+                heading: Work Centre
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region totals-strip (
+        name: Selection Totals
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With A As (
+                  Select Count(Distinct a.Tno) Docs, Count(*) Lines,
+                         Count(Distinct a.ItemCode) Items,
+                         Count(Distinct a.DepartmentCode) Depts,
+                         Count(Distinct a.CostCentreCode) CCs,
+                         nvl(Sum(a.Quantity1),0) Qty,
+                         nvl(Sum(a.Amount),0) Amt,
+                         nvl(Sum(a.NetAmount),0) Net
+                    From IssueRegister a
+                   Where a.IssueDate >= to_date(:P688_FROMDATE,'DD-MM-RRRR')
+                     And a.IssueDate <  to_date(:P688_TODATE,'DD-MM-RRRR') + 1
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or (Select i9.Panel From Issue i9 Where i9.Tno = a.Tno) = (Select GetUserPanelAB_apex() From dual))
+                     And (:P688_PANEL      Is Null Or (Select i9.Panel From Issue i9 Where i9.Tno = a.Tno) = :P688_PANEL)
+                     And (:P688_COMPANY    Is Null Or a.CompanyCode    = :P688_COMPANY)
+                     And (:P688_LOCATION   Is Null Or a.LocationCode   = :P688_LOCATION)
+                     And (:P688_DEPARTMENT Is Null Or a.DepartmentCode = :P688_DEPARTMENT)
+                     And (:P688_COSTCENTRE Is Null Or a.CostCentreCode = :P688_COSTCENTRE)
+                     And (:P688_ITEM       Is Null Or a.ItemCode       = :P688_ITEM)
+                     And (:P688_DOCTYPE    Is Null Or a.DocTypeCode    = :P688_DOCTYPE))
+                Select '<div class="ds-kpi ds-kpi--value" title="Sum of IssueRegister.Amount for the current selection">'
+                    || '<span class="ds-kpi-ic fa fa-inr"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">ISSUE VALUE</div><div class="ds-kpi-n">&#8377;'
+                    || Case When a.Amt >= 10000000 Then to_char(a.Amt/10000000,'FM9G99G990D00')||'<i>Cr</i>'
+                            When a.Amt >= 100000   Then to_char(a.Amt/100000,'FM99G990D00')||'<i>L</i>'
+                            Else to_char(a.Amt,'FM99G99G990D00') End || '</div>'
+                    || '<div class="ds-kpi-sub">Net of returns &#8377;'
+                       ||Case When a.Net >= 100000 Then to_char(a.Net/100000,'FM99G990D00')||'L'
+                              Else to_char(a.Net,'FM99G99G990') End||'</div>'
+                    || '</div></div>' As KPI1,
+                
+                       '<div class="ds-kpi ds-kpi--bill" title="Distinct issue documents and lines in the selection">'
+                    || '<span class="ds-kpi-ic fa fa-file-text-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">DOCUMENTS</div><div class="ds-kpi-n">'
+                    || to_char(a.Docs,'FM999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">'||to_char(a.Lines,'FM999G990')||' lines</div>'
+                    || '</div></div>' As KPI2,
+                
+                       '<div class="ds-kpi ds-kpi--input" title="Total issued quantity in primary unit of measure">'
+                    || '<span class="ds-kpi-ic fa fa-cubes"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">QUANTITY</div><div class="ds-kpi-n">'
+                    || to_char(a.Qty,'FM999G999G990D000') || '</div>'
+                    || '<div class="ds-kpi-sub">'||to_char(a.Items,'FM999G990')||' distinct items</div>'
+                    || '</div></div>' As KPI3,
+                
+                       '<div class="ds-kpi ds-kpi--ok" title="Departments and cost centres represented in the selection">'
+                    || '<span class="ds-kpi-ic fa fa-sitemap"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">DEPARTMENTS</div><div class="ds-kpi-n">'
+                    || to_char(a.Depts,'FM999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">'||to_char(a.CCs,'FM999G990')||' cost centres</div>'
+                    || '</div></div>' As KPI4
+                From A a
+                ```
+            pageItemsToSubmit: [
+                P688_FROMDATE
+                P688_TODATE
+                P688_COMPANY
+                P688_LOCATION
+                P688_PANEL
+                P688_DEPARTMENT
+                P688_COSTCENTRE
+                P688_ITEM
+                P688_DOCTYPE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column KPI1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: KPI1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: KPI2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: KPI3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: KPI4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    pageItem P688_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From Issue i Where i.CompanyCode = c.CompanyCode)
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_COSTCENTRE (
+        type: popupLov
+        label {
+            label: Cost Centre
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(cc.CostCentreName, a.CostCentreCode) d, a.CostCentreCode r
+                  From IssueRegister a Left Join CostCentre cc On cc.CostCentreCode = a.CostCentreCode
+                 Where a.CostCentreCode Is Not Null
+                 Group By nvl(cc.CostCentreName, a.CostCentreCode), a.CostCentreCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All cost centres
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_DEPARTMENT (
+        type: popupLov
+        label {
+            label: Department
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(d.DepartmentName, a.DepartmentCode) d, a.DepartmentCode r
+                  From IssueRegister a Left Join Department d On d.DepartmentCode = a.DepartmentCode
+                 Where a.DepartmentCode Is Not Null
+                 Group By nvl(d.DepartmentName, a.DepartmentCode), a.DepartmentCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All departments
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_DOCTYPE (
+        type: selectList
+        label {
+            label: Doc Type
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Capital;CAPITAL,Revenue;CONSUMPTION
+            displayExtraValues: false
+            nullDisplayValue: All types
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_ITEM (
+        type: popupLov
+        label {
+            label: Item
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(a.ItemName, a.ItemCode) d, a.ItemCode r
+                  From IssueRegister a
+                 Where a.ItemCode Is Not Null
+                 Group By nvl(a.ItemName, a.ItemCode), a.ItemCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All items
+        }
+        layout {
+            sequence: 80
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select nvl(a.LocationName, a.LocationCode) d, a.LocationCode r
+                  From IssueRegister a
+                 Where a.LocationCode Is Not Null
+                 Group By nvl(a.LocationName, a.LocationCode), a.LocationCode
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_PANEL (
+        type: selectList
+        label {
+            label: Panel
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 90
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P688_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 100
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button back-to-cc (
+        buttonName: BACKTOCC
+        label: Command Centre
+        layout {
+            sequence: 110
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 684
+                items: {
+                    P684_FROMDATE: &P688_FROMDATE.
+                    P684_TODATE: &P688_TODATE.
+                    P684_COMPANY: &P688_COMPANY.
+                    P684_LOCATION: &P688_LOCATION.
+                    P684_PANEL: &P688_PANEL.
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

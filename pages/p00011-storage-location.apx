@@ -1,0 +1,133 @@
+page 11 (
+    name: Storage Location
+    alias: STORAGE-LOCATION
+    title: Storage Location
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function setPageItem(pvalue)
+            {
+            $s("P11_STORAGELOCATION", pvalue);
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region storage-location (
+        name: Storage Location
+        type: tree
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select case when connect_by_isleaf = 1 then 0 when level = 1 then 1 else -1 end as status,
+                        level,
+                        StorageLocationName as title,
+                        'icon-tree-folder' as icon,
+                        StorageLocationCode as value,
+                        StorageLocationName as tooltip,
+                       -- 'javascript:setPageItem("'|| StorageLocationCode|| '")' As link  
+                       -- apex_util.prepare_url('f?p='||:app_id||':181:'||:app_session||':::::P181_STORAGELOCATION:'||STORAGELOCATIONCODE) AS LINK
+                       'f?p=&APP_ID.:181:'||:APP_SESSION||'::::P181_STORAGELOCATION:'||StorageLocationCode AS LINK
+                   from StorageLocation
+                  start with ParentCode is null
+                connect by prior StorageLocationCode = ParentCode
+                  order siblings by StorageLocationName
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        settings {
+            nodeLabelColumn: TITLE
+            nodeValueColumn: VALUE
+            hierarchy: notComputed
+            nodeStatusColumn: STATUS
+            hierarchyLevelColumn: LEVEL
+            linkColumn: LINK
+            defaultIconCssClass: icon-tree-folder
+            iconTypeCssClass: a-Icon
+            selectedNodePageItem: P11_STORAGELOCATION
+        }
+    )
+
+    pageItem P11_STORAGELOCATION (
+        type: textField
+        label {
+            label: Storagelocation
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @storage-location
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: dblclick
+            selectionType: region
+            region: @storage-location
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var p1HiddenVal = $("#P11_STORAGELOCATION").val();
+                    
+                    var href = 'f?p=103:181:&SESSION.:::YES::P181_STORAGELOCATION:2'; 
+                    
+                    window.location = href;
+                    ```
+            }
+            affectedElements {
+                selectionType: items
+                items: P11_STORAGELOCATION
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

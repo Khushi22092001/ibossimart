@@ -1,0 +1,522 @@
+page 338 (
+    name: Other Amount Detail
+    alias: OTHER-AMOUNT-DETAIL
+    title: Other Amount Detail
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: [
+            #DEFAULT#
+            t-Dialog--noPadding
+        ]
+    }
+    dialog {
+        width: 1400
+        height: 800
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #oad .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region other-detail (
+        name: Other Detail
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /*
+                Select
+                   Rownum as SerialNo,
+                	a.CompanyCode,
+                	h.ModuleName,
+                	a.IssueNo as ModuleNo,
+                	a.IssueDate as ModuleDate,
+                	x.VehicleNo,
+                	y.VehicleNecessityName,
+                  round(x.Amount, 2) as Amount
+                From Issue a, Module h,DocumentStatusDetail dsd,
+                (
+                Select
+                	a.ModuleTno,
+                	c.CostCentreName as VehicleNo,
+                	b.Amount 
+                From Voucher a, VoucherCostCentreDetail b, CostCentre c, CompanyVehicle d, Equipment e
+                Where a.Tno = b.Tno
+                	and b.CostCentreCode = c.CostCentreCode
+                	and c.CostCentreName = d.CompanyVehicleNo
+                	and d.ModuleTno = e.Tno
+                	and e.EquipmentGroupCode = 'CT'
+                ) x,
+                (
+                 Select 
+                     e.Tno, 
+                	 c.VehicleNecessityName
+                   From NecessitySlip a, NecessitySlipDetail b, VehicleNecessity c, Requisition d ,Issue e, IssueDetail f
+                  Where a.Tno = b.Tno(+)
+                    and b.VehicleNecessityCode = c.VehicleNecessityCode(+)
+                	and a.Tno = d.ModuleTno(+)
+                	and d.Tno = e.RequisitionTno(+)
+                	and e.Tno = f.Tno(+)
+                	)y
+                Where 1=1
+                	and a.Tno = x.ModuleTno
+                	and h.ModuleCode = 'ISSUE'
+                	and a.Tno = dsd.ModuleTno
+                	and a.Tno = y.Tno(+)
+                	and dsd.DocumentStatusCode = 'ACTIVE'
+                  and exists(
+                    Select
+                      aa.Tno
+                    From IssueDetail aa, Item bb
+                    Where aa.ItemCode = bb.ItemCode
+                        and bb.ItemCategoryCode = 'ADBLUE'
+                        and aa.Tno = a.Tno
+                    )
+                  and exists(
+                			Select
+                				aa.Tno
+                			From IssueStockStorageDetail aa
+                			Where aa.StorageLocationCode != '291'
+                				and aa.Tno = a.Tno
+                			)
+                	and not exists(
+                	Select
+                		aa.Tno
+                	From NecessitySlip aa, NecessitySlipDetail bb, Requisition cc
+                	Where aa.Tno = bb.Tno
+                		and bb.VehicleNecessityCode in (Select vn.VehicleNecessityCode From VehicleNecessityForFuel vn)
+                		and aa.Tno = cc.ModuleTno
+                	and cc.Tno = a.RequisitionTno
+                	)
+                	and a.IssueDate between :P338_FROMDATE and :P338_TODATE
+                	and a.CompanyCode = :P338_COMPANYCODE
+                	and x.VehicleNo like nvl(:P338_VEHICLENO, '%')
+                UNION ALL
+                Select
+                   Rownum as SerialNo,
+                	a.CompanyCode,
+                	e.ModuleName,
+                	a.NecessityCompletionNo as ModuleNo,
+                	a.NecessityCompletionDate as ModuleDate,
+                	nvl(a.VehicleNo, b.VehicleNo) as VehicleNo,
+                	vn.VehicleNecessityName,
+                	round(b.TotalAmount, 2) as Amount
+                From NecessityCompletion a, NecessityCompletionDetail b, VehicleNecessity vn, CompanyVehicle c, Equipment d, Module e, DocumentStatusDetail dsd
+                Where a.Tno = b.Tno
+                	and nvl(a.VehicleNo, b.VehicleNo) = c.CompanyVehicleNo
+                	and b.VehicleNecessityCode = vn. VehicleNecessityCode(+)
+                	and c.ModuleTno = d.Tno
+                	and d.EquipmentGroupCode = 'CT'
+                	and e.ModuleCode = 'NECESSITYCOMPLETION'
+                	and a.Tno = dsd.ModuleTno
+                	and dsd.DocumentStatusCode = 'ACTIVE'
+                	and b.NecessitySlipTno is null
+                	and a.NecessityCompletionDate between :P338_FROMDATE and :P338_TODATE
+                	and a.CompanyCode = :P338_COMPANYCODE
+                	and nvl(a.VehicleNo, b.VehicleNo) like nvl(:P338_VEHICLENO, '%')
+                	and nvl(a.VehicleNo, b.VehicleNo) is not null
+                Order by 4, 3
+                */
+                
+                Select
+                  row_number() over(order by a.ModuleDate) SerialNo,
+                	a.ModuleName,
+                	a.ModuleNo,
+                	a.ModuleDate,
+                	a.VehicleNo,
+                  b.VehicleTypeName,
+                  c.TransportAreaName,
+                	a.Amount
+                From VehicleExpenseTable a, VehicleType b, TransportArea c
+                Where a.VehicleTypeCode = b.VehicleTypeCode(+)
+                    and a.TransportAreaCode = c.TransportAreaCode(+)
+                    and a.ModuleDate between :P338_FROMDATE and :P338_TODATE
+                		and a.VehicleNo like nvl(:P338_VEHICLENO, '%')
+                		and a.CompanyCode = :P338_COMPANYCODE
+                    and a.Creator = :APP_USER
+                    and a.Categories = 'OTHER'
+                    and (:P338_VEHICLENO2 is null
+                       or exists(
+                         Select
+                            aa.VehicleNo
+                          From VPVehicleNo aa
+                          Where aa.VehicleNo = a.VehicleNo
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P338_VEHICLETYPE is null
+                       or exists(
+                         Select
+                            aa.VehicleTypeCode
+                          From VPVehicleType aa
+                          Where aa.VehicleTypeCode = a.VehicleTypeCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P338_TRANSPORTAREA is null
+                       or exists(
+                         Select
+                            aa.TransportAreaCode
+                          From VPTransportArea aa
+                          Where aa.TransportAreaCode = a.TransportAreaCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                
+                ```
+        }
+        layout {
+            sequence: 80
+            slot: contentBody
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: oad
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 405948211305662653
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Other Amount
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column MODULEDATE (
+            type: plainText
+            heading {
+                heading: Module Date
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column MODULENAME (
+            type: plainText
+            heading {
+                heading: Module Name
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: Module No.
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column TRANSPORTAREANAME (
+            type: plainText
+            heading {
+                heading: Transport Area
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column VEHICLETYPENAME (
+            type: plainText
+            heading {
+                heading: Vehicle Type
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Other Detail
+        }
+
+        savedReport 505176 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn AMOUNT (
+                sequence: 8
+            )
+
+            displayColumn MODULEDATE (
+                sequence: 4
+            )
+
+            displayColumn MODULENAME (
+                sequence: 2
+            )
+
+            displayColumn MODULENO (
+                sequence: 3
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn TRANSPORTAREANAME (
+                sequence: 7
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 5
+            )
+
+            displayColumn VEHICLETYPENAME (
+                sequence: 6
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: MODULENO
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: NECESSITYSLIPDATE
+            )
+
+            aggregate (
+                function: count
+                column: SITEEXPENSEDATE
+            )
+
+            aggregate (
+                function: count
+                column: ISSUEDATE
+            )
+
+            aggregate (
+                function: count
+                column: LOANDATE
+            )
+
+            controlBreak (
+                column: TRANSPORTAREANAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P338_COMPANYCODE (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+    )
+
+    pageItem P338_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    pageItem P338_TODATE (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+    pageItem P338_TRANSPORTAREA (
+        type: hidden
+        layout {
+            sequence: 70
+            slot: contentBody
+        }
+    )
+
+    pageItem P338_VEHICLENO (
+        type: hidden
+        layout {
+            sequence: 40
+            slot: contentBody
+        }
+    )
+
+    pageItem P338_VEHICLENO2 (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P338_VEHICLETYPE (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+
