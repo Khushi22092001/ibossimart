@@ -1,0 +1,472 @@
+page 197 (
+    name: Consumption Report
+    alias: CONSUMPTION-REPORT
+    title: Consumption Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region consumption-report (
+        name: Consumption Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--noBorder
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+                margin-top-none
+                margin-left-none
+                margin-right-none
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region stock-position (
+        name: STOCK POSITION
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct A.ITEMCODE,A.ITEMNAME,B.ITEMSPECIFICATIONNAME,B.ITEMSPECIFICATIONCODE,
+                   (
+                        Select Sum(b.UsedStockQuantity1)
+                            From Stock a, Usedstockstoragedetail b, Stockstoragedetail c
+                        Where a.tno = c.tno
+                            And a.ItemCode = a.ItemCode
+                            And b.modulecode In ('PRODUCTION')
+                            and a.ItemSpecificationCode = b.ItemSpecificationCode
+                            And a.CompanyCode = a.companycode
+                            And b.UsedStockDate Between :P197_FROMDATE And :P197_TODATE
+                            And a.TNo = b.StockTNo
+                
+                
+                   ) as Quantity,
+                
+                 (
+                        Select Sum(b.UsedStockQuantity1 * a.rate)
+                            From Stock a, Usedstockstoragedetail b, Stockstoragedetail c
+                        Where a.tno = c.tno
+                            And a.ItemCode = a.ItemCode
+                            And b.modulecode In ('PRODUCTION')
+                            and a.ItemSpecificationCode = b.ItemSpecificationCode
+                            And a.CompanyCode = a.companycode
+                            And b.UsedStockDate Between :P197_FROMDATE And :P197_TODATE
+                            And a.TNo = b.StockTNo
+                
+                
+                   ) as Value
+                      /* getslitemconsumptionquantity1(Null,
+                                                     A.ITEMCODE,
+                                                     B.ITEMSPECIFICATIONCODE,
+                                                     '1',
+                                                     :P197_FROMDATE,
+                                                     :P197_TODATE) As Quantity,
+                      
+                        getslitemconsumptionValue(Null,
+                                                     A.ITEMCODE,
+                                                     B.ITEMSPECIFICATIONCODE,
+                                                     '1',
+                                                     :P197_FROMDATE,
+                                                     :P197_TODATE) As Value
+                    */
+                  From ITEM A, ITEMSPECIFICATION B, ProductionRaw c, Production d
+                 Where A.TNO=B.TNO(+)
+                 and a.ItemCode = c.ItemCode
+                 and b.itemspecificationcode = c.itemspecificationcode
+                 and c.tno= d.tno
+                 and d.ProductionDate between :P197_FROMDATE AND :P197_TODATE
+                 AND (A.ITEMNATURECODE In
+                       ('FINISHEDITEM', 'SEMIFINISHEDITEM', 'BYPRODUCTS') or  A.itemclasscode='GENERALMATERIAL')
+                    and Nvl(A.ITEMCLASSCODE, 'NO') != 'PACKED'
+                 ORDER BY A.ITEMNAME
+                ```
+            pageItemsToSubmit: [
+                P197_FROMDATE
+                P197_TODATE
+            ]
+        }
+        layout {
+            sequence: 60
+            slot: body
+            column: 1
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        headerAndFooter {
+            headerText: STOCK POSITION
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        advanced {
+            savedReportMappingIdentifier: 34043816224007508
+        }
+
+        column ITEMCODE (
+            type: hidden
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: ITEM NAME
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: link
+            heading {
+                heading: ITEM SPECIFICATION
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            link {
+                target: {
+                    page: 199
+                    items: {
+                        P199_COMPANY: &P197_COMPANY.
+                        P199_FROMDATE: &P197_FROMDATE.
+                        P199_LOCATION: &P197_LOCATION.
+                        P199_TODATE: &P197_TODATE.
+                        P199_ITEM: #ITEMCODE#
+                        P199_SPECIFICATION: #ITEMSPECIFICATIONCODE#
+                    }
+                    clearCache: 199
+                }
+                linkText: #ITEMSPECIFICATIONNAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column QUANTITY (
+            type: plainText
+            heading {
+                heading: Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99,99,999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column VALUE (
+            type: plainText
+            heading {
+                heading: Value
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99,99,99,99,999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        savedReport 241174 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ITEMNAME (
+                sequence: 1
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn QUANTITY (
+                sequence: 3
+            )
+
+            displayColumn VALUE (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    pageItem P197_COMPANY (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @consumption-report
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P197_DIPNO (
+        type: hidden
+        layout {
+            sequence: 30
+            region: @consumption-report
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P197_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @consumption-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P197_ITEM (
+        type: hidden
+        layout {
+            sequence: 60
+            region: @consumption-report
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P197_LOCATION (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @consumption-report
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P197_SPECIFICATION (
+        type: hidden
+        layout {
+            sequence: 70
+            region: @consumption-report
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P197_TODATE (
+        type: datePicker
+        label {
+            label: TO Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @consumption-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 80
+            region: @consumption-report
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P197_SJNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P197_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P197_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 25556531112528394
+        }
+    )
+
+)
+

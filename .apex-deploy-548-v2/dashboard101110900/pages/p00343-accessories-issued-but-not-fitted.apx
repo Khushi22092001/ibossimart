@@ -1,0 +1,637 @@
+page 343 (
+    name: Accessories Issued But Not Fitted
+    alias: ACCESSORIES-ISSUED-BUT-NOT-FITTED
+    title: Accessories Issued But Not Fitted
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region accessories-issued-but-not-fitted (
+        name: Accessories Issued But Not Fitted
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                      row_number() over(order by a.LOCATIONCODE) SerialNo, 
+                     -- M.LOCATIONNAME,
+                       A.LOCATIONCODE,
+                       GETLOCATIONNAME(A.LOCATIONCODE) AS "LOCATION NAME",
+                       a.issueno,
+                       a.issuedate,
+                       GETITEMNAME(B.ITEMCODE) ITEMNAME,
+                       getitemspecificationname(B.ITEMCODE, B.ITEMSPECIFICATIONCODE) SPECIFICATION,
+                       L.ITEMMAKENAME AS MAKE,
+                       K.ITEMSIZENAME AS MODEL,
+                       f.Costcentrename,
+                       E.COMPONENTSERIALNO,
+                       GETPARTYNAME(H.PARTYCODE) AS VENDOR,
+                       H.GRNNO,
+                       H.GRNDATE
+                  FROM ISSUE                 A,
+                       ISSUEDETAIL           B,
+                       ISSUECOSTCENTREDETAIL C,
+                       COMPONENTUSEDSTOCK    D,
+                       COMPONENTSTOCK        E,
+                       COSTCENTRE            F,
+                       STOCK                 G,
+                       GRN                   H,
+                       GRNDETAIL             I,
+                       GRNSERIALNO           J,
+                       ITEMSIZE              K,
+                       ITEMMAKE              L--,
+                   --    LOCATION              M
+                
+                 WHERE A.TNO = B.TNO
+                   AND B.TNO = C.TNO
+                   AND B.SNO = C.SNO
+                   AND C.TNO = D.MODULETNO
+                   AND C.SNO = D.MODULESNO
+                   AND C.SN = D.MODULESERIALNO
+                   AND D.COMPONENTSTOCKTNO = E.TNO
+                   AND C.COSTCENTRECODE = F.COSTCENTRECODE
+                   and e.stocktno = g.tno
+                   AND G.GRNTNO = H.TNO
+                   AND H.TNO = I.TNO(+)
+                   AND B.ITEMCODE = I.ITEMCODE(+)
+                   AND B.ITEMSPECIFICATIONCODE = I.ITEMSPECIFICATIONCODE
+                   AND I.TNO = J.TNO(+)
+                   AND I.SNO = J.SNO(+)
+                   AND J.COMPANYSERIALNO = E.COMPONENTSERIALNO
+                   AND J.MANUFACTUREMAKECODE = L.ITEMMAKECODE(+)
+                  -- AND A.LOCATIONCODE = M.LOCATIONCODE
+                   AND J.MANUFACTUREMODELCODE = K.ITEMSIZECODE(+)
+                   AND NOT EXISTS (SELECT 1
+                          FROM ACCESSORIESMANAGEMENT X
+                         WHERE X.SERIALNO = E.COMPONENTSERIALNO)
+                
+                AND B.ITEMCODE LIKE NVL(:P343_ACCESSORIESTYPE,'%')
+                AND A.LOCATIONCODE LIKE NVL(:P343_LOCATION,'%')
+                and (E.Tno = :P343_SERIALNO or :P343_SERIALNO is null)
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                --AND E.TNO LIKE NVL(:P343_SERIALNO,'%') or :P343_SERIALNO IS NULL
+                and a.locationcode is not null
+                ORDER BY 1,2,3
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 193301811840282901
+        }
+
+        column COMPONENTSERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DD
+            }
+        )
+
+        column COSTCENTRENAME (
+            type: plainText
+            heading {
+                heading: COST CENTRE NAME
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DC
+            }
+        )
+
+        column GRNDATE (
+            type: plainText
+            heading {
+                heading: GRN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: DG
+            }
+        )
+
+        column GRNNO (
+            type: plainText
+            heading {
+                heading: GRN NO
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DF
+            }
+        )
+
+        column ISSUEDATE (
+            type: plainText
+            heading {
+                heading: ISSUE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: CX
+            }
+        )
+
+        column ISSUENO (
+            type: plainText
+            heading {
+                heading: ISSUE NO
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CW
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: ITEM NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CY
+            }
+        )
+
+        column "LOCATION NAME" (
+            type: plainText
+            heading {
+                heading: LOCATION NAME
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DN
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: LOCATION CODE
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DL
+            }
+        )
+
+        column MAKE (
+            type: plainText
+            heading {
+                heading: MAKE
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DA
+            }
+        )
+
+        column MODEL (
+            type: plainText
+            heading {
+                heading: MODEL
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DB
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DH
+            }
+        )
+
+        column SPECIFICATION (
+            type: plainText
+            heading {
+                heading: SPECIFICATION
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CZ
+            }
+        )
+
+        column VENDOR (
+            type: plainText
+            heading {
+                heading: VENDOR
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DE
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Accessories Summary
+        }
+
+        savedReport 488113 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn COMPONENTSERIALNO (
+                sequence: 10
+            )
+
+            displayColumn COSTCENTRENAME (
+                sequence: 9
+            )
+
+            displayColumn GRNDATE (
+                sequence: 13
+            )
+
+            displayColumn GRNNO (
+                sequence: 12
+            )
+
+            displayColumn ISSUEDATE (
+                sequence: 4
+            )
+
+            displayColumn ISSUENO (
+                sequence: 3
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 5
+            )
+
+            displayColumn "LOCATION NAME" (
+                sequence: 2
+            )
+
+            displayColumn MAKE (
+                sequence: 7
+            )
+
+            displayColumn MODEL (
+                sequence: 8
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SPECIFICATION (
+                sequence: 6
+            )
+
+            displayColumn VENDOR (
+                sequence: 11
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    region accessories-issued-but-not-fitted-2 (
+        name: Accessories Issued But Not Fitted
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P343_ACCESSORIESTYPE (
+        type: popupLov
+        label {
+            label: ACCESSORIES TYPE
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT DISTINCT ITEMCATEGORYCODE FROM ACCESSORIESMANAGEMENT
+            nullDisplayValue: -Select Type-
+        }
+        layout {
+            sequence: 30
+            region: @accessories-issued-but-not-fitted-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P343_EQUIPMENT (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @accessories-issued-but-not-fitted-2
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P343_LOCATION (
+        type: selectList
+        label {
+            label: LOCATION
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        l.LocationName,
+                        l.LocationCode
+                From AccessoriesManagement a, Location l
+                Where a.LocationCode = l.LocationCode
+                ```
+            nullDisplayValue: --Select Location--
+        }
+        layout {
+            sequence: 10
+            region: @accessories-issued-but-not-fitted-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P343_SERIALNO (
+        type: selectList
+        label {
+            label: Serial No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                 e.COMPONENTSERIALNO d,
+                 e.TNO r
+                  FROM ISSUE                 A,
+                       ISSUEDETAIL           B,
+                       ISSUECOSTCENTREDETAIL C,
+                       COMPONENTUSEDSTOCK    D,
+                       COMPONENTSTOCK        E
+                 WHERE A.TNO = B.TNO
+                   AND B.TNO = C.TNO
+                   AND B.SNO = C.SNO
+                   AND C.TNO = D.MODULETNO
+                   AND C.SNO = D.MODULESNO
+                   AND C.SN = D.MODULESERIALNO
+                   AND D.COMPONENTSTOCKTNO = E.TNO
+                ```
+            nullDisplayValue: --Select List--
+        }
+        layout {
+            sequence: 40
+            region: @accessories-issued-but-not-fitted-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 60
+            region: @accessories-issued-but-not-fitted-2
+            slot: regionBody
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

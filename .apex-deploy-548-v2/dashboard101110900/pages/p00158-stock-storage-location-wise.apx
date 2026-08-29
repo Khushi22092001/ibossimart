@@ -1,0 +1,222 @@
+page 158 (
+    name: STOCK STORAGE LOCATION WISE
+    alias: STOCK-STORAGE-LOCATION-WISE
+    title: STOCK STORAGE LOCATION WISE
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region stock-summary (
+        name: STOCK SUMMARY
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select X.STORAGELOCATIONNAME,
+                       GetSLItemOpeningQuantity1(X.STORAGELOCATIONCODE,
+                                                X.ITEMCODE,
+                                                :P158_ITEMSPECIFICATIONCODE,
+                                                '1',
+                                                TO_DATE(:P158_FROMDATE,'DD-MON-RRRR') +1,null,null,null,null) As Stock
+                  From (Select Distinct A.STORAGELOCATIONCODE, B.ITEMCODE, C.STORAGELOCATIONNAME
+                  From STOCKSTORAGEDETAIL a, STOCK B, STORAGELOCATION C
+                 Where A.TNO = B.TNO
+                   AND A.STORAGELOCATIONCODE = C.STORAGELOCATIONCODE(+)
+                   And B.itemcode = :P158_ITEM
+                   and (:P158_ITEM IS NULL OR (:P158_ITEMSPECIFICATIONCODE is null or b.itemspecificationcode = :P158_ITEMSPECIFICATIONCODE))
+                  ) X
+                 Where X.ITEMCODE = :P158_ITEM
+                   And Nvl(GetSLItemOpeningQuantity1(X.STORAGELOCATIONCODE,
+                                                    X.ITEMCODE,
+                                                    :P158_ITEMSPECIFICATIONCODE,
+                                                    '1',
+                                                    TO_DATE(:P158_FROMDATE,'DD-MON-RRRR') +1,null,null,null,null),
+                           0) > 0
+                ORDER BY 1
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: contentBody
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--noBorders
+                t-Form--slimPadding
+                margin-top-none
+                margin-bottom-none
+                margin-left-none
+                margin-right-none
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            includeSearchBar: false
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 540
+        }
+        advanced {
+            savedReportMappingIdentifier: 21473464056489053
+        }
+
+        column STOCK (
+            type: plainText
+            heading {
+                heading: STOCK
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999990.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column STORAGELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: STORAGE LOCATION NAME
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        savedReport 115550 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn STOCK (
+                sequence: 2
+            )
+
+            displayColumn STORAGELOCATIONNAME (
+                sequence: 1
+            )
+
+            aggregate (
+                column: STOCK
+            )
+
+        )
+
+    )
+
+    pageItem P158_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @stock-summary
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P158_ITEM (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @stock-summary
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P158_ITEMSPECIFICATIONCODE (
+        type: hidden
+        layout {
+            sequence: 30
+            region: @stock-summary
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P158_SJNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P158_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P158_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 12981603982009914
+        }
+    )
+
+)
+

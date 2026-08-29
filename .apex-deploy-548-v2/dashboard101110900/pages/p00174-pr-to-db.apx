@@ -1,0 +1,1783 @@
+page 174 (
+    name: PR to DB
+    alias: PR-TO-DB
+    title: PR to DB
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/prtodb.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P174_FROMDATE').val());
+              var toDate = new Date($('#P174_TODATE').val());
+            
+            var reportParams = 
+                  '&P174_FROMDATE='+ $('#P174_FROMDATE').val() +  
+                  '&P174_TODATE=' + $('#P174_TODATE').val() +  
+                  '&P174_LOCATION=' +$('#P174_LOCATION').val() +  
+                  '&P174_GROUP=' +$('#P174_GROUP').val() + 
+                  '&P174_DEPARTMENT=' +$('#P174_DEPARTMENT').val() +
+                  '&P174_ITEM=' +$('#P174_ITEM').val() + 
+                  '&P174_PARTY=' +$('#P174_PARTY').val() +
+                  '&P174_ITEMSPECIFICATION=' +$('#P174_ITEMSPECIFICATION').val() +   
+                  '&P174_INDENT=' +$('#P174_INDENT').val()
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region pr-to-db (
+        name: PR to DB
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select ROWNUM,
+                       a.IndentDate,
+                       a.IndentNo,
+                       dp.DepartmentName,
+                       GetItemName(e.ParentCode) || ' ~ ' || e.ParentCode As MaterialGroup,
+                       e.itemCode,
+                       e.ItemName || ' ~ ' || ee.ItemSpecificationName As MaterialDetail,
+                       e.MeasuringUnitCode1,
+                       b.Quantity1 As IndentQty,
+                       po.PurchaseOrderDate,
+                       po.PurchaseOrderNo,
+                       po.PartyName,
+                       po.Quantity1 As POQty,
+                       g.RefDocDate As InvoiceDate,
+                       g.RefDocNo As InvoiceNo,
+                       g.chalanquantity1 As InvoiceQty,
+                       g.GRNDate,
+                       g.GRNNo,
+                       g.receivedquantity1 As GRNQty,
+                       i.InspectionDate,
+                       i.InspectionNo,
+                       i.inspectedquantity1,
+                       i.acceptedquantity1,
+                       i.rejectedquantity1,
+                       pb.PurchaseBillNo,
+                       pb.PurchaseBillDate,
+                       pbp.PBpassNo,
+                       pbp.PBpassDate,
+                       pbp.Quantity1 As PBPassQty,
+                       db.DebitNoteNo,
+                       db.DebitNoteDate,
+                       db.quantity1,
+                       db.TotalAmount,
+                       db.reasonforissuingnoteName,
+                       db.Remark
+                  From Indent a,
+                       IndentDetail b,
+                       Location l,
+                       Project p,
+                       Department dp,
+                       Item e,
+                       ItemSpecification ee,
+                       (Select p.TNo,
+                               p.PurchaseOrderNo,
+                               p.PurchaseOrderDate,
+                               pp.PartyCode,
+                               pp.PartyName,
+                               pd.ItemCode,
+                               pd.ItemSpecificationCode,
+                               pd.Quantity1,
+                               pd.IndentTNo
+                          From PurchaseOrder p, PurchaseOrderDetailIndent pd, Party pp
+                         Where p.TNo = pd.TNo
+                           And p.PartyCode = pp.PartyCode) po,
+                       (Select g.TNo,
+                               g.GRNDate,
+                               g.GRNNo,
+                               g.RefDocNo,
+                               g.RefDocDate,
+                               gg.chalanquantity1,
+                               gg.receivedquantity1,
+                               gg.ItemCode,
+                               gg.ItemSpecificationCode,
+                               gg.PurchaseOrderTNo,
+                               gg.sno
+                          From GRN g, GRNDetail gg
+                         Where g.TNo = gg.TNo
+                           And getnaturedoctypecode('GRN', G.DOCTYPECODE) = 'PURCHASE') g,
+                       (Select i.TNo,
+                               i.InspectionNo,
+                               i.InspectionDate,
+                               ii.GRNTNo,
+                               ii.ItemCode,
+                               ii.ItemSpecificationCode,
+                               ii.inspectedquantity1,
+                               ii.acceptedquantity1,
+                               ii.RejectedQuantity1
+                          From Inspection i, InspectionDetail ii
+                         Where i.TNo = ii.TNo) i,
+                       (Select pb.TNo,
+                               pb.purchaseBillNo,
+                               pb.PurchaseBillDate,
+                               pbd.quantity1,
+                               pbd.PurchaseOrderTNo,
+                               pbd.itemCode,
+                               pbd.itemSpecificationCode,
+                               PBG.GRNTNO,
+                               PBG.GRNSNO
+                          From PurchaseBill          pb,
+                               PurchaseBillDetail    pbd,
+                               PURCHASEBILLGRNDETAIL PBG
+                         Where pb.Tno = pbd.Tno
+                           And PB.TNO = PBG.TNO
+                           And pbd.sno = pbg.sno) pb,
+                       (Select aa.TNo,
+                               aa.PurchaseBillTno,
+                               aa.PBPassNo,
+                               aa.PBPassDate,
+                               bb.PurchaseOrderTNo,
+                               bb.ItemCode,
+                               bb.ItemSpecificationCode,
+                               bb.Quantity1
+                          From PBPass aa, PBPassDetail bb
+                         Where aa.Tno = bb.TNo) pbp,
+                       (Select d.TNo,
+                               d.DebitNoteNo,
+                               d.DebitNoteDate,
+                               d.referencemoduletno,
+                               dd.ItemCode,
+                               dd.itemSpecificationCode,
+                               dd.Quantity1,
+                               dd.TotalAmount,
+                               r.reasonforissuingnoteName,
+                               d.Remark
+                          From DebitNote d, DebitNoteDetail dd, reasonforissuingnote r
+                         Where d.TNo = dd.TNo
+                           And d.ReferenceModuleCode = 'PBPASS'
+                           And d.reasonforissuingnotecode = r.reasonforissuingnotecode(+)) db
+                 Where a.TNo = b.TNo
+                   And a.LocationCode = l.LocationCode
+                   And a.DepartmentCode = dp.DepartmentCode
+                   And a.projecttno = p.tno(+)
+                   And b.ItemCode = e.itemCode
+                   And b.ItemSpecificationcode = ee.ItemSpecificationCode
+                   And b.TNo = po.IndentTno(+)
+                   And b.ItemCode = po.itemCode(+)
+                   And b.ItemSpecificationcode = po.ItemSpecificationCode(+)
+                   And po.TNo = g.PurchaseOrderTNo(+)
+                   And po.ItemCode = g.itemCode(+)
+                   And po.ItemSpecificationcode = g.ItemSpecificationCode(+)
+                   And g.TNo = i.GRNTNo(+)
+                   And g.ItemCode = i.itemCode(+)
+                   And g.ItemSpecificationcode = i.ItemSpecificationCode(+)
+                   And G.TNO = PB.GRNTNO
+                   And G.SNO = PB.GRNSNO
+                   And po.TNo = pb.PurchaseOrderTno(+)
+                   And po.ItemCode = pb.itemCode(+)
+                   And po.ItemSpecificationcode = pb.ItemSpecificationCode(+)
+                   And pb.TNo = pbp.PurchaseBillTNo(+)
+                   And pb.ItemCode = pbp.itemCode(+)
+                   And pb.ItemSpecificationcode = pbp.ItemSpecificationCode(+)
+                   And pbp.TNo = db.ReferenceModuleTNo(+)
+                   And pbp.ItemCode = db.itemCode(+)
+                   And pbp.ItemSpecificationCode = db.ItemSpecificationCode(+)
+                   and a.IndentDate between :P174_FROMDATE and :P174_TODATE
+                   and ( :P174_INDENT IS NULL OR instr(':'||:P174_INDENT||':',':'||a.TNO||':') > 0 )
+                  and instr(':'||:P174_LOCATION||':',':'||a.LocationCode||':') > 0
+                   and ( :P174_ITEM IS NULL OR instr(':'||:P174_ITEM||':',':'||e.ItemCode||':') > 0 )
+                  and ( :P174_ITEMSPECIFICATION IS NULL OR instr(':'||:P174_ITEMSPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  and ( :P174_PARTY IS NULL OR instr(':'||:P174_PARTY||':',':'||po.PartyCode||':') > 0 )
+                  and ( :P174_DEPARTMENT IS NULL OR instr(':'||:P174_DEPARTMENT||':',':'||a.DepartmentCode||':') > 0 )
+                 -- and ( :P174_GROUP IS NULL OR instr(':'||:P174_GROUP||':',':'||e.ParentCode||':') > 0 )
+                   -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                  and ( :P174_GROUP IS NULL
+                      or
+                      exists (select 1 from (Select ITEMCODE,
+                               parentcode,
+                               RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                               Level,
+                               CONNECT_BY_ROOT itemcode As root_id,
+                               '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                               CONNECT_BY_ISLEAF As leaf
+                          From item a
+                         Start With parentcode in ( select itemcode from item xx where
+                                                    instr(':'||:P174_GROUP||':',':'||xx.ItemCode||':') > 0)
+                                                    
+                        Connect By parentcode = Prior itemcode
+                         Order Siblings By itemcode) x where x.itemcode = e.itemcode
+                        )
+                  )
+                  
+                Order By 1,2,3,4
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        componentAppearance {
+            showNullValuesAs: -
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: csv
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 38244282731508769
+        }
+
+        column ACCEPTEDQUANTITY1 (
+            type: plainText
+            heading {
+                heading: ACCEPTED QUANTITY
+                alignment: center
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column DEBITNOTEDATE (
+            type: plainText
+            heading {
+                heading: DEBIT NOTE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 390
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column DEBITNOTENO (
+            type: plainText
+            heading {
+                heading: DEBIT NOTE NO
+                alignment: center
+            }
+            layout {
+                sequence: 380
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column DEPARTMENTNAME (
+            type: plainText
+            heading {
+                heading: DEPARTMENT
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column GRNDATE (
+            type: plainText
+            heading {
+                heading: GRN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column GRNNO (
+            type: plainText
+            heading {
+                heading: GRN NO
+                alignment: center
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column GRNQTY (
+            type: plainText
+            heading {
+                heading: GRN QTY
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column INDENTDATE (
+            type: plainText
+            heading {
+                heading: INDENT DATE
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column INDENTNO (
+            type: plainText
+            heading {
+                heading: INDENT NO
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column INDENTQTY (
+            type: plainText
+            heading {
+                heading: INDENT QTY
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column INSPECTEDQUANTITY1 (
+            type: plainText
+            heading {
+                heading: INSPECTED QUANTITY
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column INSPECTIONDATE (
+            type: plainText
+            heading {
+                heading: INSPECTION DATE
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column INSPECTIONNO (
+            type: plainText
+            heading {
+                heading: INSPECTION NO
+                alignment: center
+            }
+            layout {
+                sequence: 290
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: INVOICE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: INVOICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column INVOICEQTY (
+            type: plainText
+            heading {
+                heading: INVOICE QTY
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column MATERIALDETAIL (
+            type: plainText
+            heading {
+                heading: MATERIAL DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 450
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BE
+            }
+        )
+
+        column MATERIALGROUP (
+            type: plainText
+            heading {
+                heading: MATERIAL GROUP
+                alignment: center
+            }
+            layout {
+                sequence: 440
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column MEASURINGUNITCODE1 (
+            type: plainText
+            heading {
+                heading: UOM
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: VENDOR NAME
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column PBPASSDATE (
+            type: plainText
+            heading {
+                heading: PBPASS DATE
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column PBPASSNO (
+            type: plainText
+            heading {
+                heading: PBPASS NO
+                alignment: center
+            }
+            layout {
+                sequence: 350
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column PBPASSQTY (
+            type: plainText
+            heading {
+                heading: PBPASS QTY
+                alignment: center
+            }
+            layout {
+                sequence: 370
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column POQTY (
+            type: plainText
+            heading {
+                heading: PO QTY
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column PURCHASEBILLDATE (
+            type: plainText
+            heading {
+                heading: PURCHASE BILL DATE
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column PURCHASEBILLNO (
+            type: plainText
+            heading {
+                heading: PURCHASE BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column PURCHASEORDERDATE (
+            type: plainText
+            heading {
+                heading: PO DATE
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column PURCHASEORDERNO (
+            type: plainText
+            heading {
+                heading: PO NO
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: QTY
+                alignment: center
+            }
+            layout {
+                sequence: 400
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column REASONFORISSUINGNOTENAME (
+            type: plainText
+            heading {
+                heading: REASON
+                alignment: center
+            }
+            layout {
+                sequence: 420
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column REJECTEDQUANTITY1 (
+            type: plainText
+            heading {
+                heading: REJECTED QUANTITY
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: REMARK
+                alignment: center
+            }
+            layout {
+                sequence: 430
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column ROWNUM (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 460
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 410
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        savedReport 131931 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCEPTEDQUANTITY1 (
+                sequence: 23
+            )
+
+            displayColumn DEBITNOTEDATE (
+                sequence: 30
+            )
+
+            displayColumn DEBITNOTENO (
+                sequence: 31
+            )
+
+            displayColumn DEPARTMENTNAME (
+                sequence: 4
+            )
+
+            displayColumn GRNDATE (
+                sequence: 17
+            )
+
+            displayColumn GRNNO (
+                sequence: 18
+            )
+
+            displayColumn GRNQTY (
+                sequence: 19
+            )
+
+            displayColumn INDENTDATE (
+                sequence: 2
+            )
+
+            displayColumn INDENTNO (
+                sequence: 3
+            )
+
+            displayColumn INDENTQTY (
+                sequence: 9
+            )
+
+            displayColumn INSPECTEDQUANTITY1 (
+                sequence: 22
+            )
+
+            displayColumn INSPECTIONDATE (
+                sequence: 20
+            )
+
+            displayColumn INSPECTIONNO (
+                sequence: 21
+            )
+
+            displayColumn INVOICEDATE (
+                sequence: 14
+            )
+
+            displayColumn INVOICENO (
+                sequence: 15
+            )
+
+            displayColumn INVOICEQTY (
+                sequence: 16
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 6
+            )
+
+            displayColumn MATERIALDETAIL (
+                sequence: 7
+            )
+
+            displayColumn MATERIALGROUP (
+                sequence: 5
+            )
+
+            displayColumn MEASURINGUNITCODE1 (
+                sequence: 8
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 12
+            )
+
+            displayColumn PBPASSDATE (
+                sequence: 27
+            )
+
+            displayColumn PBPASSNO (
+                sequence: 28
+            )
+
+            displayColumn PBPASSQTY (
+                sequence: 29
+            )
+
+            displayColumn POQTY (
+                sequence: 13
+            )
+
+            displayColumn PURCHASEBILLDATE (
+                sequence: 25
+            )
+
+            displayColumn PURCHASEBILLNO (
+                sequence: 26
+            )
+
+            displayColumn PURCHASEORDERDATE (
+                sequence: 10
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 11
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 32
+            )
+
+            displayColumn REASONFORISSUINGNOTENAME (
+                sequence: 34
+            )
+
+            displayColumn REJECTEDQUANTITY1 (
+                sequence: 24
+            )
+
+            displayColumn REMARK (
+                sequence: 35
+            )
+
+            displayColumn ROWNUM (
+                sequence: 1
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 33
+            )
+
+            sort (
+                column: ROWNUM
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: BASICAMOUNT
+            )
+
+            aggregate (
+                column: TAX
+            )
+
+            aggregate (
+                column: GROSSAMOUNT
+            )
+
+            aggregate (
+                column: QTY
+            )
+
+            aggregate (
+                column: INDENTQTY
+            )
+
+            aggregate (
+                column: POQTY
+            )
+
+            aggregate (
+                column: INVOICEQTY
+            )
+
+            aggregate (
+                column: GRNQTY
+            )
+
+            aggregate (
+                column: INSPECTEDQUANTITY1
+            )
+
+            aggregate (
+                column: ACCEPTEDQUANTITY1
+            )
+
+            aggregate (
+                column: REJECTEDQUANTITY1
+            )
+
+            aggregate (
+                column: PBPASSQTY
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+        )
+
+    )
+
+    region pr-to-db-2 (
+        name: PR to DB
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P174_DEPARTMENT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Department
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                d.DepartmentName d,
+                d.DepartmentCode r
+                From Indent a, Department d
+                Where a.DepartmentCode = d.DepartmentCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 31
+            valuePlaceholder: Department List
+        }
+    )
+
+    pageItem P174_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+    )
+
+    pageItem P174_GROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select Upper(a.ItemName || ' ( ' || a.ItemCode || ' )') As d,
+                       a.ItemCode As r
+                  From Item a
+                 Where a.ItemType = 'GROUP'
+                 order by 2
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 31
+            valuePlaceholder: Material Group
+        }
+    )
+
+    pageItem P174_INDENT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Indent No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      a.indentno d,
+                      a.tno r
+                From indent a
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 140
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Indent No
+        }
+    )
+
+    pageItem P174_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      e.ItemName||' ( '||e.ItemCode||' )' as d,
+                      e.ItemCode r
+                From PurchaseOrderDetail a,Item e
+                Where a.ItemCode = e.ItemCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material List
+        }
+    )
+
+    pageItem P174_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      ee.ItemSpecificationName d,
+                      ee.ItemSpecificationCode r
+                From  Item e, ItemSpecification ee
+                Where e.TNo = ee.TNo
+                  and e.ItemCode = :P174_ITEM
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P174_ITEM
+            itemsToSubmit: P174_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 130
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P174_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PURCHASEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P174_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From PurchaseOrder a, Party p
+                Where a.PartyCode = p.PartyCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 120
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P174_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @pr-to-db-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 20
+            region: @pr-to-db
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 150
+            region: @pr-to-db-2
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

@@ -1,0 +1,2567 @@
+page 254 (
+    name: Master LR Detail Report
+    alias: MASTER-LR-DETAIL
+    title: Master LR Detail Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #abc .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region master-lr-detail (
+        name: Master LR Detail
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-expanded
+                t-Region--accent4
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region master-lr-detail-report (
+        name: Master LR Detail Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                    ROWNUM AS SERIALNO,
+                    cc.DeliveryOrderNo "Delivery Order No",
+                    cc.DeliveryOrderDate "Delivery Order Date",
+                    m.PartyName as "Party Name",
+                    c.PartyRefNo as "Party Do No",
+                    cc.PartyPoNo as "Party Po No",
+                    ad.DoctypeName as "Party DO Doctype",
+                    n.ItemName ||'-'|| o.ItemSpecificationName as "Item Name",
+                    round(ccd.Quantity1,2) as "Delivery Order Qty",
+                    cc.FromDate ||' To '||cc.ToDate as "Delivery Order Valid Date",
+                    c.WorkOrderNo "Work Order No",
+                    c.WorkOrderDate "Work Order Date",
+                    c.loadingorderNo "loading Order No",
+                    c.loadingorderDate "loading Order Date",
+                    round(c.Quantity1,2) as "loading Order Qty",
+                    c.FromDate ||' To '||c.ToDate as "Loading Order Valid Date",
+                    p.SourceLocationName,
+                    q.DestinationLocationName,
+                    b.PlacementNo "Placement No",
+                    b.PlacementDate "Placement Date",
+                    b.VehicleNo "Vehicle No",
+                    b.DriverName "Driver Name",
+                    b.DriverMobileNo as "Driver Mobile No",
+                    b.DriverLicenceNo as "Driver Licence No",   
+                    a.LRNo "LR No",
+                    a.LRDate "LR Date",
+                    a.GpNo as "GP No",
+                    a.GPDate as "GP Date",
+                    round(a.Quantity1,2) as "LR Qty",
+                    r.TransporterName as "Transporter Name",
+                    u.FreightRateListNo as "Contract No",
+                    g.PODNo as "POD No",
+                    g.PODDate as "POD Date",
+                    round(h.Quantity1,2) as "POD Quantity",
+                    h.DeliveryDate as "Delivery Date",
+                    w.Routename as "Route Name",
+                    d.NecessitySlipNo as "Necessity Slip No",
+                    d.NecessitySlipDate as "Necessity Slip Date",
+                    round(d.DieselAmount,2) as "Diesel Amount",
+                    e.PartyName as Pump,
+                    f.StoragelocationName as "Own Stock",
+                    l.ServiceBillNo as "Service Bill No",
+                    l.ServiceBillDate as "Service Bill Date",
+                    k.FreightRate as "Service Bill Rate",
+                    round(l.SumofAmount,2) as "Service Bill Amt",
+                    i.FreightAdviceNo "Freight Advice No",
+                    i.FreightAdviceDate "Freight Advice Date",
+                    j.Rate as "Freight Advice Rate",
+                    round(j.Amount,2) as "Freight Advice Amount",
+                    round(j.ShortageQuantity1,2) as "Freight Advice Shortage Qty",
+                    c.ToleranceValue as "ToleranceValue",
+                    j.DeductionRate as "Deduction Rate",
+                    doe.NetFreightRate as "NetFreightRate",
+                    round(j.DeductionAmount,2) as "Deduction Amount",
+                    round(j.TDSAmount,2) as "TDS Amount",
+                    s.LocationName as "Location Name",
+                    t.Companyname as "Company Name",
+                    x.FreightAdviceStatus,
+                    y.PODStatus,
+                    z.ServiceBillStatus,
+                    a.Creator,
+                    a.EwayBillNo,
+                    a.EwayBillDate,
+                    cc.PartyPONO,
+                    cc.LineItem
+                from LR a, Placement b, LoadingOrder c, DeliveryOrder cc, DeliveryOrderDetail ccd, DOExpensesDetail doe, 
+                   (Select 
+                   d.NecessitySlipDate as NecessitySlipDate,
+                    d.NecessitySlipNo
+                    as NecessitySlipNo, 
+                    Sum(dd.DieselRate * dd.Quantity1) as DieselAmount ,
+                    d.LrTno,
+                    d.StoragelocationCode, 
+                    d.PartyCode 
+                    From NecessitySlip d, NecessitySlipDetail dd
+                    Where d.Tno = dd.Tno 
+                    Group by d.LrTno, 
+                    d.StoragelocationCode,
+                    d.PartyCode,
+                    d.NecessitySlipDate, 
+                    d.NecessitySlipNo)d,
+                    Party e, StorageLocation f, POD g, PODDetail h , FreightAdvice i, FreightAdviceDetail j,
+                    ServiceBillLr k, ServiceBill l, servicebillDetail lm ,Party m , Item n, ItemSpecification o, 
+                    Sourcelocation p,DestinationLocation q, Transporter r , Location s, Company t , CompanyVehicle cov,VehicleGroup vg,
+                    FreightRatelist u,Route w,Doctype ad,
+                    (Select
+                     c.Tno,
+                     case when aa.tno is null then 'PENDING'
+                     when aa.Tno is not null and dsd1.ModuleTno is null 
+                     or (aa.Tno is not null and dsd1.moduletno is not null and dsd1.documentstatuscode <> 'ACTIVE') 
+                     then 'PREPAIRED'
+                     when aa.Tno is not null and aa.Tno is not null and dsd1.ModuleTno is Not null and dsd1.DocumentStatusCode = 'ACTIVE' 
+                     then 'ACTIVE' End as FreightAdviceStatus
+                     From Lr c, FreightAdvicedetail aa, DocumentStatusDetail dsd1
+                     Where c.Tno = aa.ModuleTno(+)
+                     and aa.Tno = dsd1.ModuleTno(+)) x,
+                  (Select
+                     c.Tno,
+                     dsd1.moduletno,
+                     case when aa.tno is null then 'PENDING'
+                     when aa.Tno is not null and dsd1.ModuleTno is null 
+                     or (aa.Tno is not null and dsd1.moduletno is not null and dsd1.documentstatuscode <> 'ACTIVE') 
+                     then 'PREPAIRED'
+                     when aa.Tno is not null and aa.Tno is not null and dsd1.ModuleTno is Not null and dsd1.DocumentStatusCode = 'ACTIVE' 
+                     then 'ACTIVE' End as PODStatus
+                  From Lr c, PODDetail aa, DocumentStatusDetail dsd1
+                  where c.Tno = aa.LRTno(+)
+                     and aa.Tno = dsd1.ModuleTno(+)) y,
+                (Select
+                   c.Tno,
+                     case when aa.tno is null then 'PENDING'
+                     when aa.Tno is not null and dsd1.ModuleTno is null 
+                     or (aa.Tno is not null and dsd1.moduletno is not null and dsd1.documentstatuscode <> 'ACTIVE') 
+                     then 'PREPAIRED'
+                     when aa.Tno is not null and aa.Tno is not null and dsd1.ModuleTno is Not null and dsd1.DocumentStatusCode = 'ACTIVE' 
+                     then 'ACTIVE' End as ServiceBillStatus
+                From Lr c, ServiceBilllr aa, DocumentStatusDetail dsd1
+                where c.Tno = aa.LRTno(+)
+                     and aa.Tno = dsd1.ModuleTno(+)) z
+                Where a.placementtno = b.Tno(+)
+                    and a.loadingordertno = c.Tno(+) 
+                    and c.DeliveryOrderTno = cc.Tno(+)
+                    and cc.Tno = ccd.Tno(+)
+                    and GetDOExpensesTno(c.DeliveryOrderTno,c.DeliveryOrderSno,a.LRDate) = doe.Tno(+)
+                    and c.DeliveryOrderTno = doe.DeliveryOrderTno(+)
+                    and c.DeliveryOrderSno = doe.DeliveryOrderSno(+)
+                    and a.Tno = d.LRTno(+)
+                    and d.PartyCode = e.PartyCode(+)
+                    and d.StoragelocationCode = f.StorageLocationCode(+)
+                    and a.Tno = h.LrTno(+)
+                    and h.Tno = g.Tno(+)
+                    and a.Tno = j.ModuleTno(+)
+                    and j.Tno = i.Tno(+)
+                    and a.Tno = k.LrTno(+)
+                    and k.tno = l.Tno(+)
+                    and l.Tno = lm.tno(+)
+                    and c.PartyCode = m.PartyCode(+)
+                    and ccd.ItemCode = n.ItemCode(+)
+                    and ccd.ItemSpecificationCode = o.ItemSpecificationCode(+)
+                    and c.SourceLocationTno = p.Tno(+)
+                    and c.DestinationLocationTno = q.Tno(+)
+                    and a.transporterCode = r.transporterCode(+)
+                    and a.LocationCode = s.LocationCode(+)
+                    and a.CompanyCode = t.CompanyCode(+)
+                    and a.VehicleNo = cov.VehicleNo(+)
+                    and cov.VehicleGroupCode = vg.VehicleGroupCode(+)
+                    and c.WorkOrderNo = u.WorkOrderNo(+)
+                    and h.RouteCode = w.RouteCode(+)
+                    and cc.DoctypeCode = ad.DoctypeCode(+)
+                    and a.Tno = x.Tno(+)
+                    and a.Tno = y.Tno(+)
+                    and a.Tno = z.Tno(+)
+                    and a.GPDate BETWEEN  :P254_FROMGPDATE AND :P254_TOGPDATE
+                 and ( :P254_COMPANY IS NULL OR instr(':'||:P254_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+                 and ( :P254_LOCATION IS NULL OR instr(':'||:P254_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                 and ( :P254_LR IS NULL OR instr(':'||:P254_LR||':',':'||a.LRNo||':') > 0 ) 
+                 and ( :P254_SERVICEBILL IS NULL OR instr(':'||:P254_SERVICEBILL||':',':'||l.Tno||':') > 0 )
+                 and ( :P254_SERVICEBILLSTATUS  IS NULL OR instr(':'||:P254_SERVICEBILLSTATUS||':',':'||z.ServiceBillStatus||':') > 0 )
+                 and ( :P254_FREIGHTADVICE IS NULL OR instr(':'||:P254_FREIGHTADVICE||':',':'||i.Tno||':') > 0 )
+                 and ( :P254_FREIGHTADVICESTATUS  IS NULL OR instr(':'||:P254_FREIGHTADVICESTATUS||':',':'||X.FreightAdviceStatus||':') > 0 )
+                 and ( :P254_POD IS NULL OR instr(':'||:P254_POD||':',':'||g.Tno||':') > 0 )
+                 and ( :P254_PODSTATUS  IS NULL OR instr(':'||:P254_PODSTATUS||':',':'||y.PODStatus||':') > 0 )
+                 and ( :P254_TRANSPORTER IS NULL OR instr(':'||:P254_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+                 and ( :P254_VEHICLE IS NULL OR instr(':'||:P254_VEHICLE||':',':'||a.VehicleNo||':') > 0 )
+                 and ( :P254_PARTYDO IS NULL OR instr(':'||:P254_PARTYDO||':',':'||c.PartyRefNo||':') > 0 )
+                 and ( :P254_LOADINGORDER IS NULL OR instr(':'||:P254_LOADINGORDER||':',':'||c.LoadingOrderNo||':') > 0 )
+                 and ( :P254_SOURCE IS NULL OR instr(':'||:P254_SOURCE||':',':'||p.Tno||':') > 0 )
+                 and ( :P254_DESTINATION IS NULL OR instr(':'||:P254_DESTINATION||':',':'||q.DestinationLocationCode||':') > 0 )          
+                 and ( :P254_WORKORDER IS NULL OR instr(':'||:P254_WORKORDER||':',':'||a.WorkOrderNo||':') > 0 )
+                 and ( :P254_GP IS NULL OR instr(':'||:P254_GP||':',':'||a.GPNo||':') > 0 )
+                  and ( :P254_VEHICLEGROUP IS NULL OR instr(':'||:P254_VEHICLEGROUP||':',':'||vg.VehicleGroupCode||':') > 0 )
+                --and ( :P254_FROMGPDATE IS NULL OR instr(':'||:P254_FROMGPDATE||':',':'||a.GPDate||':') > 0 )
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 12489584024472201
+        }
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+                alignment: center
+            }
+            layout {
+                sequence: 570
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BE
+            }
+        )
+
+        column "Company Name" (
+            type: plainText
+            heading {
+                heading: Company Name
+                alignment: center
+            }
+            layout {
+                sequence: 530
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column "Contract No" (
+            type: plainText
+            heading {
+                heading: Contract No
+                alignment: center
+            }
+            layout {
+                sequence: 280
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column DESTINATIONLOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Destination Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column "Deduction Amount" (
+            type: plainText
+            heading {
+                heading: Deduction Amount
+                alignment: center
+            }
+            layout {
+                sequence: 500
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column "Deduction Rate" (
+            type: plainText
+            heading {
+                heading: Deduction Rate
+                alignment: center
+            }
+            layout {
+                sequence: 490
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column "Delivery Date" (
+            type: plainText
+            heading {
+                heading: Delivery Date
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column "Delivery Order Date" (
+            type: plainText
+            heading {
+                heading: Delivery Order Date
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column "Delivery Order No" (
+            type: plainText
+            heading {
+                heading: Delivery Order No
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column "Delivery Order Qty" (
+            type: plainText
+            heading {
+                heading: Delivery Order Qty
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column "Delivery Order Valid Date" (
+            type: plainText
+            heading {
+                heading: Delivery Order Valid Date
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column "Diesel Amount" (
+            type: plainText
+            heading {
+                heading: Diesel Amount
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column "Driver Licence No" (
+            type: plainText
+            heading {
+                heading: Driver Licence No
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column "Driver Mobile No" (
+            type: plainText
+            heading {
+                heading: Driver Mobile No
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column "Driver Name" (
+            type: plainText
+            heading {
+                heading: Driver Name
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column EWAYBILLDATE (
+            type: plainText
+            heading {
+                heading: Eway Bill Date
+                alignment: center
+            }
+            layout {
+                sequence: 620
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column EWAYBILLNO (
+            type: plainText
+            heading {
+                heading: Eway Bill No
+                alignment: center
+            }
+            layout {
+                sequence: 610
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column FREIGHTADVICESTATUS (
+            type: plainText
+            heading {
+                heading: Freight Advice Status
+                alignment: center
+            }
+            layout {
+                sequence: 540
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column "Freight Advice Amount" (
+            type: plainText
+            heading {
+                heading: Freight Advice Amount
+                alignment: center
+            }
+            layout {
+                sequence: 460
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column "Freight Advice Date" (
+            type: plainText
+            heading {
+                heading: Freight Advice Date
+                alignment: center
+            }
+            layout {
+                sequence: 440
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column "Freight Advice No" (
+            type: plainText
+            heading {
+                heading: Freight Advice No
+                alignment: center
+            }
+            layout {
+                sequence: 430
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column "Freight Advice Rate" (
+            type: plainText
+            heading {
+                heading: Freight Advice Rate
+                alignment: center
+            }
+            layout {
+                sequence: 450
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column "Freight Advice Shortage Qty" (
+            type: plainText
+            heading {
+                heading: Freight Advice Shortage Qty
+                alignment: center
+            }
+            layout {
+                sequence: 470
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column "GP Date" (
+            type: plainText
+            heading {
+                heading: Gp Date
+                alignment: center
+            }
+            layout {
+                sequence: 580
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column "GP No" (
+            type: plainText
+            heading {
+                heading: Gp No
+                alignment: center
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column "Item Name" (
+            type: plainText
+            heading {
+                heading: Item Name
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column LINEITEM (
+            type: plainText
+            heading {
+                heading: Line Item
+                alignment: center
+            }
+            layout {
+                sequence: 640
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BL
+            }
+        )
+
+        column "LR Date" (
+            type: plainText
+            heading {
+                heading: Lr Date
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column "LR No" (
+            type: plainText
+            heading {
+                heading: Lr No
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column "LR Qty" (
+            type: plainText
+            heading {
+                heading: Lr Qty
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column "Loading Order Valid Date" (
+            type: plainText
+            heading {
+                heading: Loading Order Valid Date
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column "Location Name" (
+            type: plainText
+            heading {
+                heading: Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 520
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column "Necessity Slip Date" (
+            type: plainText
+            heading {
+                heading: Necessity Slip Date
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column "Necessity Slip No" (
+            type: plainText
+            heading {
+                heading: Necessity Slip No
+                alignment: center
+            }
+            layout {
+                sequence: 340
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column NetFreightRate (
+            type: plainText
+            heading {
+                heading: Netfreightrate
+                alignment: center
+            }
+            layout {
+                sequence: 660
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BN
+            }
+        )
+
+        column "Own Stock" (
+            type: plainText
+            heading {
+                heading: Own Stock
+                alignment: center
+            }
+            layout {
+                sequence: 380
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column PARTYPONO (
+            type: plainText
+            heading {
+                heading: Party PO NO
+                alignment: center
+            }
+            layout {
+                sequence: 630
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        column "POD Date" (
+            type: plainText
+            heading {
+                heading: Pod Date
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column "POD No" (
+            type: plainText
+            heading {
+                heading: Pod No
+                alignment: center
+            }
+            layout {
+                sequence: 290
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column "POD Quantity" (
+            type: plainText
+            heading {
+                heading: Pod Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column PODSTATUS (
+            type: plainText
+            heading {
+                heading: POD Status
+                alignment: center
+            }
+            layout {
+                sequence: 550
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column PUMP (
+            type: plainText
+            heading {
+                heading: Pump
+                alignment: center
+            }
+            layout {
+                sequence: 370
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column "Party DO Doctype" (
+            type: plainText
+            heading {
+                heading: Party Do Doctype
+                alignment: center
+            }
+            layout {
+                sequence: 590
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column "Party Do No" (
+            type: plainText
+            heading {
+                heading: Party Do No
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column "Party Name" (
+            type: plainText
+            heading {
+                heading: Party Name
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column "Party Po No" (
+            type: plainText
+            heading {
+                heading: Party Po No
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column "Placement Date" (
+            type: plainText
+            heading {
+                heading: Placement Date
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column "Placement No" (
+            type: plainText
+            heading {
+                heading: Placement No
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column "Route Name" (
+            type: plainText
+            heading {
+                heading: Route Name
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 650
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BM
+            }
+        )
+
+        column SERVICEBILLSTATUS (
+            type: plainText
+            heading {
+                heading: Service Bill Status
+                alignment: center
+            }
+            layout {
+                sequence: 560
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column SOURCELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Source Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column "Service Bill Amt" (
+            type: plainText
+            heading {
+                heading: Service Bill Amt
+                alignment: center
+            }
+            layout {
+                sequence: 420
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column "Service Bill Date" (
+            type: plainText
+            heading {
+                heading: Service Bill Date
+                alignment: center
+            }
+            layout {
+                sequence: 400
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column "Service Bill No" (
+            type: plainText
+            heading {
+                heading: Service Bill No
+                alignment: center
+            }
+            layout {
+                sequence: 390
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column "Service Bill Rate" (
+            type: plainText
+            heading {
+                heading: Service Bill Rate
+                alignment: center
+            }
+            layout {
+                sequence: 410
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column "TDS Amount" (
+            type: plainText
+            heading {
+                heading: Tds Amount
+                alignment: center
+            }
+            layout {
+                sequence: 510
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column ToleranceValue (
+            type: plainText
+            heading {
+                heading: Tolerancevalue
+                alignment: center
+            }
+            layout {
+                sequence: 480
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column "Transporter Name" (
+            type: plainText
+            heading {
+                heading: Transporter Name
+                alignment: center
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column "Vehicle No" (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column "Work Order Date" (
+            type: plainText
+            heading {
+                heading: Work Order Date
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column "Work Order No" (
+            type: plainText
+            heading {
+                heading: Work Order No
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column "loading Order Date" (
+            type: plainText
+            heading {
+                heading: Loading Order Date
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column "loading Order No" (
+            type: plainText
+            heading {
+                heading: Loading Order No
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column "loading Order Qty" (
+            type: plainText
+            heading {
+                heading: Loading Order Qty
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Master LR Detail Report
+        }
+
+        savedReport 125370 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn CREATOR (
+                sequence: 64
+            )
+
+            displayColumn "Company Name" (
+                sequence: 63
+            )
+
+            displayColumn "Contract No" (
+                sequence: 35
+            )
+
+            displayColumn DESTINATIONLOCATIONNAME (
+                sequence: 18
+            )
+
+            displayColumn "Deduction Amount" (
+                sequence: 60
+            )
+
+            displayColumn "Deduction Rate" (
+                sequence: 59
+            )
+
+            displayColumn "Delivery Date" (
+                sequence: 40
+            )
+
+            displayColumn "Delivery Order Date" (
+                sequence: 3
+            )
+
+            displayColumn "Delivery Order No" (
+                sequence: 2
+            )
+
+            displayColumn "Delivery Order Qty" (
+                sequence: 9
+            )
+
+            displayColumn "Delivery Order Valid Date" (
+                sequence: 10
+            )
+
+            displayColumn "Diesel Amount" (
+                sequence: 44
+            )
+
+            displayColumn "Driver Licence No" (
+                sequence: 24
+            )
+
+            displayColumn "Driver Mobile No" (
+                sequence: 23
+            )
+
+            displayColumn "Driver Name" (
+                sequence: 22
+            )
+
+            displayColumn EWAYBILLDATE (
+                sequence: 30
+            )
+
+            displayColumn EWAYBILLNO (
+                sequence: 29
+            )
+
+            displayColumn FREIGHTADVICESTATUS (
+                sequence: 53
+            )
+
+            displayColumn "Freight Advice Amount" (
+                sequence: 56
+            )
+
+            displayColumn "Freight Advice Date" (
+                sequence: 54
+            )
+
+            displayColumn "Freight Advice No" (
+                sequence: 52
+            )
+
+            displayColumn "Freight Advice Rate" (
+                sequence: 55
+            )
+
+            displayColumn "Freight Advice Shortage Qty" (
+                sequence: 57
+            )
+
+            displayColumn "GP Date" (
+                sequence: 28
+            )
+
+            displayColumn "GP No" (
+                sequence: 27
+            )
+
+            displayColumn "Item Name" (
+                sequence: 8
+            )
+
+            displayColumn LINEITEM (
+                sequence: 32
+            )
+
+            displayColumn "LR Date" (
+                sequence: 26
+            )
+
+            displayColumn "LR No" (
+                sequence: 25
+            )
+
+            displayColumn "LR Qty" (
+                sequence: 31
+            )
+
+            displayColumn "Loading Order Valid Date" (
+                sequence: 16
+            )
+
+            displayColumn "Location Name" (
+                sequence: 62
+            )
+
+            displayColumn "Necessity Slip Date" (
+                sequence: 43
+            )
+
+            displayColumn "Necessity Slip No" (
+                sequence: 42
+            )
+
+            displayColumn "Own Stock" (
+                sequence: 46
+            )
+
+            displayColumn PARTYPONO (
+                sequence: 33
+            )
+
+            displayColumn "POD Date" (
+                sequence: 38
+            )
+
+            displayColumn "POD No" (
+                sequence: 36
+            )
+
+            displayColumn "POD Quantity" (
+                sequence: 39
+            )
+
+            displayColumn PODSTATUS (
+                sequence: 37
+            )
+
+            displayColumn PUMP (
+                sequence: 45
+            )
+
+            displayColumn "Party DO Doctype" (
+                sequence: 6
+            )
+
+            displayColumn "Party Do No" (
+                sequence: 5
+            )
+
+            displayColumn "Party Name" (
+                sequence: 4
+            )
+
+            displayColumn "Party Po No" (
+                sequence: 7
+            )
+
+            displayColumn "Placement Date" (
+                sequence: 20
+            )
+
+            displayColumn "Placement No" (
+                sequence: 19
+            )
+
+            displayColumn "Route Name" (
+                sequence: 41
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SERVICEBILLSTATUS (
+                sequence: 48
+            )
+
+            displayColumn SOURCELOCATIONNAME (
+                sequence: 17
+            )
+
+            displayColumn "Service Bill Amt" (
+                sequence: 51
+            )
+
+            displayColumn "Service Bill Date" (
+                sequence: 49
+            )
+
+            displayColumn "Service Bill No" (
+                sequence: 47
+            )
+
+            displayColumn "Service Bill Rate" (
+                sequence: 50
+            )
+
+            displayColumn "TDS Amount" (
+                sequence: 61
+            )
+
+            displayColumn "ToleranceValue" (
+                sequence: 58
+            )
+
+            displayColumn "Transporter Name" (
+                sequence: 34
+            )
+
+            displayColumn "Vehicle No" (
+                sequence: 21
+            )
+
+            displayColumn "Work Order Date" (
+                sequence: 12
+            )
+
+            displayColumn "Work Order No" (
+                sequence: 11
+            )
+
+            displayColumn "loading Order Date" (
+                sequence: 14
+            )
+
+            displayColumn "loading Order No" (
+                sequence: 13
+            )
+
+            displayColumn "loading Order Qty" (
+                sequence: 15
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: "LR Date"
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: "LR No"
+                sort {
+                    sequence: 3
+                }
+            )
+
+            aggregate (
+                column: "Deduction Rate"
+            )
+
+            aggregate (
+                column: "TDS Amount"
+            )
+
+            aggregate (
+                column: "Deduction Amount"
+            )
+
+            aggregate (
+                column: "Freight Advice Shortage Qty"
+            )
+
+            aggregate (
+                column: "Freight Advice Amount"
+            )
+
+            aggregate (
+                column: "Service Bill Amt"
+            )
+
+            aggregate (
+                column: "Diesel Amount"
+            )
+
+            aggregate (
+                column: "POD Quantity"
+            )
+
+            aggregate (
+                column: "LR Qty"
+            )
+
+            aggregate (
+                column: "loading Order Qty"
+            )
+
+            aggregate (
+                column: "Delivery Order Qty"
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P254_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.CompanyName d,
+                a.CompanyCode r
+                From Company a
+                Where exists(
+                   Select
+                      aa.CompanyCode
+                   From LR aa
+                   Where aa.companyCode = a.companyCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 30
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_DESTINATION (
+        type: popupLov
+        label {
+            label: Destination
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.DestinationLocationName d,
+                a.DestinationLocationCode r
+                From DestinationLocation a
+                Where exists(
+                   Select
+                      aa.DestinationLocationTno
+                   From LR aa
+                   Where aa.DestinationLocationTno = a.Tno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 120
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_FREIGHTADVICE (
+        type: popupLov
+        label {
+            label: Freight Advice No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                k.FreightAdviceNo d,
+                k.Tno r
+                From FreightAdvice k, FreightAdviceDetail a
+                where k.Tno = a.Tno(+)
+                and exists(
+                   Select
+                      aa.Tno
+                   From LR aa
+                   Where aa.Tno = a.ModuleTno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 190
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_FREIGHTADVICESTATUS (
+        type: popupLov
+        label {
+            label: Freight Advice Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Active;ACTIVE,Pending;PENDING,Prepaired;PREPAIRED
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 200
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_FROMGPDATE (
+        type: datePicker
+        label {
+            label: From GP Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P254_GP (
+        type: popupLov
+        label {
+            label: GP NO
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.GPNo d,
+                a.GPNo r
+                FrOM LR a
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 130
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_LOADINGORDER (
+        type: popupLov
+        label {
+            label: Loading Order No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.LoadingOrderno d,
+                a.loadingorderno r
+                From loadingorder a, LR b
+                where b.LoadingOrderTno = a.Tno
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 90
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.LocationName d,
+                a.LocationCode r
+                From Location a
+                Where exists(
+                   Select
+                      aa.LocationCode
+                   From LR aa
+                   Where aa.LocationCode = a.LocationCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 40
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_LR (
+        type: popupLov
+        label {
+            label: LR No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.LRNo d,
+                a.LRNo r
+                From LR a
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 70
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_PARTYDO (
+        type: popupLov
+        label {
+            label: Party DO NO
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                c.PartyRefNo d,
+                c.PartyRefNo r
+                From LR a,Placement b, LoadingOrder c
+                where a.PlacementTno = b.Tno(+)
+                and b.LoadingOrderTno = c.Tno(+)
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 80
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_POD (
+        type: popupLov
+        label {
+            label: POD NO
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                k.PODNo d,
+                k.Tno r
+                From POD k, PODDetail a
+                where k.Tno = a.Tno(+)
+                and exists(
+                   Select
+                      aa.Tno
+                   From LR aa
+                   Where aa.Tno = a.LrTno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 140
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_PODSTATUS (
+        type: popupLov
+        label {
+            label: POD Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Active;ACTIVE,Pending;PENDING,Prepaired;PREPAIRED
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 150
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_SERVICEBILL (
+        type: popupLov
+        label {
+            label: Service Bill No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.Servicebillno D,
+                a.Tno r
+                From ServiceBillLr k, ServiceBill a
+                where k.Tno = a.Tno(+)
+                and exists(
+                   Select
+                      aa.Tno
+                   From LR aa
+                   Where aa.Tno = k.LRTno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 160
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_SERVICEBILLSTATUS (
+        type: popupLov
+        label {
+            label: Service Bill Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Active;ACTIVE,Pending;PENDING,Prepaired;PREPAIRED
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 170
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_SOURCE (
+        type: popupLov
+        label {
+            label: Source
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.SourceLocationName d,
+                a.Tno r
+                From SourceLocation a
+                Where exists(
+                   Select
+                      aa.SourceLocationTno
+                   From LR aa
+                   Where aa.SourceLocationTno = a.Tno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 110
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_TOGPDATE (
+        type: datePicker
+        label {
+            label: To GP Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P254_TRANSPORTER (
+        type: popupLov
+        label {
+            label: Transporter
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.TransporterName d,
+                a.TransporterCode r
+                From Transporter a
+                Where exists(
+                   Select
+                      aa.TransporterCode
+                   From LR aa
+                   Where aa.TransporterCode = a.TransporterCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 50
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_VEHICLE (
+        type: popupLov
+        label {
+            label: Vehicle No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.VehicleNo d,
+                a.VehicleNo r
+                From LR a
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 60
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_VEHICLEGROUP (
+        type: popupLov
+        label {
+            label: Vehicle Group
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                a.vehiclegroupName d,
+                a.VehicleGroupCode r
+                from CompanyVehicle b,vehiclegroup a
+                where b.VehicleGroupCode = a.VehicleGroupCode
+                ```
+        }
+        layout {
+            sequence: 210
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P254_WORKORDER (
+        type: popupLov
+        label {
+            label: Work Order No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.workOrderno d,
+                a.workorderno r
+                From  LR b, loadingorder a
+                where b.LoadingOrderTno = a.Tno
+                
+                ```
+            displayNullValue: false
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 100
+            region: @master-lr-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 220
+            region: @master-lr-detail
+            slot: regionBody
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

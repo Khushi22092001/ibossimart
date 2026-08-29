@@ -1,0 +1,924 @@
+page 146 (
+    name: Marine Insurance Detail
+    alias: MARINE-INSURANCE-DETAIL
+    title: Marine Insurance Detail
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region marine-insurance (
+        name: "Marine Insurance "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region marine-insurance-detail (
+        name: Marine Insurance Detail
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select xx.marineinsuranceno,
+                       xx.ccinvoiceno,
+                       xx.ccinvoicedate,
+                       Case
+                         When xx.ccinvoiceno = 'OPENING' Then
+                          xx.balance
+                         Else
+                          xx.balance + Abs(xx.marineinsuranceamount)
+                       End Opening,
+                       Case
+                         When xx.ccinvoiceno = 'OPENING' Then
+                          Null
+                         Else
+                          Abs(xx.marineinsuranceamount)
+                       End marineinsuranceamount,
+                       xx.balance,
+                       XX.SRNO,
+                       xx.VEHICLETYPECODE,
+                       xx.VEHICLENO,
+                       xx.CITYNAME,
+                       xx.STATENAME,
+                       xx.InvAmt,
+                       xx.tenperOfInvAmt,
+                       xx.PackingType,
+                       xx.FromCity
+                
+                  From (Select X.MARINEINSURANCENO,
+                               X.CCINVOICENO,
+                               X.CCINVOICEDATE,
+                               Abs(x.marineinsuranceamount) As marineinsuranceamount,
+                               Sum(X.MARINEINSURANCEAMOUNT) Over(Order By CCINVOICENO) As Balance,
+                               SUM(X.MYSNO) OVER ( ORDER BY CCINVOICENO) AS SRNO,
+                               x.tno,
+                               x.VEHICLETYPECODE,
+                               x.VEHICLENO,
+                               x.CITYNAME,
+                               x.STATENAME,
+                               x.InvAmt,
+                               x.tenperOfInvAmt,
+                               x.PackingType,
+                               x.FromCity
+                          From (Select 1 AS MYSNO,
+                                        A.MARINEINSURANCENO,
+                                       'OPENING' CCINVOICENO,
+                                       TO_DATE(:P146_FROMDATE,'DD-MON-RRRR') As CCINVOICEDATE,
+                                       getmarineinsurancebalanceason(a.tno, TO_DATE(:P146_FROMDATE,'DD-MON-RRRR')) As MARINEINSURANCEAMOUNT,
+                                       Null As TNO,
+                                       
+                                       Null As VEHICLETYPECODE,
+                                       Null As VEHICLENO,
+                                       Null As CITYNAME,
+                                       Null As STATENAME,
+                                       Null As InvAmt,
+                                       Null As tenperOfInvAmt,
+                                       Null As PackingType,
+                                       NULL AS FromCity
+                                
+                                  From MARINEINSURANCE A
+                                Union All
+                                
+                                Select 1 AS MYSNO,
+                                       A.MARINEINSURANCENO,
+                                       C.CCINVOICENO,
+                                       C.CCINVOICEDATE,
+                                       Round(-1 * C.MARINEINSURANCEAMOUNT, 0) As MARINEINSURANCEAMOUNT,
+                                       c.tno,
+                                       
+                                       c.VEHICLETYPECODE,
+                                       c.VEHICLENO,
+                                       d.CITYNAME,
+                                       e.STATENAME,
+                                       Round(c.CCINVOICEAMOUNT, 0) InvAmt,
+                                       --Round(c.CCINVOICEAMOUNT + (c.CCINVOICEAMOUNT * nvl(a.basisofvaluation,0))/100, 0) As "10%OfInvAmt",
+                                       round(c.marineinsuranceamount,0) as "10%OfInvAmt",
+                                       (Select PACKINGTYPECODE
+                                          From CCINVOICEDETAIL
+                                         Where TNO = c.TNO
+                                           And Rownum = 1) As PackingType,
+                                        'DHAMTARI' AS FromCity
+                                
+                                  From MARINEINSURANCE A,
+                                       CCINVOICE       C,
+                                       party           p,
+                                       city            d,
+                                       state           e
+                                 Where A.TNO = C.MARINEINSURANCETNO
+                                   And c.CONSIGNEECODE = p.PARTYCODE
+                                   And Nvl(p.WORKSCITYCODE, p.OFFICECITYCODE) = d.CITYCODE
+                                   And Nvl(p.WORKSSTATECODE, p.OFFICESTATECODE) = e.STATECODE
+                                   AND GETDOCUMENTSTATUSCODE('CCINVOICE',C.TNO) = 'ACTIVE'
+                                   AND C.MARINEINSURANCETNO IS NOT NULL
+                                   and c.ccinvoicedate between :P146_FROMDATE and :P146_TODATE     
+                                    and instr(':'||:P146_COMPANY||':',':'||c.CompanyCode||':') > 0
+                                    and instr(':'||:P146_LOCATION||':',':'||c.LocationCode||':') > 0
+                                    and ( :P146_INSURANCE IS NULL OR instr(':'||:P146_INSURANCE||':',':'||C.MARINEINSURANCETNO||':') > 0 ) 
+                                 
+                                
+                                 Order By 3, 2) X) xx
+                
+                 Order By 1
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            lazyLoading: true
+            maxRowsToProcess: 100000
+        }
+        actionsMenu {
+            chart: false
+            groupBy: false
+            pivot: false
+            flashback: false
+            reset: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+        }
+        heading {
+            fixedTo: region
+            maxReportHeight: 340
+        }
+        advanced {
+            savedReportMappingIdentifier: 21640457725000427
+        }
+
+        column BALANCE (
+            type: plainText
+            heading {
+                heading: BALANCE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EY
+            }
+        )
+
+        column CCINVOICEDATE (
+            type: plainText
+            heading {
+                heading: CCINVOICE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CCINVOICEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: EV
+            }
+        )
+
+        column CCINVOICENO (
+            type: plainText
+            heading {
+                heading: CCINVOICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CCINVOICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EU
+            }
+        )
+
+        column CITYNAME (
+            type: plainText
+            heading {
+                heading: CITY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FB
+            }
+        )
+
+        column FROMCITY (
+            type: plainText
+            heading {
+                heading: FROM CITY
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FG
+            }
+        )
+
+        column INVAMT (
+            type: plainText
+            heading {
+                heading: INV AMT
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FD
+            }
+        )
+
+        column MARINEINSURANCEAMOUNT (
+            type: plainText
+            heading {
+                heading: MARINE INSURANCE AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EX
+            }
+        )
+
+        column MARINEINSURANCENO (
+            type: plainText
+            heading {
+                heading: MARINE INSURANCE NO
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:170px">#MARINEINSURANCENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: ET
+            }
+        )
+
+        column OPENING (
+            type: plainText
+            heading {
+                heading: OPENING
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EW
+            }
+        )
+
+        column PACKINGTYPE (
+            type: plainText
+            heading {
+                heading: PACKING TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FF
+            }
+        )
+
+        column SRNO (
+            type: plainText
+            heading {
+                heading: SR NO
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FH
+            }
+        )
+
+        column STATENAME (
+            type: plainText
+            heading {
+                heading: STATE NAME
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#STATENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FC
+            }
+        )
+
+        column TENPEROFINVAMT (
+            type: plainText
+            heading {
+                heading: TEN PER OF INVAMT
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FE
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: VEHICLE NO
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FA
+            }
+        )
+
+        column VEHICLETYPECODE (
+            type: plainText
+            heading {
+                heading: VEHICLE TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EZ
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: PF Challan Detail
+        }
+
+        savedReport 105852 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BALANCE (
+                sequence: 14
+            )
+
+            displayColumn CCINVOICEDATE (
+                sequence: 6
+            )
+
+            displayColumn CCINVOICENO (
+                sequence: 5
+            )
+
+            displayColumn CITYNAME (
+                sequence: 9
+            )
+
+            displayColumn FROMCITY (
+                sequence: 8
+            )
+
+            displayColumn INVAMT (
+                sequence: 12
+            )
+
+            displayColumn MARINEINSURANCENO (
+                sequence: 2
+            )
+
+            displayColumn OPENING (
+                sequence: 11
+            )
+
+            displayColumn PACKINGTYPE (
+                sequence: 4
+            )
+
+            displayColumn SRNO (
+                sequence: 1
+            )
+
+            displayColumn STATENAME (
+                sequence: 10
+            )
+
+            displayColumn TENPEROFINVAMT (
+                sequence: 13
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 7
+            )
+
+            displayColumn VEHICLETYPECODE (
+                sequence: 3
+            )
+
+            sort (
+                column: EMPLOYEEID
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: PD
+                sort {
+                    direction: desc
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: PFAMOUNT
+            )
+
+            aggregate (
+                column: EMPLOYERPFACCOUNT01AMOUNT
+            )
+
+            aggregate (
+                column: EMPLOYERPFACCOUNT10AMOUNT
+            )
+
+            aggregate (
+                column: ADMINPFACCOUNT02AMOUNT
+            )
+
+            aggregate (
+                column: ADMINPFACCOUNT21AMOUNT
+            )
+
+            aggregate (
+                column: EMPLOYEEPFACCOUNT01AMOUNT
+            )
+
+            aggregate (
+                column: PFDEDUCTEDONAMOUNT
+            )
+
+        )
+
+    )
+
+    pageItem P146_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'SALARY'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @marine-insurance
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P146_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @marine-insurance
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P146_INSURANCE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Insurance
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                 a.MARINEINSURANCENO d,
+                A.TNO r
+                From MARINEINSURANCE a 
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @marine-insurance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Department Name
+        }
+    )
+
+    pageItem P146_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'SALARY'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @marine-insurance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P146_STATUS (
+        type: hidden
+        layout {
+            sequence: 100
+            region: @marine-insurance
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P146_TNO (
+        type: hidden
+        layout {
+            sequence: 110
+            region: @marine-insurance
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P146_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @marine-insurance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: To Date
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @marine-insurance
+            slot: regionBody
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P146_TNO
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-submit-page (
+            action: submitPage
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

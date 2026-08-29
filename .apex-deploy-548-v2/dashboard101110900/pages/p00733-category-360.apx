@@ -1,0 +1,1308 @@
+page 733 (
+    name: Category 360
+    alias: CATEGORY-360
+    title: Category 360
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText:
+            ```html
+            CATEGORY 360 (HSPL). Pick a product category and see everything about it over the last
+            12 months: quantity, invoiced value, distinct customers and the weighted average rate;
+            the average-rate and value trend by month; who it was sold to (with per-customer qty,
+            value and rate); the specifications inside the category; and every invoice line with
+            links to the CC Invoice / Invoice 360 (bill + e-invoice + receipt) and its sales order.
+            Category = ItemSpecification.ItemCategoryCode -> ItemCategory, resolved on invoice lines.
+            READ-ONLY.
+            ```
+    }
+
+    region cat-customers (
+        name: Customers
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<a href="'||apex_page.get_url(p_page=>655,p_clear_cache=>'655',p_items=>'P655_PARTY_CODE',p_values=>ci.PartyCode)||'">'||GetPartyName(ci.PartyCode)||'</a>' CUSTOMER,
+                       Round(Sum(d.Quantity1)) QTY,
+                       Round(Sum(d.Amount)/1e5,2) VAL_L,
+                       Round(Sum(d.Amount)/Nullif(Sum(d.Quantity1),0)) AVG_RATE,
+                       Count(Distinct ci.TNo) BILLS
+                  From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo
+                  Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                 Where ci.CCInvoiceDate Between to_date(:P733_FROMDATE,'DD-MM-RRRR') And to_date(:P733_TODATE,'DD-MM-RRRR')
+                   And isp.ItemCategoryCode = :P733_CATEGORY
+                   And (:P733_COMPANY Is Null Or ci.CompanyCode=:P733_COMPANY)
+                   And (:P733_LOCATION Is Null Or ci.LocationCode=:P733_LOCATION)
+                   And (:P733_PANEL Is Null Or ci.Panel=:P733_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or ci.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Group By ci.PartyCode
+                 Order By Sum(d.Amount) Desc
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 41
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p733Customers
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Select a category above to list its customers.
+        }
+        advanced {
+            savedReportMappingIdentifier: 48983570530097972
+        }
+
+        column AVG_RATE (
+            type: plainText
+            heading {
+                heading: Avg Rate
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column BILLS (
+            type: plainText
+            heading {
+                heading: Bills
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column CUSTOMER (
+            type: plainText
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column QTY (
+            type: plainText
+            heading {
+                heading: Qty
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column VAL_L (
+            type: plainText
+            heading {
+                heading: Value (Rs Lakh)
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region cat-kpi (
+        name: Category KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With K As (
+                  Select Round(Sum(d.Quantity1)) Qty, Sum(d.Amount) Val,
+                         Count(Distinct ci.PartyCode) Customers,
+                         Round(Sum(d.Amount)/Nullif(Sum(d.Quantity1),0)) AvgRate
+                    From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo
+                    Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                   Where ci.CCInvoiceDate Between to_date(:P733_FROMDATE,'DD-MM-RRRR') And to_date(:P733_TODATE,'DD-MM-RRRR')
+                     And isp.ItemCategoryCode = :P733_CATEGORY
+                     And (:P733_COMPANY Is Null Or ci.CompanyCode=:P733_COMPANY)
+                     And (:P733_LOCATION Is Null Or ci.LocationCode=:P733_LOCATION)
+                     And (:P733_PANEL Is Null Or ci.Panel=:P733_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or ci.Panel=(Select GetUserPanelAB_apex() From dual)))
+                Select Case x.Seq
+                  When 1 Then q'~<div class="ds-kpi ds-kpi--value"><span class="ds-kpi-ic"><span class="fa fa-cubes"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Quantity Sold</span><span class="ds-kpi-n">~'||to_char(Nvl(K.Qty,0),'FM999G999G990')||q'~</span><span class="ds-kpi-sub">Invoiced qty, last 12 months</span></span></div>~'
+                  When 2 Then q'~<div class="ds-kpi ds-kpi--bill"><span class="ds-kpi-ic"><span class="fa fa-inr"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Invoiced Value</span><span class="ds-kpi-n">~'||to_char(Nvl(K.Val,0)/1e7,'FM999G990D00')||q'~ Cr</span><span class="ds-kpi-sub">CC Invoice value</span></span></div>~'
+                  When 3 Then q'~<div class="ds-kpi ds-kpi--ok"><span class="ds-kpi-ic"><span class="fa fa-users"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Customers</span><span class="ds-kpi-n">~'||to_char(Nvl(K.Customers,0),'FM999G990')||q'~</span><span class="ds-kpi-sub">Distinct parties billed</span></span></div>~'
+                  Else q'~<div class="ds-kpi ds-kpi--input"><span class="ds-kpi-ic"><span class="fa fa-tag"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Avg Rate</span><span class="ds-kpi-n">~'||to_char(Nvl(K.AvgRate,0),'FM999G999G990')||q'~</span><span class="ds-kpi-sub">Weighted, per unit</span></span></div>~'
+                End As CARD
+                From K, (Select Level Seq From dual Connect By Level <= 4) x
+                Order By x.Seq
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-kpiwrap--4up
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Select a category above to see its KPIs.
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region cat-specs (
+        name: Specifications
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Nvl(isp.ItemSpecificationName, d.ItemSpecificationCode) SPEC,
+                       Round(Sum(d.Quantity1)) QTY,
+                       Round(Sum(d.Amount)/1e5,2) VAL_L,
+                       Round(Sum(d.Amount)/Nullif(Sum(d.Quantity1),0)) AVG_RATE,
+                       Count(Distinct ci.PartyCode) CUSTOMERS
+                  From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo
+                  Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                 Where ci.CCInvoiceDate Between to_date(:P733_FROMDATE,'DD-MM-RRRR') And to_date(:P733_TODATE,'DD-MM-RRRR')
+                   And isp.ItemCategoryCode = :P733_CATEGORY
+                   And (:P733_COMPANY Is Null Or ci.CompanyCode=:P733_COMPANY)
+                   And (:P733_LOCATION Is Null Or ci.LocationCode=:P733_LOCATION)
+                   And (:P733_PANEL Is Null Or ci.Panel=:P733_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or ci.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Group By Nvl(isp.ItemSpecificationName, d.ItemSpecificationCode)
+                 Order By Sum(d.Amount) Desc
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 51
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p733Specs
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Select a category above to list its specifications.
+        }
+        advanced {
+            savedReportMappingIdentifier: 48984392753097998
+        }
+
+        column AVG_RATE (
+            type: plainText
+            heading {
+                heading: Avg Rate
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column CUSTOMERS (
+            type: plainText
+            heading {
+                heading: Customers
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column QTY (
+            type: plainText
+            heading {
+                heading: Qty
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SPEC (
+            type: plainText
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VAL_L (
+            type: plainText
+            heading {
+                heading: Value (Rs Lakh)
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region cat-transactions (
+        name: Transactions
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<a href="'||apex_page.get_url(p_page=>657,p_clear_cache=>'657',p_items=>'P657_TNO',p_values=>ci.TNo)||'">'||ci.CCInvoiceNo||'</a>' INV_NO,
+                       ci.CCInvoiceDate INV_DATE,
+                       '<a href="'||apex_page.get_url(p_page=>655,p_clear_cache=>'655',p_items=>'P655_PARTY_CODE',p_values=>ci.PartyCode)||'">'||GetPartyName(ci.PartyCode)||'</a>' CUSTOMER,
+                       Nvl(isp.ItemSpecificationName, d.ItemSpecificationCode) SPEC,
+                       Round(d.Quantity1) QTY,
+                       d.Rate RATE,
+                       Round(d.Amount) AMOUNT,
+                       so.SalesOrderNo ORDER_NO
+                  From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo
+                  Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                  Left Join SalesOrder so On so.TNo=ci.SalesOrderTNo
+                 Where ci.CCInvoiceDate Between to_date(:P733_FROMDATE,'DD-MM-RRRR') And to_date(:P733_TODATE,'DD-MM-RRRR')
+                   And isp.ItemCategoryCode = :P733_CATEGORY
+                   And (:P733_COMPANY Is Null Or ci.CompanyCode=:P733_COMPANY)
+                   And (:P733_LOCATION Is Null Or ci.LocationCode=:P733_LOCATION)
+                   And (:P733_PANEL Is Null Or ci.Panel=:P733_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or ci.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Order By ci.CCInvoiceDate Desc, ci.CCInvoiceNo Desc
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 61
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p733Transactions
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Select a category above to list its invoice lines.
+        }
+        advanced {
+            savedReportMappingIdentifier: 48985173950097999
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CUSTOMER (
+            type: plainText
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column INV_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column INV_NO (
+            type: plainText
+            heading {
+                heading: CC Invoice
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ORDER_NO (
+            type: plainText
+            heading {
+                heading: Sales Order
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column QTY (
+            type: plainText
+            heading {
+                heading: Qty
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: Rate
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column SPEC (
+            type: plainText
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region command-header (
+        name: Category 360
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  '<div class="ds-slc-hero"><div class="ds-slc-hero-row">'
+                  || '<span class="ds-slc-hero-icon"><span class="fa fa-cubes"></span></span>'
+                  || '<span><span class="ds-slc-hero-eyebrow">Product &middot; Category Intelligence</span><br>'
+                  || '<span class="ds-slc-hero-title">Category 360</span>'
+                  || '<div class="ds-slc-hero-sub">Pick a product category to see who it was sold to, its average rate '
+                  || 'and rate trend, the specifications inside it, and every bill and order it produced.</div></span></div>'
+                  || Case When :P733_CATEGORY Is Not Null Then
+                       '<div class="ds-slc-hero-chips"><span class="ds-chip ds-chip--live"><span class="fa fa-cube ds-chip-ic"></span>'
+                       || '<span class="ds-chip-k">Category</span><b>'||apex_escape.html(Nvl((Select ItemCategoryName From ItemCategory Where ItemCategoryCode=:P733_CATEGORY),:P733_CATEGORY))||'</b></span>'
+                       || '<span class="ds-chip"><span class="fa fa-calendar ds-chip-ic"></span><span class="ds-chip-k">Window</span><b>'||apex_escape.html(:P733_FROMDATE)||' &ndash; '||apex_escape.html(:P733_TODATE)||'</b></span></div>'
+                     Else '<div class="ds-slc-hero-chips"><span class="ds-chip"><span class="fa fa-search ds-chip-ic"></span>'
+                       || '<span class="ds-chip-k">Select</span><b>a category to begin</b></span></div>' End
+                  || '</div>' As HEAD
+                From dual
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-slc-headregion
+                ds-360-headregion
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: Header unavailable.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 6
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+            ]
+            cssClasses: ds-filter-panel
+        }
+    )
+
+    region page-style (
+        name: SLC Theme
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <style>
+                body:has(.ds-slc-headregion){
+                  --ds-dash-gold:#0F766E; --ds-dash-gold-bg:#E5F3F1; --ds-dash-ink:#0B3B36; --ds-dash-ink2:#2E5A55;
+                }
+                body:has(.ds-slc-headregion) .ds-kpi--value{--ds-kpi-accent:#0F766E;--ds-kpi-accent-bg:#E5F3F1;}
+                body:has(.ds-slc-headregion) .ds-kpi--bill {--ds-kpi-accent:#0891B2;--ds-kpi-accent-bg:#E2F4F8;}
+                body:has(.ds-slc-headregion) .ds-kpi--ok   {--ds-kpi-accent:#15803D;--ds-kpi-accent-bg:#E6F4EA;}
+                body:has(.ds-slc-headregion) .ds-kpi--input{--ds-kpi-accent:#0E7490;--ds-kpi-accent-bg:#E2F1F6;}
+                body:has(.ds-slc-headregion) .ds-purchase-section::before{background:linear-gradient(180deg,#0891B2,#134E4A);}
+                body:has(.ds-slc-headregion) .ds-kpiwrap--4up{grid-template-columns:repeat(4,minmax(0,1fr));}
+                @media(max-width:900px){body:has(.ds-slc-headregion) .ds-kpiwrap--4up{grid-template-columns:repeat(2,minmax(0,1fr));}}
+                .ds-slc-hero{position:relative;overflow:hidden;padding:22px 24px 18px;border:1px solid #A7D9D3;border-radius:16px;
+                  background:radial-gradient(130% 130% at 92% 8%, rgba(8,145,178,.24) 0%, rgba(8,145,178,0) 48%),
+                    linear-gradient(120deg,#D3EEEA 0%,#DAF1EF 60%,#E9F7F5 100%);box-shadow:0 1px 2px rgba(16,24,40,.05),0 12px 34px rgba(15,118,110,.12);}
+                .ds-slc-hero-row{position:relative;z-index:1;display:flex;align-items:flex-start;gap:15px;}
+                .ds-slc-hero-icon{flex:0 0 auto;display:grid;place-items:center;width:50px;height:50px;border-radius:13px;color:#fff;font-size:20px;
+                  background:linear-gradient(135deg,#0D9488 0%,#0F766E 100%);box-shadow:0 6px 16px rgba(15,118,110,.32);}
+                .ds-slc-hero-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#0F766E;}
+                .ds-slc-hero-title{font-size:24px;font-weight:700;letter-spacing:-.02em;color:#0B3B36;}
+                .ds-slc-hero-sub{margin-top:5px;font-size:13px;line-height:1.5;color:#2E5A55;max-width:64ch;}
+                .ds-slc-hero-chips{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:8px;margin-top:15px;}
+                html.page-733 .t-Body-title.hspl-hero-card, html.page-733 .t-Body-title{display:none !important;}
+                </style>
+                ```
+        }
+        layout {
+            sequence: 1
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rate-trend-chart (
+        name: Average Rate Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select to_char(trunc(ci.CCInvoiceDate,'MM'),'Mon-RR') MONTH_LABEL,
+                       Round(Sum(d.Amount)/Nullif(Sum(d.Quantity1),0)) AVG_RATE,
+                       trunc(ci.CCInvoiceDate,'MM') SORT_KEY
+                  From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo
+                  Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                 Where ci.CCInvoiceDate Between to_date(:P733_FROMDATE,'DD-MM-RRRR') And to_date(:P733_TODATE,'DD-MM-RRRR')
+                   And isp.ItemCategoryCode = :P733_CATEGORY
+                   And (:P733_COMPANY Is Null Or ci.CompanyCode=:P733_COMPANY)
+                   And (:P733_LOCATION Is Null Or ci.LocationCode=:P733_LOCATION)
+                   And (:P733_PANEL Is Null Or ci.Panel=:P733_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or ci.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Group By trunc(ci.CCInvoiceDate,'MM')
+                 Order By trunc(ci.CCInvoiceDate,'MM')
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            column: 1
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 300
+        }
+        settings {
+            timeAxisType: auto
+        }
+        messages {
+            whenNoDataFound: Select a category to plot its rate trend.
+        }
+
+        series rate (
+            name: Avg Rate
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: SORT_KEY
+                value: AVG_RATE
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rate
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region rule-customers (
+        name: Customers Note
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Sold To</h2>
+                  <p>Every customer this category was billed to over the last 12 months &mdash; quantity, value and their own average rate. Click a customer to open its 360.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-specs (
+        name: Specs Note
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Specifications Inside</h2>
+                  <p>Which specifications make up this category &mdash; quantity, value and average rate per specification. Last 12 months.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-transactions (
+        name: Transactions Note
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Bills &amp; Orders</h2>
+                  <p>Every invoice line in this category, newest first &mdash; with links to the CC Invoice / Invoice 360 (bill, e-invoice and receipt) and the sales order behind it.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 60
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-trends (
+        name: Trends Note
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Rate &amp; Value Trend</h2>
+                  <p>How this category has moved month by month &mdash; the weighted average rate on the left, the monthly invoiced value on the right. Last 12 months.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region value-trend-chart (
+        name: Monthly Value
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select to_char(trunc(ci.CCInvoiceDate,'MM'),'Mon-RR') MONTH_LABEL,
+                       Round(Sum(d.Amount)/1e5,2) VAL_L,
+                       trunc(ci.CCInvoiceDate,'MM') SORT_KEY
+                  From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo
+                  Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                 Where ci.CCInvoiceDate Between to_date(:P733_FROMDATE,'DD-MM-RRRR') And to_date(:P733_TODATE,'DD-MM-RRRR')
+                   And isp.ItemCategoryCode = :P733_CATEGORY
+                   And (:P733_COMPANY Is Null Or ci.CompanyCode=:P733_COMPANY)
+                   And (:P733_LOCATION Is Null Or ci.LocationCode=:P733_LOCATION)
+                   And (:P733_PANEL Is Null Or ci.Panel=:P733_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or ci.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Group By trunc(ci.CCInvoiceDate,'MM')
+                 Order By trunc(ci.CCInvoiceDate,'MM')
+                ```
+            pageItemsToSubmit: [
+                P733_CATEGORY
+                P733_FROMDATE
+                P733_TODATE
+                P733_COMPANY
+                P733_LOCATION
+                P733_PANEL
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            column: 7
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 300
+        }
+        settings {
+            timeAxisType: auto
+        }
+        messages {
+            whenNoDataFound: Select a category to plot its value trend.
+        }
+
+        series val (
+            name: Value (Rs Lakh)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: SORT_KEY
+                value: VAL_L
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Rs Lakh
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    pageItem P733_CATEGORY (
+        type: selectList
+        label {
+            label: Category
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select cat.ItemCategoryName d, cat.ItemCategoryCode r
+                  From ItemCategory cat
+                 Where Exists (Select 1 From CCInvoiceDetail dd Join ItemSpecification isp On isp.ItemSpecificationCode=dd.ItemSpecificationCode Where isp.ItemCategoryCode=cat.ItemCategoryCode)
+                 Order By cat.ItemCategoryName
+                ```
+            displayExtraValues: false
+            nullDisplayValue: - Select category -
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Pick a product category, then select Apply to load its full 360.
+        }
+    )
+
+    pageItem P733_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select CompanyName d,CompanyCode r From Company Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 3
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P733_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 1
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(add_months(trunc(sysdate,'MM'),-2),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P733_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d,LocationCode r From Location Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        layout {
+            sequence: 4
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 8
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P733_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 5
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P733_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 2
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply-filters (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 7
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-search
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button reset-filters (
+        buttonName: RESETFILTERS
+        label: Reset
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-undo
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 733
+                clearCache: 733
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

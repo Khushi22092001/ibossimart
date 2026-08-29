@@ -1,0 +1,2398 @@
+page 376 (
+    name: Payloader Performance Summary
+    alias: PAYLOADER-PERFORMANCE-SUMMARY
+    title: Payloader Performance Summary
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/grnregister.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P37_FROMDATE').val());
+              var toDate = new Date($('#P37_TODATE').val());
+            
+              var reportParams = 
+              '&P_COMPANY=' +  $('#P37_COMPANY').val() +
+              '&P_STATUS=' +  $('#P37_STATUS').val() +
+                '&P_FROMDATE='  +  $('#P37_FROMDATE').val() +
+                '&P_TODATE='  +  $('#P37_TODATE').val() +
+                '&P_LOCATION=' +  $('#P37_LOCATION').val() +
+                '&P_ITEMGROUP=' +  $('#P37_ITEMGROUP').val() +
+                '&P_DOCTYPE='+ $('#P37_DOCTYPE').val() +
+                '&P_ITEM=' +  $('#P37_ITEM').val() +
+                '&P_INSPECTIONSTATUS=' +  $('#P37_INSPECTIONSTATUS').val() +
+                '&P_SPECIFICATION=' +  $('#P37_SPECIFICATION').val() +
+                '&P_GRNNO=' + $('#P37_GRNNO').val() +
+                '&P_PARTY=' +  $('#P37_PARTY').val() +
+                '&P_CREATOR=' +  $('#P37_CREATOR').val() +
+                '&P_TRANSPORTER=' + $('#P37_TRANSPORTER').val() 
+                ;
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    css {
+        inline:
+            ```css
+            .my_grid .a-GV-w-hdr{
+                overflow-x: auto !important;
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region payloader-performance-payloader-wise (
+        name: Payloader Performance Payloader Wise
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  'Click here' as PayloaderAverage,
+                  a.CompanyCode,
+                  a.CompanyName,
+                  a.EquipmentTno,
+                  a.EquipmentID,
+                  sum(a.Quantity1) as Quantity,
+                  sum(a.TotalHMR) as TotalHMR,
+                  sum(a.Amount) as Amount,
+                  sum(a.TyreAmount) as TyreAmount,
+                  sum(a.DieselAmount) as DieselAmount,
+                  decode(nvl(sum(a.Amount), 0), 0, 0, 
+                  round((sum(a.DieselAmount) * 100) / sum(a.Amount), 2) 
+                  ) as DieselPercent,
+                  sum(a.SpareAmount) as SpareAmount,
+                  sum(a.DAAmount) as DAAmount,
+                  sum(a.SalaryAmount) as SalaryAmount,
+                  sum(a.BatteryAmount) as BatteryAmount,
+                  sum(a.TripExpensesAmount) as TripExpensesAmount,
+                  sum(a.TollAmount) as TollAmount,
+                  sum(a.EMIAmount) as EMIAmount,
+                  sum(a.OtherAmount) as OtherAmount,
+                  sum(a.ExpenseAmount) as ExpenseAmount,
+                  sum(a.ProfitAndLossAmount) as ProfitAndLossAmount
+                From PayloaderPerformanceTable a
+                Where a.Creator = :APP_USER
+                  and :P376_FROMDATE IS NOT NULL
+                Group By
+                  a.CompanyCode,
+                  a.CompanyName,
+                  a.EquipmentTno,
+                  a.EquipmentID
+                Having nvl(sum(a.Amount), 0) + nvl(sum(a.ExpenseAmount), 0) > 0
+                ```
+        }
+        layout {
+            sequence: 30
+            parentRegion: @tab
+            slot: tabs
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: my_grid
+        }
+        advanced {
+            htmlDomId: vpvw
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 369942295245861149
+        }
+
+        savedReport 441543 (
+            visibility: primary
+            view {
+                default: grid
+                stretchColumns: false
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @PAYLOADERAVERAGE
+                layout {
+                    width: 106
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @EQUIPMENTID
+                layout {
+                    frozen: true
+                    width: 167
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @QUANTITY
+                layout {
+                    width: 109
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @TOTALHMR
+                layout {
+                    width: 113
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @AMOUNT
+                layout {
+                    width: 133
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @EQUIPMENTTNO
+                layout {
+                    show: false
+                    sequence: 21
+                }
+            )
+
+            displayColumn (
+                column: @EXPENSEAMOUNT
+                layout {
+                    width: 144
+                    sequence: 19
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYCODE
+                layout {
+                    show: false
+                    frozen: true
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYNAME
+                layout {
+                    frozen: true
+                    width: 365
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @TYREAMOUNT
+                layout {
+                    width: 141
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @DIESELAMOUNT
+                layout {
+                    width: 158
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @DIESELPERCENT
+                layout {
+                    width: 176
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @SPAREAMOUNT
+                layout {
+                    width: 124
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @DAAMOUNT
+                layout {
+                    show: false
+                    width: 171
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @SALARYAMOUNT
+                layout {
+                    width: 148
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @BATTERYAMOUNT
+                layout {
+                    width: 134
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @TRIPEXPENSESAMOUNT
+                layout {
+                    show: false
+                    width: 166
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @TOLLAMOUNT
+                layout {
+                    show: false
+                    width: 140
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @EMIAMOUNT
+                layout {
+                    width: 157
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @OTHERAMOUNT
+                layout {
+                    width: 160
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @PROFITANDLOSSAMOUNT
+                layout {
+                    width: 202
+                    sequence: 20
+                }
+            )
+
+            filter (
+                type: rowSearch
+                search: 2063
+                advanced {
+                    enabled: false
+                }
+            )
+
+            sort (
+                column: @COMPANYCODE
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            aggregate sum (
+                column: @AMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-10 (
+                column: @TRIPEXPENSESAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-11 (
+                column: @TOLLAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-12 (
+                column: @OTHERAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-13 (
+                column: @EXPENSEAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-14 (
+                column: @PROFITANDLOSSAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-15 (
+                column: @EMIAMOUNT
+            )
+
+            aggregate sum-2 (
+                column: @QUANTITY
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @TOTALHMR
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @TYREAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-5 (
+                column: @DIESELAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-6 (
+                column: @SPAREAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-7 (
+                column: @DAAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-8 (
+                column: @SALARYAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-9 (
+                column: @BATTERYAMOUNT
+                showGrandTotal: true
+            )
+
+        )
+
+        column AMOUNT (
+            type: link
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 380
+                    items: {
+                        P380_COMPANYCODE: &COMPANYCODE.
+                        P380_EQUIPMENTID: &EQUIPMENTTNO.
+                        P380_FROMDATE: &P376_FROMDATE.
+                        P380_TODATE: &P376_TODATE.
+                        P380_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 380
+                }
+                linkText: &AMOUNT.
+            }
+            source {
+                databaseColumn: AMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column BATTERYAMOUNT (
+            type: link
+            heading {
+                heading: Battery Amounts
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 386
+                    items: {
+                        P386_COMPANYCODE: &COMPANYCODE.
+                        P386_FROMDATE: &P376_FROMDATE.
+                        P386_TODATE: &P376_TODATE.
+                        P386_EQUIPMENTID: &EQUIPMENTTNO.
+                        P386_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 386
+                }
+                linkText: &BATTERYAMOUNT.
+            }
+            source {
+                databaseColumn: BATTERYAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column COMPANYCODE (
+            type: textField
+            heading {
+                heading: Companycode
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: COMPANYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column COMPANYNAME (
+            type: textarea
+            heading {
+                heading: Company Name
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: COMPANYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column DAAMOUNT (
+            type: link
+            heading {
+                heading: DA Amounts
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 385
+                    items: {
+                        P385_COMPANYCODE: &COMPANYCODE.
+                        P385_FROMDATE: &P376_FROMDATE.
+                        P385_TODATE: &P376_TODATE.
+                        P385_EQUIPMENTID: &EQUIPMENTTNO.
+                        P385_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 385
+                }
+                linkText: &DAAMOUNT.
+            }
+            source {
+                databaseColumn: DAAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DIESELAMOUNT (
+            type: link
+            heading {
+                heading: Diesel Amounts
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 383
+                    items: {
+                        P383_COMPANYCODE: &COMPANYCODE.
+                        P383_FROMDATE: &P376_FROMDATE.
+                        P383_TODATE: &P376_TODATE.
+                        P383_EQUIPMENTID: &EQUIPMENTTNO.
+                        P383_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 383
+                }
+                linkText: &DIESELAMOUNT.
+            }
+            source {
+                databaseColumn: DIESELAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DIESELPERCENT (
+            type: numberField
+            heading {
+                heading: Diesel Percents
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DIESELPERCENT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EMIAMOUNT (
+            type: link
+            heading {
+                heading: EMI Amounts
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 390
+                    items: {
+                        P390_COMPANYCODE: &COMPANYCODE.
+                        P390_FROMDATE: &P376_FROMDATE.
+                        P390_TODATE: &P376_TODATE.
+                        P390_EQUIPMENTID: &EQUIPMENTTNO.
+                        P390_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 390
+                    action: resetPagination
+                }
+                linkText: &EMIAMOUNT.
+            }
+            source {
+                databaseColumn: EMIAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EQUIPMENTID (
+            type: textarea
+            heading {
+                heading: Equipment ID
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EQUIPMENTID
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column EQUIPMENTTNO (
+            type: numberField
+            heading {
+                heading: Equipmenttno
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: EQUIPMENTTNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EXPENSEAMOUNT (
+            type: link
+            heading {
+                heading: Expense Amount
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 387
+                    items: {
+                        P387_COMPANYCODE: &COMPANYCODE.
+                        P387_FROMDATE: &P376_FROMDATE.
+                        P387_TODATE: &P376_TODATE.
+                        P387_EQUIPMENTID: &EQUIPMENTTNO.
+                        P387_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 387
+                }
+                linkText: &EXPENSEAMOUNT.
+            }
+            source {
+                databaseColumn: EXPENSEAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column OTHERAMOUNT (
+            type: link
+            heading {
+                heading: Others Amount
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 392
+                    items: {
+                        P392_COMPANYCODE: &COMPANYCODE.
+                        P392_FROMDATE: &P376_FROMDATE.
+                        P392_TODATE: &P376_TODATE.
+                        P392_EQUIPMENTID: &EQUIPMENTTNO.
+                        P392_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 392
+                }
+                linkText: &OTHERAMOUNT.
+            }
+            source {
+                databaseColumn: OTHERAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PAYLOADERAVERAGE (
+            type: textField
+            heading {
+                heading: Payloader Avg
+            }
+            layout {
+                sequence: 80
+            }
+            validation {
+                maxLength: 10
+            }
+            link {
+                target: {
+                    page: 403
+                    items: {
+                        P403_COMPANYCODE: &COMPANYCODE.
+                        P403_EQUIPMENTID: &EQUIPMENTTNO.
+                    }
+                    clearCache: 403
+                }
+                linkText: &PAYLOADERAVERAGE.
+            }
+            source {
+                databaseColumn: PAYLOADERAVERAGE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PROFITANDLOSSAMOUNT (
+            type: numberField
+            heading {
+                heading: Profit And Loss Amounts
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: PROFITANDLOSSAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column QUANTITY (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: QUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SALARYAMOUNT (
+            type: textField
+            heading {
+                heading: Salary Amounts
+            }
+            layout {
+                sequence: 130
+            }
+            validation {
+                maxLength: 0
+            }
+            source {
+                databaseColumn: SALARYAMOUNT
+                dataType: number
+            }
+        )
+
+        column SPAREAMOUNT (
+            type: link
+            heading {
+                heading: Spares Amount
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 384
+                    items: {
+                        P384_COMPANYCODE: &COMPANYCODE.
+                        P384_FROMDATE: &P376_FROMDATE.
+                        P384_TODATE: &P376_TODATE.
+                        P384_EQUIPMENTID: &EQUIPMENTTNO.
+                        P384_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 384
+                }
+                linkText: &SPAREAMOUNT.
+            }
+            source {
+                databaseColumn: SPAREAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TOLLAMOUNT (
+            type: link
+            heading {
+                heading: Toll Amounts
+                alignment: end
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 389
+                    items: {
+                        P389_COMPANYCODE: &COMPANYCODE.
+                        P389_FROMDATE: &P376_FROMDATE.
+                        P389_TODATE: &P376_TODATE.
+                        P389_EQUIPMENTID: &EQUIPMENTTNO.
+                        P389_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 389
+                }
+                linkText: &TOLLAMOUNT.
+            }
+            source {
+                databaseColumn: TOLLAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TOTALHMR (
+            type: numberField
+            heading {
+                heading: Tota HMR
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TOTALHMR
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TRIPEXPENSESAMOUNT (
+            type: link
+            heading {
+                heading: Trips  Amount
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 388
+                    items: {
+                        P388_COMPANYCODE: &COMPANYCODE.
+                        P388_FROMDATE: &P376_FROMDATE.
+                        P388_TODATE: &P376_TODATE.
+                        P388_EQUIPMENTID: &EQUIPMENTTNO.
+                        P388_LOCATION: &P376_LOCATION.
+                    }
+                    clearCache: 388
+                }
+                linkText: &TRIPEXPENSESAMOUNT.
+            }
+            source {
+                databaseColumn: TRIPEXPENSESAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TYREAMOUNT (
+            type: link
+            heading {
+                heading: Tyre Amounts
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 382
+                    items: {
+                        P382_COMPANYCODE: &COMPANYCODE.
+                        P382_FROMDATE: &P376_FROMDATE.
+                        P382_TODATE: &P376_TODATE.
+                        P382_EQUIPMENTID: &EQUIPMENTTNO.
+                    }
+                    clearCache: 382
+                }
+                linkText: &TYREAMOUNT.
+            }
+            source {
+                databaseColumn: TYREAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Payloader Performance Payloader Wise
+        }
+    )
+
+    region payloader-performance-report (
+        name: Payloader Performance Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                is-collapsed
+                t-Region--noBorder
+                t-Region--hiddenOverflow
+            ]
+        }
+    )
+
+    region payloader-performance-summary (
+        name: "Payloader Performance Summary "
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  a.CompanyCode,
+                  a.CompanyName,
+                  sum(a.Quantity1) as Quantity,
+                  sum(a.TotalHMR) as TotalHMR,
+                  sum(a.Amount) as Amount,
+                  sum(a.TyreAmount) as TyreAmount,
+                  sum(a.DieselAmount) as DieselAmount,
+                  decode(nvl(sum(a.Amount), 0), 0, 0, 
+                  round((sum(a.DieselAmount) * 100) / sum(a.Amount), 2) 
+                  ) as DieselPercent,
+                  sum(a.SpareAmount) as SpareAmount,
+                  sum(a.DAAmount) as DAAmount,
+                  sum(a.SalaryAmount) as SalaryAmount,
+                  sum(a.BatteryAmount) as BatteryAmount,
+                  sum(a.TripExpensesAmount) as TripExpensesAmount,
+                  sum(a.TollAmount) as TollAmount,
+                  sum(a.EMIAmount) as EMIAmount,
+                  sum(a.OtherAmount) as OtherAmount,
+                  sum(a.ExpenseAmount) as ExpenseAmount,
+                  sum(a.ProfitAndLossAmount) as ProfitAndLossAmount
+                From PayloaderPerformanceTable a
+                Where a.Creator = :APP_USER
+                  and :P376_FROMDATE IS NOT NULL
+                Group By
+                  a.CompanyCode,
+                  a.CompanyName
+                Having nvl(sum(a.Amount), 0) + nvl(sum(a.ExpenseAmount), 0) > 0
+                ```
+        }
+        layout {
+            sequence: 10
+            parentRegion: @tab
+            slot: tabs
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: my_grid
+        }
+        advanced {
+            htmlDomId: payloaderperformance
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 265325499231278117
+        }
+
+        savedReport 441543 (
+            visibility: primary
+            view {
+                default: grid
+                stretchColumns: false
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @QUANTITY
+                layout {
+                    width: 100
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @TOTALHMR
+                layout {
+                    width: 116
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @AMOUNT
+                layout {
+                    width: 120
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYCODE
+                layout {
+                    show: false
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYNAME
+                layout {
+                    width: 304
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @TYREAMOUNT
+                layout {
+                    width: 141
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @DIESELAMOUNT
+                layout {
+                    width: 158
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @DIESELPERCENT
+                layout {
+                    width: 176
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @SPAREAMOUNT
+                layout {
+                    width: 124
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @DAAMOUNT
+                layout {
+                    show: false
+                    width: 171
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @SALARYAMOUNT
+                layout {
+                    width: 148
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @BATTERYAMOUNT
+                layout {
+                    width: 134
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @TRIPEXPENSESAMOUNT
+                layout {
+                    show: false
+                    width: 166
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @TOLLAMOUNT
+                layout {
+                    show: false
+                    width: 140
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @EMIAMOUNT
+                layout {
+                    width: 157
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @OTHERAMOUNT
+                layout {
+                    width: 160
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @PROFITANDLOSSAMOUNT
+                layout {
+                    width: 202
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @EXPENSEAMOUNT
+                layout {
+                    width: 147
+                    sequence: 17
+                }
+            )
+
+            aggregate sum (
+                column: @TYREAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-10 (
+                column: @EMIAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-11 (
+                column: @OTHERAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-12 (
+                column: @PROFITANDLOSSAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-2 (
+                column: @DIESELAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @DIESELPERCENT
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @SPAREAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-5 (
+                column: @DAAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-6 (
+                column: @SALARYAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-7 (
+                column: @BATTERYAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-8 (
+                column: @TRIPEXPENSESAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-9 (
+                column: @TOLLAMOUNT
+                showGrandTotal: true
+            )
+
+        )
+
+        column AMOUNT (
+            type: link
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 380
+                    items: {
+                        P380_COMPANYCODE: &COMPANYCODE.
+                        P380_FROMDATE: &P376_FROMDATE.
+                        P380_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 380
+                }
+                linkText: &AMOUNT.
+            }
+            source {
+                databaseColumn: AMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column BATTERYAMOUNT (
+            type: link
+            heading {
+                heading: Battery Amount
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 386
+                    items: {
+                        P386_COMPANYCODE: &COMPANYCODE.
+                        P386_FROMDATE: &P376_FROMDATE.
+                        P386_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 386
+                }
+                linkText: &BATTERYAMOUNT.
+            }
+            source {
+                databaseColumn: BATTERYAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column COMPANYCODE (
+            type: textField
+            heading {
+                heading: Companycode
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: COMPANYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column COMPANYNAME (
+            type: textarea
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: COMPANYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column DAAMOUNT (
+            type: link
+            heading {
+                heading: DA Amount
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 385
+                    items: {
+                        P385_COMPANYCODE: &COMPANYCODE.
+                        P385_FROMDATE: &P376_FROMDATE.
+                        P385_TODATE: &P376_EQUIPMENTID.
+                    }
+                    clearCache: 385
+                }
+                linkText: &DAAMOUNT.
+            }
+            source {
+                databaseColumn: DAAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DIESELAMOUNT (
+            type: link
+            heading {
+                heading: Diesel Amount
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 383
+                    items: {
+                        P383_COMPANYCODE: &COMPANYCODE.
+                        P383_FROMDATE: &P376_FROMDATE.
+                        P383_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 383
+                }
+                linkText: &DIESELAMOUNT.
+            }
+            source {
+                databaseColumn: DIESELAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DIESELPERCENT (
+            type: numberField
+            heading {
+                heading: Diesel Percent
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DIESELPERCENT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EMIAMOUNT (
+            type: link
+            heading {
+                heading: EMI Amount
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 390
+                    items: {
+                        P390_COMPANYCODE: &COMPANYCODE.
+                        P390_FROMDATE: &P376_FROMDATE.
+                        P390_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 390
+                }
+                linkText: &EMIAMOUNT.
+            }
+            source {
+                databaseColumn: EMIAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EXPENSEAMOUNT (
+            type: link
+            heading {
+                heading: Expense Amount
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 387
+                    items: {
+                        P387_COMPANYCODE: &COMPANYCODE.
+                        P387_FROMDATE: &P376_FROMDATE.
+                        P387_TODATE: &P376_TODATE.
+                        P387_EQUIPMENTID: &P376_EQUIPMENTID.
+                    }
+                    clearCache: 387
+                }
+                linkText: &EXPENSEAMOUNT.
+            }
+            source {
+                databaseColumn: EXPENSEAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column OTHERAMOUNT (
+            type: link
+            heading {
+                heading: Other Amount
+                alignment: end
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 392
+                    items: {
+                        P392_COMPANYCODE: &COMPANYCODE.
+                        P392_FROMDATE: &P376_FROMDATE.
+                        P392_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 392
+                }
+                linkText: &OTHERAMOUNT.
+            }
+            source {
+                databaseColumn: OTHERAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PROFITANDLOSSAMOUNT (
+            type: numberField
+            heading {
+                heading: Profit And Loss Amount
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: PROFITANDLOSSAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column QUANTITY (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: QUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SALARYAMOUNT (
+            type: textField
+            heading {
+                heading: Salary Amount
+            }
+            layout {
+                sequence: 110
+            }
+            validation {
+                maxLength: 0
+            }
+            source {
+                databaseColumn: SALARYAMOUNT
+                dataType: number
+            }
+        )
+
+        column SPAREAMOUNT (
+            type: link
+            heading {
+                heading: Spare Amount
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 384
+                    items: {
+                        P384_COMPANYCODE: &COMPANYCODE.
+                        P384_FROMDATE: &P376_FROMDATE.
+                        P384_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 384
+                }
+                linkText: &SPAREAMOUNT.
+            }
+            source {
+                databaseColumn: SPAREAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TOLLAMOUNT (
+            type: link
+            heading {
+                heading: Toll Amount
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 389
+                    items: {
+                        P389_COMPANYCODE: &COMPANYCODE.
+                        P389_FROMDATE: &P376_FROMDATE.
+                        P389_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 389
+                }
+                linkText: &TOLLAMOUNT.
+            }
+            source {
+                databaseColumn: TOLLAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TOTALHMR (
+            type: numberField
+            heading {
+                heading: Total HMR
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TOTALHMR
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TRIPEXPENSESAMOUNT (
+            type: link
+            heading {
+                heading: Trip  Amount
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 388
+                    items: {
+                        P388_COMPANYCODE: &COMPANYCODE.
+                        P388_FROMDATE: &P376_FROMDATE.
+                        P388_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 388
+                }
+                linkText: &TRIPEXPENSESAMOUNT.
+            }
+            source {
+                databaseColumn: TRIPEXPENSESAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TYREAMOUNT (
+            type: link
+            heading {
+                heading: Tyre Amount
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 382
+                    items: {
+                        P382_COMPANYCODE: &COMPANYCODE.
+                        P382_FROMDATE: &P376_FROMDATE.
+                        P382_TODATE: &P376_TODATE.
+                    }
+                    clearCache: 382
+                }
+                linkText: &TYREAMOUNT.
+            }
+            source {
+                databaseColumn: TYREAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: "Payloader Performance Summary "
+        }
+    )
+
+    region tab (
+        name: Tab
+        type: staticContent
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/tabs-container
+            templateOptions: [
+                #DEFAULT#
+                t-TabsRegion-mod--simple
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P376_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                    b.CompanyName d,
+                    b.CompanyCode R
+                From Company b
+                
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @payloader-performance-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P376_EQUIPMENTID (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment ID
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                a.EquipmentID as d,
+                a.Tno as r
+                From Equipment a
+                Where a.EquipmentGroupCode != 'CT'
+                Order by 1
+                
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @payloader-performance-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P376_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @payloader-performance-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 3
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P376_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                a.LocationName d,
+                a.LocationCode r
+                From Location a
+                Order by 1
+                
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @payloader-performance-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P376_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @payloader-performance-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 3
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @payloader-performance-report
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction createlocation (
+        name: CreateLocation
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: CreatePayloaderPerformanceL(:P376_LOCATION, :APP_USER);
+                itemsToSubmit: P376_LOCATION
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction prepareexpense (
+        name: PrepareExpense
+        execution {
+            sequence: 80
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: PreparePayloaderExpense(:P376_COMPANY, :P376_LOCATION, :P376_EQUIPMENTID, :P376_FROMDATE,:P376_TODATE, :APP_USER);
+                itemsToSubmit: [
+                    P376_COMPANY
+                    P376_FROMDATE
+                    P376_TODATE
+                    P376_EQUIPMENTID
+                    P376_LOCATION
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction preparepayloaderaverage (
+        name: PreparePayloaderAverage
+        execution {
+            sequence: 90
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: PreparePayloaderAverageDetail(:P376_COMPANY, :P376_LOCATION, :P376_EQUIPMENTID, :P376_FROMDATE,:P376_TODATE, :APP_USER);
+                itemsToSubmit: [
+                    P376_COMPANY
+                    P376_FROMDATE
+                    P376_TODATE
+                    P376_EQUIPMENTID
+                    P376_LOCATION
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction preparerecord (
+        name: PrepareRecord
+        execution {
+            sequence: 100
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @refresh
+            }
+            execution {
+                sequence: 50
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: PreparePayloaderPerformance(:P376_COMPANY, :P376_LOCATION, :P376_EQUIPMENTID, :P376_FROMDATE,:P376_TODATE, :APP_USER);
+                itemsToSubmit: [
+                    P376_COMPANY
+                    P376_FROMDATE
+                    P376_TODATE
+                    P376_EQUIPMENTID
+                    P376_LOCATION
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("#apex_wait_overlay").remove();
+                    $(".u-Processing").remove();
+                    ```
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @payloader-performance-summary
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @payloader-performance-payloader-wise
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction show-spinner (
+        name: Show Spinner
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @refresh
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var lSpinner$ = apex.util.showSpinner( $( "#payloaderperformance" ) );
+                    //var spinner = apex.util.showSpinner("", {size:"big",color:"blue"})
+                    
+                    //spinner.remove();
+                    ```
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

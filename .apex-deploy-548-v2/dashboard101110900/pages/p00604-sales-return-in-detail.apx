@@ -1,0 +1,498 @@
+page 604 (
+    name: Sales Return In Detail
+    alias: SALES-RETURN-IN-DETAIL
+    title: Sales Return In Detail
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #abc .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region sales-return-in-report (
+        name: Sales Return In Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                	a.ItemCode,
+                	b.ItemSpecificationCode,
+                	a.ItemName || ' - ' || b.ItemSpecificationName as Item,
+                	x.Panel,
+                    x1.ModuleNo,
+                    x1.ModuleDate,
+                    b.ItemCategoryCode,
+                	x1.SalesReturnInStockQty1
+                From Item a, ItemSpecification b,
+                	(
+                    Select
+                        y.ItemCode,
+                		y.ItemSpecificationCode,
+                		y.Panel
+                    From
+                        (
+                        Select
+                    		b.ItemCode,
+                    		b.ItemSpecificationCode,
+                    		b.Panel
+                    	From GRN a, GRNDetail b
+                    	Where a.Tno = b.Tno
+                            and a.CompanyCode = :P604_COMPANY
+                            and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                    		and a.GRNDate <= :P604_TODATE
+                        UNION ALL
+                        Select
+                    		b.ItemCode,
+                    		b.ItemSpecificationCode,
+                    		b.Panel
+                    	From CCInvoice a, CCInvoiceDetail b
+                    	Where a.Tno = b.Tno
+                            and a.CompanyCode = :P604_COMPANY
+                            and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                    		and a.CCInvoiceDate <= :P604_TODATE
+                        UNION ALL
+                        Select
+                    		b.ItemCode,
+                    		b.ItemSpecificationCode,
+                    		b.Panel
+                    	From StockJournal a, StockJournalDetail b
+                    	Where a.Tno = b.Tno
+                            and a.CompanyCode = :P604_COMPANY
+                            and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                    		and a.StockJournalDate <= :P604_TODATE
+                        UNION ALL
+                        Select
+                    		b.ItemCode,
+                    		b.ItemSpecificationCode,
+                    		b.Panel
+                    	From CashPurchase a, CashPurchaseDetail b
+                    	Where a.Tno = b.Tno
+                            and a.CompanyCode = :P604_COMPANY
+                            and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                    		and a.CashPurchaseDate <= :P604_TODATE
+                        UNION ALL
+                        Select
+                    		a.ItemCode,
+                    		a.ItemSpecificationCode,
+                    		a.Panel
+                    	From ItemOpening a
+                    	Where a.CompanyCode = :P604_COMPANY
+                        and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                    		and a.ItemOpeningDate <= :P604_TODATE
+                        UNION ALL
+                        Select
+                    		b.ItemCode,
+                    		b.ItemSpecificationCode,
+                    		b.Panel
+                    	From Issue a, IssueDetail b
+                    	Where a.Tno = b.Tno
+                            and a.CompanyCode = :P604_COMPANY
+                            and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                    		and a.IssueDate <= :P604_TODATE
+                        ) y
+                	Group by 
+                		y.ItemCode,
+                		y.ItemSpecificationCode,
+                		y.Panel
+                	) x,
+                	(
+                	Select
+                		xx.ItemCode,
+                		xx.ItemSpecificationCode,
+                		xx.Panel,
+                		xx.StockQuantity1 as SalesReturnInStockQty1,
+                        xx.ModuleDate,
+                        xx.ModuleNo
+                	From
+                		(
+                		Select
+                			a.ItemCode,
+                			a.ItemSpecificationCode,
+                			b.Panel,
+                			a.AcceptedQuantity1 as StockQuantity1,
+                            b.InspectionNo as ModuleNo,
+                            b.InspectionDate as ModuleDate
+                		From InspectionDetail a, Inspection b, GRN c
+                		Where a.Tno = b.Tno
+                			and  b.GRNTno = c.Tno
+                			and c.DocTypeCode = 'SALERETURN'
+                			and b.CompanyCode = :P604_COMPANY
+                            and ( :P604_LOCATION IS NULL OR instr(':'||:P604_LOCATION||':',':'||b.LocationCode||':') > 0 ) 
+                			and b.InspectionDate between :P604_FROMDATE and :P604_TODATE
+                		) xx
+                	) x1
+                Where a.Tno = b.Tno
+                	and a.ItemCode = x.ItemCode
+                	and b.ItemSpecificationCode = x.ItemSpecificationCode
+                	
+                	and x.ItemCode = x1.ItemCode(+)
+                	and x.ItemSpecificationCode = x1.ItemSpecificationCode(+)
+                	and x.Panel = x1.Panel(+)
+                    and a.ItemCode = :P604_ITEMCODE
+                    and b.ItemSpecificationCode = :P604_SPECIFICATIONCODE
+                    and b.ItemCategoryCode = :P604_ITEMCATEGORY
+                    and x.Panel = :P604_PANEL
+                ;
+                ```
+            pageItemsToSubmit: [
+                P604_FROMDATE
+                P604_TODATE
+            ]
+        }
+        layout {
+            sequence: 100
+            slot: contentBody
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 188197678515321906
+        }
+
+        column ITEM (
+            type: plainText
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column ITEMCATEGORYCODE (
+            type: plainText
+            heading {
+                heading: Itemcategorycode
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: Item Code
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column MODULEDATE (
+            type: plainText
+            heading {
+                heading: Module Date
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: Module No
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column PANEL (
+            type: plainText
+            heading {
+                heading: Panel
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column SALESRETURNINSTOCKQTY1 (
+            type: plainText
+            heading {
+                heading: Sales Return In Stock Qty
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: NecessitySlip Detail Report
+        }
+
+        savedReport 232721 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn ITEM (
+                sequence: 3
+            )
+
+            displayColumn MODULEDATE (
+                sequence: 2
+            )
+
+            displayColumn MODULENO (
+                sequence: 1
+            )
+
+            displayColumn PANEL (
+                sequence: 4
+            )
+
+            displayColumn SALESRETURNINSTOCKQTY1 (
+                sequence: 5
+            )
+
+            sort (
+                column: DAYDATE
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: NECESSITYSLIPNO
+                sort {
+                    sequence: 3
+                }
+            )
+
+            aggregate (
+                column: QUANTITY
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: INQUANTITY
+            )
+
+            aggregate (
+                column: OUTQUANTITY
+            )
+
+            aggregate (
+                column: OPENINGINSTOCKQTY1
+            )
+
+            aggregate (
+                column: PURCHASEINSTOCKQTY1
+            )
+
+            aggregate (
+                column: PRODUCTIONINSTOCKQTY1
+            )
+
+            aggregate (
+                column: SALESRETURNINSTOCKQTY1
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P604_COMPANY (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_ITEMCATEGORY (
+        type: hidden
+        layout {
+            sequence: 80
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_ITEMCODE (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_LOCATION (
+        type: hidden
+        layout {
+            sequence: 90
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_PANEL (
+        type: hidden
+        layout {
+            sequence: 70
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_SPECIFICATIONCODE (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+    )
+
+    pageItem P604_TODATE (
+        type: hidden
+        layout {
+            sequence: 40
+            slot: contentBody
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

@@ -1,0 +1,1778 @@
+page 139 (
+    name: Credit Note Register
+    alias: CREDIT-NOTE-REGISTER
+    title: Credit Note Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            .my_grid .a-GV-w-hdr{
+                overflow-x: auto !important;
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region credit-note-register (
+        name: Credit Note Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                        Select 
+                        row_number() over(order by a.CreditNoteDate) SerialNo,
+                        a.CreditNoteNo,
+                        a.CreditNoteDate,
+                        a.DocTypeName,
+                        a.Vendor,
+                        a.Reference,
+                        a.ReferenceNo,
+                        a.referencetext,
+                        a.refdate,
+                        a.TransactionTypeName,
+                        a.NatureofSupplyName,
+                        a.PartyInvoiceNo,
+                        a.PartyInvoiceDate,
+                        a.ReasonforIssuingNoteName,
+                        a.ItemName,
+                        a.ItemSpecificationName,
+                        a.JobTypeName,
+                        a.SACName,
+                        a.Quantity1,
+                        a.Rate,
+                        a.Amount,
+                        Sum(a.CGST),
+                        Sum(a.SGST),
+                        Sum(a.IGST),
+                        Sum(a.TCS),
+                        Sum(a.Other),
+                        a.FooterAmount,
+                        a.TotalAmount,
+                        a.LocationName,
+                        a.CompanyName
+                        from (
+                          
+                          Select a.CreditNoteNo,
+                        a.CreditNoteDate,
+                        d.DocTypeName,
+                        e.PartyName as Vendor,
+                        a.referencemodulecode As Reference,
+                        getModuleNo(a.ReferenceModuleCode,a.ReferenceModuleTNo) As ReferenceNo,
+                        a.referencetext,
+                        a.refdate,
+                        f.TransactionTypeName,
+                        g.NatureofSupplyName,
+                        a.PartyDebitNoteNo,
+                        a.PartyDebitNoteDate,
+                        a.PartyInvoiceNo,
+                        a.PartyInvoiceDate,
+                        h.ReasonforIssuingNoteName,
+                        i.ItemName,
+                        ii.ItemSpecificationName,
+                        j.JobTypeName,
+                        k.SACName,
+                        b.Quantity1,
+                        b.Rate,
+                        b.Amount,
+                        nvl(Decode(c.FooterHeadCode, '.CGST.', c.FooterValue),
+                           0) As CGST,
+                        nvl(Decode(c.FooterHeadCode, '.SGST.', c.FooterValue),
+                           0) As SGST,
+                        nvl(Decode(c.FooterHeadCode, '.IGST.', c.FooterValue),
+                           0) As IGST,
+                        nvl(Decode(c.FooterHeadCode, '.TCS.', c.FooterValue),
+                           0) As TCS,
+                        Case when c.FooterHeadCode not in( '.TCS.' ,'.IGST.','.SGST.','.CGST.')
+                           then Nvl(c.FooterValue,0) end as Other,
+                        b.FooterAmount,
+                        b.TotalAmount,
+                        l.LocationName,
+                        m.CompanyName,
+                        b.Sno
+                from CreditNote a, CreditNoteDetail b , CreditNoteDetailFooter c, Doctype d, Party e, TransactionType f, NatureofSupply g ,
+                     ReasonforIssuingNote h, Item i, ItemSpecification ii, JobType j , SAC k , Location l, Company m
+                where a.Tno = b.Tno
+                        and a.Tno = c.Tno(+)
+                        and a.DoctypeCode = d.DoctypeCode(+)
+                        and a.PartyCode = e.PartyCode(+)
+                        and a.TransactionTypeCode = f.TransactionTypeCode(+)
+                        and a.NatureofSupplyCode = g.NatureofSupplyCode(+)
+                        and a.ReasonforIssuingNoteCode = h.ReasonforIssuingNoteCode (+)
+                        and b.ItemCode = i.ItemCode(+)
+                        and b.ItemSpecificationCode = ii.ItemSpecificationCode(+)
+                        and b.JobTypeCode = j.JobTypeCode(+)
+                        and j.SACCODE = k.SACCODE(+)
+                        and a.LocationCode = l.LocationCode(+)
+                        and a.CompanyCode = m.CompanyCode(+)
+                        -- 22-APR-2025
+                        and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                
+                        -- and a.CreditNoteDate between  nvl(to_date(:P139_FROMDATE,'DD-MM-RRRR'),TRUNC(SYSDATE)-3000) 
+                        --           AND NVL(TO_DATE(:P139_TODATE,'DD-MM-RRRR'),TRUNC(SYSDATE))
+                        and a.CreditNoteDate between  :P139_FROMDATE AND :P139_TODATE
+                        and ( :P139_LOCATION IS NULL OR instr(':'||:P139_LOCATION||':',':'||a.LocationCode||':') > 0)
+                         and ( :P139_COMPANY IS NULL OR instr(':'||:P139_COMPANY||':',':'||a.CompanyCode||':') > 0) 
+                         and ( :P139_PARTYNAME IS NULL OR instr(':'||:P139_PARTYNAME||':',':'||a.PartyCode||':') > 0 )  
+                        ) a
+                        Group by
+                        a.CreditNoteNo,
+                        a.CreditNoteDate,
+                        a.DocTypeName,
+                        a.Vendor,
+                        a.Reference,
+                        a.ReferenceNo,
+                        a.referencetext,
+                        a.refdate,
+                        a.TransactionTypeName,
+                        a.NatureofSupplyName,
+                        -- a.PartyCreditNoteNo,
+                        -- a.PartyCreditNoteDate,
+                        a.PartyInvoiceNo,
+                        a.PartyInvoiceDate,
+                        a.ReasonforIssuingNoteName,
+                        a.ItemName,
+                        a.ItemSpecificationName,
+                        a.JobTypeName,
+                        a.SACName,
+                        a.Quantity1,
+                        a.Rate,
+                        a.Amount,
+                        a.FooterAmount,
+                        a.TotalAmount,
+                        a.LocationName,
+                        a.CompanyName
+                
+                
+                
+                
+                        
+                
+                
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: my_grid
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                   
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        //rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                   
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 32523832152853978
+        }
+
+        savedReport 159387 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    width: 97
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @CREDITNOTENO
+                layout {
+                    width: 208
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @CREDITNOTEDATE
+                layout {
+                    width: 199
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @DOCTYPENAME
+                layout {
+                    width: 155
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @VENDOR
+                layout {
+                    width: 259
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @REFERENCE
+                layout {
+                    width: 104
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @REFERENCENO
+                layout {
+                    width: 197
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @REFERENCETEXT
+                layout {
+                    width: 110
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @REFDATE
+                layout {
+                    width: 74
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @TRANSACTIONTYPENAME
+                layout {
+                    width: 130
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @NATUREOFSUPPLYNAME
+                layout {
+                    width: 124
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @PARTYINVOICENO
+                layout {
+                    width: 217
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @PARTYINVOICEDATE
+                layout {
+                    width: 137
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @REASONFORISSUINGNOTENAME
+                layout {
+                    width: 159
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @ITEMNAME
+                layout {
+                    width: 88
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @ITEMSPECIFICATIONNAME
+                layout {
+                    width: 125
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @JOBTYPENAME
+                layout {
+                    width: 76
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @SACNAME
+                layout {
+                    width: 75
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @QUANTITY1
+                layout {
+                    width: 84
+                    sequence: 19
+                }
+            )
+
+            displayColumn (
+                column: @RATE
+                layout {
+                    width: 66
+                    sequence: 20
+                }
+            )
+
+            displayColumn (
+                column: @AMOUNT
+                layout {
+                    width: 80
+                    sequence: 21
+                }
+            )
+
+            displayColumn (
+                column: @"SUM(A.CGST)"
+                layout {
+                    width: 66
+                    sequence: 22
+                }
+            )
+
+            displayColumn (
+                column: @"SUM(A.SGST)"
+                layout {
+                    width: 61
+                    sequence: 23
+                }
+            )
+
+            displayColumn (
+                column: @"SUM(A.IGST)"
+                layout {
+                    width: 61
+                    sequence: 24
+                }
+            )
+
+            displayColumn (
+                column: @"SUM(A.TCS)"
+                layout {
+                    width: 53
+                    sequence: 25
+                }
+            )
+
+            displayColumn (
+                column: @"SUM(A.OTHER)"
+                layout {
+                    width: 53
+                    sequence: 26
+                }
+            )
+
+            displayColumn (
+                column: @FOOTERAMOUNT
+                layout {
+                    width: 105
+                    sequence: 27
+                }
+            )
+
+            displayColumn (
+                column: @TOTALAMOUNT
+                layout {
+                    width: 132
+                    sequence: 28
+                }
+            )
+
+            displayColumn (
+                column: @LOCATIONNAME
+                layout {
+                    width: 135
+                    sequence: 29
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYNAME
+                layout {
+                    width: 250
+                    sequence: 30
+                }
+            )
+
+            sort (
+                column: @SERIALNO
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: @CREDITNOTEDATE
+                sort {
+                    nulls: last
+                    sequence: 2
+                }
+            )
+
+            aggregate count (
+                column: @"SUM(A.OTHER)"
+                function: count
+            )
+
+            aggregate sum (
+                column: @SERIALNO
+                showGrandTotal: true
+            )
+
+            aggregate sum-2 (
+                column: @"SUM(A.TCS)"
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @TOTALAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @"SUM(A.IGST)"
+                showGrandTotal: true
+            )
+
+            aggregate sum-5 (
+                column: @"SUM(A.SGST)"
+                showGrandTotal: true
+            )
+
+            aggregate sum-6 (
+                column: @FOOTERAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-7 (
+                column: @"SUM(A.CGST)"
+                showGrandTotal: true
+            )
+
+            aggregate sum-8 (
+                column: @AMOUNT
+                showGrandTotal: true
+            )
+
+        )
+
+        column AMOUNT (
+            type: numberField
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: AMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column COMPANYNAME (
+            type: textarea
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 310
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: COMPANYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column CREDITNOTEDATE (
+            type: datePicker
+            heading {
+                heading: Credit Note Date
+                alignment: center
+            }
+            layout {
+                sequence: 330
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: CREDITNOTEDATE
+                dataType: date
+            }
+        )
+
+        column CREDITNOTENO (
+            type: textarea
+            heading {
+                heading: CreditNote No
+            }
+            layout {
+                sequence: 320
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: CREDITNOTENO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column DOCTYPENAME (
+            type: textarea
+            heading {
+                heading: Doctype Name
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DOCTYPENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column FOOTERAMOUNT (
+            type: numberField
+            heading {
+                heading: Footer Amount
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: FOOTERAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ITEMNAME (
+            type: textarea
+            heading {
+                heading: Item Name
+            }
+            layout {
+                sequence: 160
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: ITEMNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: textarea
+            heading {
+                heading: Item Specification
+            }
+            layout {
+                sequence: 170
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: ITEMSPECIFICATIONNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column JOBTYPENAME (
+            type: textarea
+            heading {
+                heading: "JobType "
+            }
+            layout {
+                sequence: 180
+            }
+            validation {
+                maxLength: 1000
+            }
+            source {
+                databaseColumn: JOBTYPENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column LOCATIONNAME (
+            type: textarea
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 300
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: LOCATIONNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column NATUREOFSUPPLYNAME (
+            type: textarea
+            heading {
+                heading: Nature of Supply
+            }
+            layout {
+                sequence: 100
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: NATUREOFSUPPLYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYINVOICEDATE (
+            type: datePicker
+            heading {
+                heading: Party Invoice Date
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: PARTYINVOICEDATE
+                dataType: date
+            }
+        )
+
+        column PARTYINVOICENO (
+            type: textField
+            heading {
+                heading: Party Invoice No
+            }
+            layout {
+                sequence: 130
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYINVOICENO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column QUANTITY1 (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: QUANTITY1
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column RATE (
+            type: numberField
+            heading {
+                heading: Rate
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: RATE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column REASONFORISSUINGNOTENAME (
+            type: textarea
+            heading {
+                heading: Reason for Issuing Note
+            }
+            layout {
+                sequence: 150
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: REASONFORISSUINGNOTENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column REFDATE (
+            type: datePicker
+            heading {
+                heading: REF Date
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: REFDATE
+                dataType: date
+            }
+        )
+
+        column REFERENCE (
+            type: textField
+            heading {
+                heading: Reference
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: REFERENCE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column REFERENCENO (
+            type: textarea
+            heading {
+                heading: Reference No
+            }
+            layout {
+                sequence: 60
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: REFERENCENO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column REFERENCETEXT (
+            type: textarea
+            heading {
+                heading: Reference Text
+            }
+            layout {
+                sequence: 70
+            }
+            validation {
+                maxLength: 1000
+            }
+            source {
+                databaseColumn: REFERENCETEXT
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SACNAME (
+            type: textarea
+            heading {
+                heading: HSN/SAC
+            }
+            layout {
+                sequence: 190
+            }
+            validation {
+                maxLength: 500
+            }
+            source {
+                databaseColumn: SACNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 340
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "SUM(A.CGST)" (
+            type: numberField
+            heading {
+                heading: CGST
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SUM(A.CGST)
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "SUM(A.IGST)" (
+            type: numberField
+            heading {
+                heading: IGST
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SUM(A.IGST)
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "SUM(A.OTHER)" (
+            type: numberField
+            heading {
+                heading: Other
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SUM(A.OTHER)
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "SUM(A.SGST)" (
+            type: numberField
+            heading {
+                heading: SGST
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SUM(A.SGST)
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column "SUM(A.TCS)" (
+            type: numberField
+            heading {
+                heading: TCS
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SUM(A.TCS)
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: numberField
+            heading {
+                heading: Total Amount
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TOTALAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TRANSACTIONTYPENAME (
+            type: textarea
+            heading {
+                heading: "Transaction Type "
+            }
+            layout {
+                sequence: 90
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: TRANSACTIONTYPENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column VENDOR (
+            type: textarea
+            heading {
+                heading: Vendor
+            }
+            layout {
+                sequence: 40
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: VENDOR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+    )
+
+    pageItem P139_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'PAYMENTADVICE'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @credit-note-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P139_CRNO (
+        type: popupLov
+        label {
+            label: CR Note No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select CreditNoteNo D,
+                CreditNoteDate R 
+                From CreditNote
+                Order by 1
+                ```
+        }
+        cascadingLov {
+            parentItems: P139_LOCATION
+            itemsToSubmit: P139_CRNO
+        }
+        layout {
+            sequence: 50
+            region: @credit-note-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Credit Note No
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P139_FROMDATE (
+        type: datePickerJquery
+        label {
+            label: From Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 30
+            region: @credit-note-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 45
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P139_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select DISTINCT
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'DEBITNOTE'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                order By 1
+                ;
+                  
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @credit-note-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+    )
+
+    pageItem P139_PARTYNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From CreditNote a, Party p
+                Where a.PartyCode = p.PartyCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @credit-note-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 75
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P139_TODATE (
+        type: datePickerJquery
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 40
+            region: @credit-note-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 45
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 10
+            region: @credit-note-register
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction copy (
+        name: Copy
+        execution {
+            sequence: 10
+        }
+        when {
+            event: custom
+            customEvent: Copy
+            selectionType: jQuerySelector
+            jquerySelector: body
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var text, i, selection, gridSel;
+                    
+                    var event = this.browserEvent.originalEvent; // need the clipboard event
+                    
+                    // we only care about copy from a grid cell ignore the rest
+                    
+                    if ( !$(document.activeElement).hasClass("a-GV-cell") ) {
+                    
+                        return;
+                    
+                    }
+                    
+                    var view = apex.region("REPORT").widget().interactiveGrid("getCurrentView"); // change "emp" to you IG static id
+                    
+                    if ( view.internalIdentifier === "grid") {
+                    
+                        text = "";
+                    
+                        selection = window.getSelection();
+                    
+                        gridSel = view.view$.grid("getSelection");
+                    
+                        for (i = 0; i < gridSel.length; i++) {
+                    
+                            selection.selectAllChildren(gridSel[i][0]);
+                    
+                            text += selection.toString();
+                    
+                            if (gridSel[i].length > 1) {
+                    
+                                selection.selectAllChildren(gridSel[i][1]);
+                    
+                                text += " \t" + selection.toString();
+                    
+                            }
+                    
+                            text += "\r\n";
+                    
+                        }
+                    
+                        selection.removeAllRanges();
+                    
+                        event.clipboardData.setData('text/plain', text);
+                    
+                        event.preventDefault();
+                    
+                    }
+                    
+                    Th
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P139_DBNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P139_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P139_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                
+                begin
+                if :P139_PBPNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P139_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P139_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                
+                begin
+                if :P139_JBPNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P139_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P139_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                
+                
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 11235209022777870
+        }
+    )
+
+)
+

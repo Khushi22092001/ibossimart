@@ -1,0 +1,508 @@
+page 191 (
+    name: TCS Collected
+    alias: TCS-COLLECTED
+    title: TCS Collected
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        width: 1400
+        height: 800
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region tcs-collected (
+        name: TCS COLLECTED
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                       row_number() over(order by a.invoicedate) SerialNo,
+                       a.LocationCode,
+                       a.CompanyCode,
+                       a.PartyCode,
+                       GetPartyName(a.PartyCode) as PartyName,
+                       a.InvoiceNo,
+                       a.invoiceDate,
+                       a.InvoiceAmount,
+                       b.FooterValue as TCSAmount,
+                       b.FooterPercent as TCSPercent,
+                       c.CompanyName,
+                       d.LocationName
+                  From Invoice a, InvoiceDetailFooter b, Company c, Location d
+                  Where Exists (Select 1
+                          From InvoiceDetailFooter xx
+                         Where xx.FooterHeadCode = '.TCS.'
+                           and xx.Tno = a.Tno)
+                  and a.Tno = b.Tno
+                  and b.FooterHeadCode = '.TCS.'
+                  and a.CompanyCode = c.CompanyCode
+                  and a.LocationCode = d.LocationCode(+)
+                  and To_Char(a.InvoiceDate, 'MON-RR')   = :P191_MONTH
+                  and ( :P191_LOCATION IS NULL OR instr(':'||:P191_LOCATION||':',':'||d.LocationCode||':') > 0 )
+                  and ( :P191_PARTY IS NULL OR instr(':'||:P191_PARTY||':',':'||a.PartyCode||':') > 0 )
+                   and :P191_COMPANY = a.CompanyCode
+                  --and ( :P172_PARTY IS NULL OR instr(':'||:P172_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                  and :P191_MONTH is not null
+                
+                /* 07-nov-2024 
+                Select 
+                       row_number() over(order by a.ccinvoicedate) SerialNo,
+                       a.LocationCode,
+                       a.CompanyCode,
+                       a.PartyCode,
+                       GetPartyName(a.PartyCode) as PartyName,
+                       a.CCInvoiceNo,
+                       a.CCinvoiceDate,
+                       a.CCInvoiceAmount,
+                       b.FooterValue as TCSAmount,
+                       b.FooterPercent as TCSPercent,
+                       c.CompanyName,
+                       d.LocationName
+                  From CCInvoice a, CCInvoiceDetailFooter b, Company c, Location d
+                  Where Exists (Select 1
+                          From CCInvoiceDetailFooter xx
+                         Where xx.FooterHeadCode = '.TCS.'
+                           and xx.Tno = a.Tno)
+                  and a.Tno = b.Tno
+                  and b.FooterHeadCode = '.TCS.'
+                  and a.CompanyCode = c.CompanyCode
+                  and a.LocationCode = d.LocationCode(+)
+                  and To_Char(a.CCInvoiceDate, 'MON-RR')   = :P191_MONTH
+                  and ( :P191_LOCATION IS NULL OR instr(':'||:P191_LOCATION||':',':'||d.LocationCode||':') > 0 )
+                  and ( :P191_PARTY IS NULL OR instr(':'||:P191_PARTY||':',':'||a.PartyCode||':') > 0 )
+                   and :P191_COMPANY = a.CompanyCode
+                  --and ( :P172_PARTY IS NULL OR instr(':'||:P172_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                  and :P191_MONTH is not null
+                */
+                ```
+        }
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 103811525624544887
+        }
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EU
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: COMPANY
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FD
+            }
+        )
+
+        column INVOICEAMOUNT (
+            type: plainText
+            heading {
+                heading: Invoiceamount
+                alignment: end
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FH
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: Invoicedate
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: FG
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: Invoiceno
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FF
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DR
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FE
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EV
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EW
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FC
+            }
+        )
+
+        column TCSAMOUNT (
+            type: plainText
+            heading {
+                heading: TCS AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FA
+            }
+        )
+
+        column TCSPERCENT (
+            type: plainText
+            heading {
+                heading: TCS PERCENT
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FB
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: TDS PAYBLE
+        }
+
+        savedReport 192016 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 1000
+            }
+
+            displayColumn COMPANYNAME (
+                sequence: 2
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 3
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 4
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn TCSAMOUNT (
+                sequence: 5
+            )
+
+            displayColumn TCSPERCENT (
+                sequence: 6
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: TDSAMOUNT
+            )
+
+            aggregate (
+                column: BASICAMOUNT
+            )
+
+            aggregate (
+                column: CCINVOICEAMOUNT
+            )
+
+            aggregate (
+                column: TCSAMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P191_COMPANY (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+    )
+
+    pageItem P191_LOCATION (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+    pageItem P191_MONTH (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P191_PARTY (
+        type: hidden
+        layout {
+            sequence: 40
+            slot: contentBody
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Back
+        layout {
+            sequence: 10
+            slot: contentBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 412
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

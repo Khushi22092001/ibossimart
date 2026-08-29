@@ -1,0 +1,367 @@
+page 25 (
+    name: Item Specifiaction
+    alias: ITEM-SPECIFIACTION
+    title: Item Specifiaction
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        chained: false
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration: var htmldb_delete_message='"DELETE_CONFIRM_MSG"';
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+        settings {
+            outputAs: text
+        }
+    )
+
+    region item-specifiaction (
+        name: Item Specifiaction
+        type: form
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select TNO,
+                       SNO,
+                       ITEMSPECIFICATIONCODE,
+                       ITEMSPECIFICATIONNAME
+                  from PBS.ITEMSPECIFICATION
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+    )
+
+    pageItem P25_ITEMSPECIFICATIONCODE (
+        type: hidden
+        layout {
+            sequence: 30
+            region: @item-specifiaction
+            slot: regionBody
+        }
+        source {
+            formRegion: @item-specifiaction
+            column: ITEMSPECIFICATIONCODE
+            dataType: varchar2
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P25_ITEMSPECIFICATIONNAME (
+        type: textarea
+        label {
+            label: SPECIFICATION NAME
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @item-specifiaction
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 60
+            height: 4
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @item-specifiaction
+            column: ITEMSPECIFICATIONNAME
+            dataType: varchar2
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P25_SNO (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @item-specifiaction
+            slot: regionBody
+        }
+        source {
+            formRegion: @item-specifiaction
+            column: SNO
+            dataType: number
+            primaryKey: true
+        }
+        security {
+            sessionStateProtection: checksumRequiredSessionLevel
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P25_TNO (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @item-specifiaction
+            slot: regionBody
+        }
+        source {
+            formRegion: @item-specifiaction
+            column: TNO
+            dataType: number
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 40
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: itemIsNull
+            item: P25_SNO
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: delete
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--simple
+            ]
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:apex.confirm(htmldb_delete_message,'DELETE');
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P25_SNO
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 30
+            region: @buttons
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P25_SNO
+        }
+    )
+
+    dynamicAction cancel-dialog (
+        name: Cancel Dialog
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-dialog-cancel (
+            action: cancelDialog
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process close-dialog (
+        name: Close Dialog
+        type: closeDialog
+        settings {
+            itemsToReturn: [
+                P25_SNO
+                REQUEST
+            ]
+            showSuccessMessages: false
+        }
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 4805652133352768
+        }
+        serverSideCondition {
+            type: requestIsContainedInValue
+            value: CREATE,SAVE,DELETE
+        }
+    )
+
+    process get-itemspecification-code (
+        name: GET ITEMSPECIFICATION CODE
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                Begin
+                    If :P25_ITEMSPECIFICATIONCODE is null then
+                        Select
+                             GlobalTNo.Nextval into :P25_ITEMSPECIFICATIONCODE
+                        From Dual;
+                    End If;
+                End;
+                
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 3814455638109333
+        }
+    )
+
+    process get-sno (
+        name: GET SNO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                Begin
+                    If :P25_SNO is null then
+                        Select
+                             GlobalTNo.Nextval into :P25_SNO
+                        From Dual;
+                    End If;
+                End;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 3814369069109332
+        }
+    )
+
+    process initialize-form-item-specifiaction (
+        name: Initialize form Item Specifiaction
+        type: formInitialization
+        formRegion: @item-specifiaction
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 4804865093352768
+        }
+    )
+
+    process process-form-item-specifiaction (
+        name: Process form Item Specifiaction
+        type: formAutoRowProcessing
+        formRegion: @item-specifiaction
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 4805224259352768
+        }
+    )
+
+)
+

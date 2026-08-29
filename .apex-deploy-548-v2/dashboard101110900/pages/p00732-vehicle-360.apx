@@ -1,0 +1,816 @@
+page 732 (
+    name: Vehicle 360
+    alias: VEHICLE-360
+    title: Vehicle 360
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText:
+            ```html
+            VEHICLE 360 (HSPL). Pick a vehicle number and see its complete sales-movement history:
+            every gate movement (MaterialOut GateInTime/GateOutTime) with the Dispatch Advice, Sales
+            Order, customer and CC Invoice it carried. Links: MaterialOut.ReferenceTNo=DespatchAdvice,
+            DespatchAdvice.SalesOrderTNo, CCInvoice.DespatchAdviceTNo. VehicleNo is free-text on the
+            documents (customer/transporter trucks). READ-ONLY.
+            ```
+    }
+
+    region command-header (
+        name: Vehicle 360
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  '<div class="ds-slc-hero"><div class="ds-slc-hero-row">'
+                  || '<span class="ds-slc-hero-icon"><span class="fa fa-truck"></span></span>'
+                  || '<span><span class="ds-slc-hero-eyebrow">Logistics &middot; Traceability</span><br>'
+                  || '<span class="ds-slc-hero-title">Vehicle 360</span>'
+                  || '<div class="ds-slc-hero-sub">Pick a vehicle and see every trip it made &mdash; gate in and out, '
+                  || 'the dispatch, order, customer and invoice it carried.</div></span></div>'
+                  || Case When :P732_VEHICLE Is Not Null Then
+                       '<div class="ds-slc-hero-chips"><span class="ds-chip ds-chip--live"><span class="fa fa-truck ds-chip-ic"></span>'
+                       || '<span class="ds-chip-k">Vehicle</span><b>'||apex_escape.html(:P732_VEHICLE)||'</b></span></div>'
+                     Else '<div class="ds-slc-hero-chips"><span class="ds-chip"><span class="fa fa-search ds-chip-ic"></span>'
+                       || '<span class="ds-chip-k">Select</span><b>a vehicle to begin</b></span></div>' End
+                  || '</div>' As HEAD
+                From dual
+                ```
+            pageItemsToSubmit: [
+                P732_VEHICLE
+                P732_FROMDATE
+                P732_TODATE
+                P732_COMPANY
+                P732_LOCATION
+                P732_PANEL
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-slc-headregion
+                ds-360-headregion
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: Header unavailable.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 6
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+            ]
+            cssClasses: ds-filter-panel
+        }
+    )
+
+    region page-style (
+        name: SLC Theme
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <style>
+                body:has(.ds-slc-headregion){
+                  --ds-dash-gold:#0F766E; --ds-dash-gold-bg:#E5F3F1; --ds-dash-ink:#0B3B36; --ds-dash-ink2:#2E5A55;
+                }
+                body:has(.ds-slc-headregion) .ds-kpi--value{--ds-kpi-accent:#0F766E;--ds-kpi-accent-bg:#E5F3F1;}
+                body:has(.ds-slc-headregion) .ds-kpi--bill {--ds-kpi-accent:#0891B2;--ds-kpi-accent-bg:#E2F4F8;}
+                body:has(.ds-slc-headregion) .ds-kpi--ok   {--ds-kpi-accent:#15803D;--ds-kpi-accent-bg:#E6F4EA;}
+                body:has(.ds-slc-headregion) .ds-kpi--input{--ds-kpi-accent:#0E7490;--ds-kpi-accent-bg:#E2F1F6;}
+                body:has(.ds-slc-headregion) .ds-purchase-section::before{background:linear-gradient(180deg,#0891B2,#134E4A);}
+                body:has(.ds-slc-headregion) .ds-kpiwrap--4up{grid-template-columns:repeat(4,minmax(0,1fr));}
+                @media(max-width:900px){body:has(.ds-slc-headregion) .ds-kpiwrap--4up{grid-template-columns:repeat(2,minmax(0,1fr));}}
+                .ds-slc-hero{position:relative;overflow:hidden;padding:22px 24px 18px;border:1px solid #A7D9D3;border-radius:16px;
+                  background:radial-gradient(130% 130% at 92% 8%, rgba(8,145,178,.24) 0%, rgba(8,145,178,0) 48%),
+                    linear-gradient(120deg,#D3EEEA 0%,#DAF1EF 60%,#E9F7F5 100%);box-shadow:0 1px 2px rgba(16,24,40,.05),0 12px 34px rgba(15,118,110,.12);}
+                .ds-slc-hero-row{position:relative;z-index:1;display:flex;align-items:flex-start;gap:15px;}
+                .ds-slc-hero-icon{flex:0 0 auto;display:grid;place-items:center;width:50px;height:50px;border-radius:13px;color:#fff;font-size:20px;
+                  background:linear-gradient(135deg,#0D9488 0%,#0F766E 100%);box-shadow:0 6px 16px rgba(15,118,110,.32);}
+                .ds-slc-hero-eyebrow{display:inline-block;margin-bottom:5px;font-size:11px;font-weight:700;line-height:1.25;letter-spacing:.12em;text-transform:uppercase;color:#0F766E;}
+                .ds-slc-hero-title{display:inline-block;margin-bottom:3px;font-size:24px;font-weight:700;line-height:1.2;letter-spacing:-.02em;color:#0B3B36;}
+                .ds-slc-hero-sub{margin-top:7px;font-size:13px;line-height:1.55;color:#2E5A55;max-width:64ch;}
+                .ds-slc-hero-chips{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:8px;margin-top:15px;}
+                html.page-732 .t-Body-title.hspl-hero-card, html.page-732 .t-Body-title{display:none !important;}
+                </style>
+                ```
+        }
+        layout {
+            sequence: 1
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-trips (
+        name: Trips Note
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Trip History</h2>
+                  <p>Every gate movement for this vehicle, newest first &mdash; with the dispatch advice, sales order, customer and CC invoice it carried, and the gate-in / gate-out times.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region trip-history (
+        name: Trip History
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With WeightRank As (
+                  Select w.*,
+                         Row_Number() Over (Partition By nvl(w.DespatchAdviceTNo,nvl(w.ReferenceTNo,w.SalesOrderTNo))
+                                                Order By w.WeighmentDate Desc,w.TNo Desc) rn
+                    From Weighment w)
+                Select mo.MaterialOutNo MOUT_NO,
+                       mo.MaterialOutDate MOUT_DATE,
+                       mo.GateInTime GATE_IN,
+                       mo.GateOutTime GATE_OUT,
+                       da.DespatchAdviceNo DA_NO,
+                       Case When so.TNo Is Not Null Then '<a href="'||apex_page.get_url(p_page=>734,p_clear_cache=>'734',p_items=>'P734_SOTNO',p_values=>so.TNo)||'">'||apex_escape.html(so.SalesOrderNo)||'</a>'
+                            When iut.TNo Is Not Null Then '<span class="ds-pill ds-pill--muted">Inter-unit transfer &middot; '||apex_escape.html(iut.InterunittransferNo)||'</span>' End SO_NO,
+                       '<a href="'||apex_page.get_url(p_page=>655,p_clear_cache=>'655',p_items=>'P655_PARTY_CODE',p_values=>mo.PartyCode)||'">'||GetPartyName(mo.PartyCode)||'</a>' CUSTOMER,
+                       w.WeighmentNo WEIGHMENT_NO,w.FirstWeight FIRST_WEIGHT,w.SecondWeight SECOND_WEIGHT,w.NetWeight NET_WEIGHT,
+                       Case When ci.TNo Is Not Null Then '<a href="'||apex_page.get_url(p_page=>657,p_clear_cache=>'657',p_items=>'P657_TNO',p_values=>ci.TNo)||'">'||ci.CCInvoiceNo||'</a>' End INV_NO
+                  From MaterialOut mo
+                  Left Join DespatchAdvice da On da.TNo = mo.ReferenceTNo
+                  Left Join SalesOrder so On so.TNo = da.SalesOrderTNo
+                  Left Join Interunittransfer iut On iut.TNo=da.ReferenceTNo
+                  Left Join WeightRank w On w.rn=1 And (w.DespatchAdviceTNo=da.TNo Or w.ReferenceTNo=da.TNo Or w.SalesOrderTNo=so.TNo)
+                  Left Join CCInvoice ci On ci.DespatchAdviceTNo = da.TNo
+                 Where mo.VehicleNo = :P732_VEHICLE
+                   And mo.MaterialOutDate Between to_date(:P732_FROMDATE,'DD-MM-RRRR') And to_date(:P732_TODATE,'DD-MM-RRRR')
+                   And (:P732_COMPANY Is Null Or mo.CompanyCode=:P732_COMPANY)
+                   And (:P732_LOCATION Is Null Or mo.LocationCode=:P732_LOCATION)
+                   And (:P732_PANEL Is Null Or mo.Panel=:P732_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or mo.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Order By mo.GateInTime Desc Nulls Last
+                ```
+            pageItemsToSubmit: [
+                P732_VEHICLE
+                P732_FROMDATE
+                P732_TODATE
+                P732_COMPANY
+                P732_LOCATION
+                P732_PANEL
+            ]
+        }
+        layout {
+            sequence: 21
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p732Trips
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Select a vehicle above to list its trips.
+        }
+        advanced {
+            savedReportMappingIdentifier: 48728677327727546
+        }
+
+        column CUSTOMER (
+            type: plainText
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column DA_NO (
+            type: plainText
+            heading {
+                heading: Dispatch Advice
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column FIRST_WEIGHT (
+            type: plainText
+            heading {
+                heading: First Weight
+            }
+            layout {
+                sequence: 74
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column GATE_IN (
+            type: plainText
+            heading {
+                heading: Gate In
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column GATE_OUT (
+            type: plainText
+            heading {
+                heading: Gate Out
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column INV_NO (
+            type: plainText
+            heading {
+                heading: CC Invoice
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column MOUT_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column MOUT_NO (
+            type: plainText
+            heading {
+                heading: Gate Doc
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column NET_WEIGHT (
+            type: plainText
+            heading {
+                heading: Net Weight
+            }
+            layout {
+                sequence: 78
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column SECOND_WEIGHT (
+            type: plainText
+            heading {
+                heading: Second Weight
+            }
+            layout {
+                sequence: 76
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column SO_NO (
+            type: plainText
+            heading {
+                heading: Sales Order
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column WEIGHMENT_NO (
+            type: plainText
+            heading {
+                heading: Weighment
+            }
+            layout {
+                sequence: 72
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region vehicle-kpi (
+        name: Vehicle KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With K As (
+                  Select Count(*) Trips, Count(Distinct mo.PartyCode) Customers,
+                         Round(Avg(Case When mo.GateOutTime > mo.GateInTime And (mo.GateOutTime-mo.GateInTime)*24 < 72 Then (mo.GateOutTime-mo.GateInTime)*24 End),1) AvgHrs,
+                         Max(mo.GateInTime) LastTrip
+                    From MaterialOut mo
+                   Where mo.VehicleNo = :P732_VEHICLE
+                     And mo.MaterialOutDate Between to_date(:P732_FROMDATE,'DD-MM-RRRR') And to_date(:P732_TODATE,'DD-MM-RRRR')
+                     And (:P732_COMPANY Is Null Or mo.CompanyCode=:P732_COMPANY)
+                     And (:P732_LOCATION Is Null Or mo.LocationCode=:P732_LOCATION)
+                     And (:P732_PANEL Is Null Or mo.Panel=:P732_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or mo.Panel=(Select GetUserPanelAB_apex() From dual)))
+                Select Case x.Seq
+                  When 1 Then q'~<div class="ds-kpi ds-kpi--value"><span class="ds-kpi-ic"><span class="fa fa-refresh"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Total Trips</span><span class="ds-kpi-n">~'||to_char(K.Trips,'FM999G990')||q'~</span><span class="ds-kpi-sub">Gate movements on record</span></span></div>~'
+                  When 2 Then q'~<div class="ds-kpi ds-kpi--bill"><span class="ds-kpi-ic"><span class="fa fa-users"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Customers Served</span><span class="ds-kpi-n">~'||to_char(K.Customers,'FM999G990')||q'~</span><span class="ds-kpi-sub">Distinct parties carried</span></span></div>~'
+                  When 3 Then q'~<div class="ds-kpi ds-kpi--ok"><span class="ds-kpi-ic"><span class="fa fa-clock-o"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Avg Dwell</span><span class="ds-kpi-n">~'||to_char(Nvl(K.AvgHrs,0),'FM990D0')||q'~ h</span><span class="ds-kpi-sub">Gate-in to gate-out (clean trips)</span></span></div>~'
+                  Else q'~<div class="ds-kpi ds-kpi--input"><span class="ds-kpi-ic"><span class="fa fa-calendar"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Last Trip</span><span class="ds-kpi-n" style="font-size:16px">~'||nvl(to_char(K.LastTrip,'DD-Mon-RR'),'&ndash;')||q'~</span><span class="ds-kpi-sub">Most recent gate-in</span></span></div>~'
+                End As CARD
+                From K, (Select Level Seq From dual Connect By Level <= 4) x
+                Order By x.Seq
+                ```
+            pageItemsToSubmit: [
+                P732_VEHICLE
+                P732_FROMDATE
+                P732_TODATE
+                P732_COMPANY
+                P732_LOCATION
+                P732_PANEL
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-kpiwrap--4up
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Select a vehicle above to see its history.
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    pageItem P732_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select CompanyName d,CompanyCode r From Company Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 3
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P732_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 1
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(add_months(trunc(sysdate,'MM'),-2),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P732_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d,LocationCode r From Location Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        layout {
+            sequence: 4
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 8
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P732_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 5
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P732_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 2
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P732_VEHICLE (
+        type: popupLov
+        label {
+            label: Vehicle No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select VehicleNo d, VehicleNo r From (
+                  Select Distinct mo.VehicleNo
+                    From MaterialOut mo
+                   Where mo.VehicleNo Is Not Null
+                     And mo.MaterialOutDate Between to_date(:P732_FROMDATE,'DD-MM-RRRR') And to_date(:P732_TODATE,'DD-MM-RRRR')
+                     And (:P732_COMPANY Is Null Or mo.CompanyCode=:P732_COMPANY)
+                     And (:P732_LOCATION Is Null Or mo.LocationCode=:P732_LOCATION)
+                     And (:P732_PANEL Is Null Or mo.Panel=:P732_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or mo.Panel=(Select GetUserPanelAB_apex() From dual)))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: - Select vehicle -
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Type or pick a vehicle number, then select Apply to load its full trip history.
+        }
+    )
+
+    button apply-filters (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 7
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-search
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button reset-filters (
+        buttonName: RESETFILTERS
+        label: Reset
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-undo
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 732
+                clearCache: 732
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

@@ -1,0 +1,1606 @@
+page 541 (
+    name: "TDS Payable Detail "
+    alias: TDS-PAYABLE-DETAIL
+    title: "TDS Payable Detail "
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                    row_number() over(order by B.VOUCHERDATE) SerialNo,
+                    CO.COMPANYNAME,
+                    B.LOCATIONCODE,
+                    B.DOCTYPECODE,
+                    B.MODULECODE,
+                    A.PARTYCODE,
+                    B.VOUCHERNO,
+                    B.VOUCHERDATE,
+                    NULL AS ITEMNATUREONWHICHTDSDEDECTABLE,
+                    A.TDSPAYEECATEGORYCODE,
+                    NULL AS TDSDEDUCTABLERATE,
+                    F.TAXSECTIONCODE,
+                    GETPARTYNAME(A.PARTYCODE) AS PARTY,
+                    A.PANNO,
+                    DECODE(H.ISCOMPANY, 'YES', 'COMPANY', NULL) ISCOMPANY,
+                    F.TDSNATURENAME,
+                    ROUND(A.TDSDEDUCTEDON,2) AS BASICAMOUNT,
+                    A.TDSPERCENT,
+                    A.TDSAMOUNT,
+                    A.CESSPERCENT,
+                    A.CESSAMOUNT,
+                    A.SURCHARGEPERCENT,
+                    A.SURCHARGEAMOUNT,
+                    CHLN.CHALLANNO AS CHALLANNO,
+                    CHLN.CHALLANDATE AS CHALLANDATE,
+                    CHLN.BSRCODE AS CHALLANBSRCODE,
+                    CHLN.CHALLANAMOUNT AS CHALLANAMOUNT,
+                    CASE
+                      WHEN C.JBPASSNO IS NOT NULL THEN
+                       'JBPASS' END TRANSACTIONMODULE,
+                    CASE
+                      WHEN C.JBPASSNO IS NOT NULL THEN
+                       C.JBPASSNO END TRANSACTIONNO,
+                    CASE
+                      WHEN C.JBPASSNO IS NOT NULL THEN
+                       C.JBPASSDATE END TRANSACTIONDATE,
+                    CASE
+                      WHEN C.JOBBILLTNO IS NOT NULL THEN
+                       C1.PARTYBILLNO END PARTYBILLNO,
+                        CASE
+                      WHEN C.JOBBILLTNO IS NOT NULL THEN
+                       C1.PARTYBILLDATE END PARTYBILLDATE,
+                    C.JBPASSNO AS MODULENO
+                  FROM VOUCHERTDSDEDUCTED    A,
+                       VOUCHER               B,
+                       VOUCHER               CC,
+                       JBPASS                C,
+                       JOBBILL               C1,
+                       TDSNATURE             F,
+                       TDSTAXCATEGORY        G,
+                       PARTY                 H,
+                       COMPANY               CO,
+                       (SELECT A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          FROM CHALLAN                  A,
+                               TDSCHALLAN               C,
+                               TDSCHALLANDEDUCTEEDETAIL D,
+                               BANK                     E
+                         WHERE  A.DOCTYPECODE = 'TDSCHALLAN'
+                           AND A.MODULETNO = C.TNO
+                           AND C.TNO = D.TNO
+                           AND A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           AND A.DEPOSITEDINBANKCODE = E.BANKCODE
+                       ) CHLN,
+                       (
+                          Select
+                                a.Tno
+                         From Voucher a
+                         Where exists(
+                                     Select
+                                        aa.Tno
+                                     From VoucherDetail aa, TDSNature bb
+                                     Where aa.AccountCode = bb.TDSAccountCode
+                                       and aa.Tno = a.Tno
+                                     )) x
+                 WHERE A.TNO = B.TNO(+)
+                 AND B.MODULETNO = CC.TNO
+                   AND CC.MODULETNO = C.TNO
+                   AND C.JOBBILLTNO = C1.TNO
+                   AND A.TDSNATURECODE = F.TDSNATURECODE(+)
+                   AND A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                   AND A.PARTYCODE = H.PARTYCODE(+)
+                   AND B.COMPANYCODE = CO.COMPANYCODE(+)
+                   AND B.MODULETNO = CHLN.MODULETNO(+)
+                   AND A.TNO = X.TNO
+                      and ( :P541_COMPANY IS NULL OR instr(':'||:P541_COMPANY||':',':'||CO.CompanyCode||':') > 0 )
+                 --  And TO_DATE(TO_CHAR(b.VoucherDate,'DD-MM-RRRR')) between LAST_DAY(TO_DATE('01-' || NVL(:P541_FROMDATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))) and TO_DATE('01-' || NVL(:P541_TODATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))
+                 --  and B.ModuleCode like nvl(:P541_MODULECODE,'%')
+                 --  and TO_CHAR(b.VoucherDate,'MON-RR') = TO_CHAR(:P541_MONTH,'MON-RR')
+                 --  and To_Char(b.VoucherDate, 'MON-RR')   = :P541_MONTH
+                   and TO_CHAR(TO_DATE(b.VoucherDate),('MON-RRRR')) = :P541_MONTH
+                   --and b.voucherdate between :P541_FROMDATE AND :P541_TODATE
+                   and ( :P541_SECTION IS NULL OR instr(':'||:P541_SECTION||':',':'||F.TAXSECTIONCODE||':') > 0 )
+                  -- and ( :P541_TDSNATURE IS NULL OR instr(':'||:P541_TDSNATURE||':',':'||F.TDSNATURECODE||':') > 0 )
+                   and ( :P541_PARTY IS NULL OR instr(':'||:P541_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                   and :P541_MONTH is not null
+                   
+                   UNION ALL
+                   
+                   SELECT 
+                    row_number() over(order by B.VOUCHERDATE) SerialNo,
+                    CO.COMPANYNAME,
+                    B.LOCATIONCODE,
+                    B.DOCTYPECODE,
+                    B.MODULECODE,
+                    A.PARTYCODE,
+                    B.VOUCHERNO,
+                    B.VOUCHERDATE,
+                    NULL AS ITEMNATUREONWHICHTDSDEDECTABLE,
+                    A.TDSPAYEECATEGORYCODE,
+                    NULL AS TDSDEDUCTABLERATE,
+                    F.TAXSECTIONCODE,
+                    GETPARTYNAME(A.PARTYCODE) AS PARTY,
+                    A.PANNO,
+                    DECODE(H.ISCOMPANY, 'YES', 'COMPANY', NULL) ISCOMPANY,
+                    F.TDSNATURENAME,
+                    ROUND(A.TDSDEDUCTEDON,2) AS BASICAMOUNT,
+                    A.TDSPERCENT,
+                    A.TDSAMOUNT,
+                    A.CESSPERCENT,
+                    A.CESSAMOUNT,
+                    A.SURCHARGEPERCENT,
+                    A.SURCHARGEAMOUNT,
+                    CHLN.CHALLANNO AS CHALLANNO,
+                    CHLN.CHALLANDATE AS CHALLANDATE,
+                    CHLN.BSRCODE AS CHALLANBSRCODE,
+                    CHLN.CHALLANAMOUNT AS CHALLANAMOUNT,
+                    CASE
+                      WHEN C2.PBPASSNO IS NOT NULL THEN
+                       'PBPASS'
+                    END TRANSACTIONMODULE,
+                    CASE
+                       WHEN C2.PBPASSNO IS NOT NULL THEN
+                       C2.PBPASSNO
+                    END TRANSACTIONNO,
+                    CASE
+                      WHEN C2.PBPASSNO IS NOT NULL THEN
+                       C2.PBPASSDATE
+                    END TRANSACTIONDATE,
+                    CASE
+                      WHEN C2.PURCHASEBILLTNO IS NOT NULL THEN
+                       C3.PARTYBILLNO
+                    END PARTYBILLNO,
+                        CASE
+                      WHEN C2.PURCHASEBILLTNO IS NOT NULL THEN
+                       C3.PARTYBILLDATE END PARTYBILLDATE,
+                    C2.PBPASSNO AS MODULENO
+                  FROM VOUCHERTDSDEDUCTED    A,
+                       VOUCHER               B,
+                       VOUCHER               CC,
+                       PBPASS                C2,
+                       PURCHASEBILL          C3,
+                       TDSNATURE             F,
+                       TDSTAXCATEGORY        G,
+                       PARTY                 H,
+                       COMPANY               CO,
+                       (SELECT A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          FROM CHALLAN                  A,
+                               TDSCHALLAN               C,
+                               TDSCHALLANDEDUCTEEDETAIL D,
+                               BANK                     E
+                         WHERE  A.DOCTYPECODE = 'TDSCHALLAN'
+                           AND A.MODULETNO = C.TNO
+                           AND C.TNO = D.TNO
+                           AND A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           AND A.DEPOSITEDINBANKCODE = E.BANKCODE
+                       ) CHLN,
+                       (
+                          Select
+                                a.Tno
+                         From Voucher a
+                         Where exists(
+                                     Select
+                                        aa.Tno
+                                     From VoucherDetail aa, TDSNature bb
+                                     Where aa.AccountCode = bb.TDSAccountCode
+                                       and aa.Tno = a.Tno
+                                     )) x
+                 WHERE A.TNO = B.TNO(+)
+                 AND B.MODULETNO = CC.TNO
+                    AND CC.MODULETNO = C2.TNO
+                    AND C2.PURCHASEBILLTNO = C3.TNO
+                   AND A.TDSNATURECODE = F.TDSNATURECODE(+)
+                   AND A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                   AND A.PARTYCODE = H.PARTYCODE(+)
+                   AND B.COMPANYCODE = CO.COMPANYCODE(+)
+                   AND B.MODULETNO = CHLN.MODULETNO(+)
+                   AND A.TNO = X.TNO
+                      and ( :P541_COMPANY IS NULL OR instr(':'||:P541_COMPANY||':',':'||CO.CompanyCode||':') > 0 )
+                 --  And TO_DATE(TO_CHAR(b.VoucherDate,'DD-MM-RRRR')) between LAST_DAY(TO_DATE('01-' || NVL(:P541_FROMDATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))) and TO_DATE('01-' || NVL(:P541_TODATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))
+                 --  and B.ModuleCode like nvl(:P541_MODULECODE,'%')
+                 --  and TO_CHAR(b.VoucherDate,'MON-RR') = TO_CHAR(:P541_MONTH,'MON-RR')
+                 --  and To_Char(b.VoucherDate, 'MON-RR')   = :P541_MONTH
+                   and TO_CHAR(TO_DATE(b.VoucherDate),('MON-RRRR')) = :P541_MONTH
+                   --and b.voucherdate between :P541_FROMDATE AND :P541_TODATE
+                   and ( :P541_SECTION IS NULL OR instr(':'||:P541_SECTION||':',':'||F.TAXSECTIONCODE||':') > 0 )
+                  -- and ( :P541_TDSNATURE IS NULL OR instr(':'||:P541_TDSNATURE||':',':'||F.TDSNATURECODE||':') > 0 )
+                   and ( :P541_PARTY IS NULL OR instr(':'||:P541_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                   and :P541_MONTH is not null
+                   
+                   UNION ALL
+                   
+                   SELECT 
+                    row_number() over(order by B.VOUCHERDATE) SerialNo,
+                    CO.COMPANYNAME,
+                    B.LOCATIONCODE,
+                    B.DOCTYPECODE,
+                    B.MODULECODE,
+                    A.PARTYCODE,
+                    B.VOUCHERNO,
+                    B.VOUCHERDATE,
+                    NULL AS ITEMNATUREONWHICHTDSDEDECTABLE,
+                    A.TDSPAYEECATEGORYCODE,
+                    NULL AS TDSDEDUCTABLERATE,
+                    F.TAXSECTIONCODE,
+                    GETPARTYNAME(A.PARTYCODE) AS PARTY,
+                    A.PANNO,
+                    DECODE(H.ISCOMPANY, 'YES', 'COMPANY', NULL) ISCOMPANY,
+                    F.TDSNATURENAME,
+                    ROUND(A.TDSDEDUCTEDON,2) AS BASICAMOUNT,
+                    A.TDSPERCENT,
+                    A.TDSAMOUNT,
+                    A.CESSPERCENT,
+                    A.CESSAMOUNT,
+                    A.SURCHARGEPERCENT,
+                    A.SURCHARGEAMOUNT,
+                    CHLN.CHALLANNO AS CHALLANNO,
+                    CHLN.CHALLANDATE AS CHALLANDATE,
+                    CHLN.BSRCODE AS CHALLANBSRCODE,
+                    CHLN.CHALLANAMOUNT AS CHALLANAMOUNT,
+                    CASE 
+                      WHEN C4.FREIGHTADVICENO IS NOT NULL THEN
+                       'FREIGHT ADVICE'
+                    END TRANSACTIONMODULE,
+                    CASE
+                      WHEN C4.FREIGHTADVICENO IS NOT NULL THEN
+                       C4.FREIGHTADVICENO
+                    END TRANSACTIONNO,
+                    CASE
+                      WHEN C4.FREIGHTADVICENO IS NOT NULL THEN
+                       C4.FREIGHTADVICEDATE
+                    END TRANSACTIONDATE,
+                    CASE
+                      WHEN CC.MODULETNO IS NOT NULL THEN
+                       C4.PARTYBILLNO END PARTYBILLNO,
+                   CASE
+                     WHEN CC.MODULETNO IS NOT NULL THEN
+                       C4.PARTYBILLDATE END PARTYBILLDATE,
+                    C4.FREIGHTADVICENO AS MODULENO
+                  FROM VOUCHERTDSDEDUCTED    A,
+                       VOUCHER               B,
+                       VOUCHER               CC,
+                       FREIGHTADVICE         C4,
+                       TDSNATURE             F,
+                       TDSTAXCATEGORY        G,
+                       PARTY                 H,
+                       COMPANY               CO,
+                       (SELECT A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          FROM CHALLAN                  A,
+                               TDSCHALLAN               C,
+                               TDSCHALLANDEDUCTEEDETAIL D,
+                               BANK                     E
+                         WHERE  A.DOCTYPECODE = 'TDSCHALLAN'
+                           AND A.MODULETNO = C.TNO
+                           AND C.TNO = D.TNO
+                           AND A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           AND A.DEPOSITEDINBANKCODE = E.BANKCODE
+                       ) CHLN,
+                       (
+                          Select
+                                a.Tno
+                         From Voucher a
+                         Where exists(
+                                     Select
+                                        aa.Tno
+                                     From VoucherDetail aa, TDSNature bb
+                                     Where aa.AccountCode = bb.TDSAccountCode
+                                       and aa.Tno = a.Tno
+                                     )) x
+                 WHERE A.TNO = B.TNO(+)
+                    AND B.MODULETNO = CC.TNO
+                    AND CC.MODULETNO = C4.TNO
+                    AND A.TDSNATURECODE = F.TDSNATURECODE(+)
+                    AND A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                    AND A.PARTYCODE = H.PARTYCODE(+)
+                    AND B.COMPANYCODE = CO.COMPANYCODE(+)
+                    AND B.MODULETNO = CHLN.MODULETNO(+)
+                    AND A.TNO = X.TNO
+                       and ( :P541_COMPANY IS NULL OR instr(':'||:P541_COMPANY||':',':'||CO.CompanyCode||':') > 0 )
+                 --  And TO_DATE(TO_CHAR(b.VoucherDate,'DD-MM-RRRR')) between LAST_DAY(TO_DATE('01-' || NVL(:P541_FROMDATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))) and TO_DATE('01-' || NVL(:P541_TODATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))
+                 --  and B.ModuleCode like nvl(:P541_MODULECODE,'%')
+                 --  and TO_CHAR(b.VoucherDate,'MON-RR') = TO_CHAR(:P541_MONTH,'MON-RR')
+                 --  and To_Char(b.VoucherDate, 'MON-RR')   = :P541_MONTH
+                   and TO_CHAR(TO_DATE(b.VoucherDate),('MON-RRRR')) = :P541_MONTH
+                   --and b.voucherdate between :P541_FROMDATE AND :P541_TODATE
+                   and ( :P541_SECTION IS NULL OR instr(':'||:P541_SECTION||':',':'||F.TAXSECTIONCODE||':') > 0 )
+                  -- and ( :P541_TDSNATURE IS NULL OR instr(':'||:P541_TDSNATURE||':',':'||F.TDSNATURECODE||':') > 0 )
+                   and ( :P541_PARTY IS NULL OR instr(':'||:P541_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                   and :P541_MONTH is not null
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                    row_number() over(order by B.VOUCHERDATE) SerialNo,
+                    CO.COMPANYNAME,
+                    B.LOCATIONCODE,
+                    B.DOCTYPECODE,
+                    B.MODULECODE,
+                    A.PARTYCODE,
+                    B.VOUCHERNO,
+                    B.VOUCHERDATE,
+                    NULL AS ITEMNATUREONWHICHTDSDEDECTABLE,
+                    A.TDSPAYEECATEGORYCODE,
+                    NULL AS TDSDEDUCTABLERATE,
+                    F.TAXSECTIONCODE,
+                    GETPARTYNAME(A.PARTYCODE) AS PARTY,
+                    A.PANNO,
+                    DECODE(H.ISCOMPANY, 'YES', 'COMPANY', NULL) ISCOMPANY,
+                    F.TDSNATURENAME,
+                    ROUND(A.TDSDEDUCTEDON,2) AS BASICAMOUNT,
+                    A.TDSPERCENT,
+                    A.TDSAMOUNT,
+                    A.CESSPERCENT,
+                    A.CESSAMOUNT,
+                    A.SURCHARGEPERCENT,
+                    A.SURCHARGEAMOUNT,
+                    CHLN.CHALLANNO AS CHALLANNO,
+                    CHLN.CHALLANDATE AS CHALLANDATE,
+                    CHLN.BSRCODE AS CHALLANBSRCODE,
+                    CHLN.CHALLANAMOUNT AS CHALLANAMOUNT,
+                    CASE
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       'PAYMENT ADVICE'
+                    END TRANSACTIONMODULE,
+                    CASE
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       E.PAYMENTADVICENO
+                    END TRANSACTIONNO,
+                    CASE
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       E.PAYMENTADVICEDATE
+                    END TRANSACTIONDATE,
+                    CASE
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       GETMODULENO(E1.REFERENCEMODULECODE,E1.REFERENCEMODULETNO)
+                    END PARTYBILLNO,
+                     CASE WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       GETMODULEDATE(E1.REFERENCEMODULECODE,E1.REFERENCEMODULETNO)
+                    END PARTYBILLDATE,
+                    E.PAYMENTADVICENO AS MODULENO
+                  FROM VOUCHERTDSDEDUCTED    A,
+                       VOUCHER               B,
+                       VOUCHER               B1,
+                       PAYMENTADVICE         E,
+                       PAYMENTADVICEREFERENCE E1,
+                       TDSNATURE             F,
+                       TDSTAXCATEGORY        G,
+                       PARTY                 H,
+                       COMPANY               CO,
+                       (SELECT A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          FROM CHALLAN                  A,
+                               TDSCHALLAN               C,
+                               TDSCHALLANDEDUCTEEDETAIL D,
+                               BANK                     E
+                         WHERE  A.DOCTYPECODE = 'TDSCHALLAN'
+                           AND A.MODULETNO = C.TNO
+                           AND C.TNO = D.TNO
+                           AND A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           AND A.DEPOSITEDINBANKCODE = E.BANKCODE
+                       ) CHLN,
+                       (
+                          Select
+                                a.Tno
+                         From Voucher a
+                         Where exists(
+                                     Select
+                                        aa.Tno
+                                     From VoucherDetail aa, TDSNature bb
+                                     Where aa.AccountCode = bb.TDSAccountCode
+                                       and aa.Tno = a.Tno
+                                     )) x
+                 WHERE A.TNO = B.TNO(+)
+                 ---Requirment for change 07-08-2026----
+                   AND B.MODULETNO = B1.TNo(+)
+                   AND NVL(B1.MODULETNO,B.MODULETNO) = E.TNO
+                   AND E.TNO = E1.TNO(+)
+                   AND A.TDSNATURECODE = F.TDSNATURECODE(+)
+                   AND A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                   AND A.PARTYCODE = H.PARTYCODE(+)
+                   AND B.COMPANYCODE = CO.COMPANYCODE(+)
+                   AND B.MODULETNO = CHLN.MODULETNO(+)
+                   AND A.TNO = X.TNO
+                   and ( :P541_COMPANY IS NULL OR instr(':'||:P541_COMPANY||':',':'||CO.CompanyCode||':') > 0 )
+                 --  And TO_DATE(TO_CHAR(b.VoucherDate,'DD-MM-RRRR')) between LAST_DAY(TO_DATE('01-' || NVL(:P541_FROMDATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))) and TO_DATE('01-' || NVL(:P541_TODATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))
+                 --  and B.ModuleCode like nvl(:P541_MODULECODE,'%')
+                 --  and TO_CHAR(b.VoucherDate,'MON-RR') = TO_CHAR(:P541_MONTH,'MON-RR')
+                 --  and To_Char(b.VoucherDate, 'MON-RR')   = :P541_MONTH
+                   and TO_CHAR(TO_DATE(b.VoucherDate),('MON-RRRR')) = :P541_MONTH
+                   --and b.voucherdate between :P541_FROMDATE AND :P541_TODATE
+                   and ( :P541_SECTION IS NULL OR instr(':'||:P541_SECTION||':',':'||F.TAXSECTIONCODE||':') > 0 )
+                  -- and ( :P541_TDSNATURE IS NULL OR instr(':'||:P541_TDSNATURE||':',':'||F.TDSNATURECODE||':') > 0 )
+                   and ( :P541_PARTY IS NULL OR instr(':'||:P541_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                   and :P541_MONTH is not null
+                /*SELECT 
+                    row_number() over(order by B.VOUCHERDATE) SerialNo,
+                    CO.COMPANYNAME,
+                    B.LOCATIONCODE,
+                    B.DOCTYPECODE,
+                    B.MODULECODE,
+                    A.PARTYCODE,
+                    B.VOUCHERNO,
+                    B.VOUCHERDATE,
+                    NULL AS ITEMNATUREONWHICHTDSDEDECTABLE,
+                    A.TDSPAYEECATEGORYCODE,
+                    NULL AS TDSDEDUCTABLERATE,
+                    F.TAXSECTIONCODE,
+                    GETPARTYNAME(A.PARTYCODE) AS PARTY,
+                    A.PANNO,
+                    DECODE(H.ISCOMPANY, 'YES', 'COMPANY', NULL) ISCOMPANY,
+                    F.TDSNATURENAME,
+                    ROUND(A.TDSDEDUCTEDON,2) AS BASICAMOUNT,
+                    A.TDSPERCENT,
+                    A.TDSAMOUNT,
+                    A.CESSPERCENT,
+                    A.CESSAMOUNT,
+                    A.SURCHARGEPERCENT,
+                    A.SURCHARGEAMOUNT,
+                    CHLN.CHALLANNO AS CHALLANNO,
+                    CHLN.CHALLANDATE AS CHALLANDATE,
+                    CHLN.BSRCODE AS CHALLANBSRCODE,
+                    CHLN.CHALLANAMOUNT AS CHALLANAMOUNT,
+                    CASE
+                      WHEN C.JBPASSNO IS NOT NULL THEN
+                       'JBPASS'
+                      WHEN D.EXTERNALSERVICESENTRYNO IS NOT NULL THEN
+                       'EXTERNAL SERVICE ENTRY '
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       'PAYMENT ADVICE'
+                    END TRANSACTIONMODULE,
+                    CASE
+                      WHEN C.JBPASSNO IS NOT NULL THEN
+                       C.JBPASSNO
+                      WHEN D.EXTERNALSERVICESENTRYNO IS NOT NULL THEN
+                       D.EXTERNALSERVICESENTRYNO
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       E.PAYMENTADVICENO
+                    END TRANSACTIONNO,
+                    CASE
+                      WHEN C.JBPASSNO IS NOT NULL THEN
+                       C.JBPASSDATE
+                      WHEN D.EXTERNALSERVICESENTRYNO IS NOT NULL THEN
+                       D.EXTERNALSERVICESENTRYDATE
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       E.PAYMENTADVICEDATE
+                    END TRANSACTIONDATE,
+                    CASE
+                      WHEN C.JOBBILLTNO IS NOT NULL THEN
+                       C1.PARTYBILLNO
+                      WHEN D.EXTERNALSERVICESENTRYNO IS NOT NULL THEN
+                       D.BILLNO
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       NULL
+                    END PARTYBILLNO,
+                        CASE
+                      WHEN C.JOBBILLTNO IS NOT NULL THEN
+                       C1.PARTYBILLDATE
+                      WHEN D.EXTERNALSERVICESENTRYNO IS NOT NULL THEN
+                       D.BILLDATE
+                      WHEN E.PAYMENTADVICENO IS NOT NULL THEN
+                       NULL
+                    END PARTYBILLDATE,
+                    C.JBPASSNO,
+                    D.EXTERNALSERVICESENTRYNO,
+                    E.PAYMENTADVICENO
+                  FROM VOUCHERTDSDEDUCTED    A,
+                       VOUCHER               B,
+                       JBPASS                C,
+                       JOBBILL               C1,
+                       EXTERNALSERVICESENTRY D,
+                       PAYMENTADVICE         E,
+                       TDSNATURE             F,
+                       TDSTAXCATEGORY        G,
+                       PARTY                 H,
+                       COMPANY               CO,
+                       (SELECT A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          FROM CHALLAN                  A,
+                               TDSCHALLAN               C,
+                               TDSCHALLANDEDUCTEEDETAIL D,
+                               BANK                     E
+                         WHERE  A.DOCTYPECODE = 'TDSCHALLAN'
+                           AND A.MODULETNO = C.TNO
+                           AND C.TNO = D.TNO
+                           AND A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           AND A.DEPOSITEDINBANKCODE = E.BANKCODE
+                       ) CHLN,
+                       (
+                          Select
+                                a.Tno
+                         From Voucher a
+                         Where exists(
+                                     Select
+                                        aa.Tno
+                                     From VoucherDetail aa, TDSNature bb
+                                     Where aa.AccountCode = bb.TDSAccountCode
+                                       and aa.Tno = a.Tno
+                                     )) x
+                 WHERE A.TNO = B.TNO(+)
+                   AND B.MODULETNO = C.TNO(+)
+                   AND C.JOBBILLTNO = C1.TNO(+)
+                   AND B.MODULETNO = D.TNO(+)
+                   AND B.MODULETNO = E.TNO(+)
+                   AND A.TDSNATURECODE = F.TDSNATURECODE(+)
+                   AND A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                   AND A.PARTYCODE = H.PARTYCODE(+)
+                   AND B.COMPANYCODE = CO.COMPANYCODE(+)
+                   AND B.MODULETNO = CHLN.MODULETNO(+)
+                   AND A.TNO = X.TNO
+                   and ( :P541_COMPANY IS NULL OR instr(':'||:P541_COMPANY||':',':'||CO.CompanyCode||':') > 0 )
+                 --  And TO_DATE(TO_CHAR(b.VoucherDate,'DD-MM-RRRR')) between LAST_DAY(TO_DATE('01-' || NVL(:P541_FROMDATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))) and TO_DATE('01-' || NVL(:P541_TODATE, TO_CHAR(TRUNC(SYSDATE), 'DD-MM-RRRR')))
+                 --  and B.ModuleCode like nvl(:P541_MODULECODE,'%')
+                 --  and TO_CHAR(b.VoucherDate,'MON-RR') = TO_CHAR(:P541_MONTH,'MON-RR')
+                 --  and To_Char(b.VoucherDate, 'MON-RR')   = :P541_MONTH
+                   and TO_CHAR(TO_DATE(b.VoucherDate),('MON-RRRR')) = :P541_MONTH
+                   --and b.voucherdate between :P541_FROMDATE AND :P541_TODATE
+                   and ( :P541_SECTION IS NULL OR instr(':'||:P541_SECTION||':',':'||F.TAXSECTIONCODE||':') > 0 )
+                  -- and ( :P541_TDSNATURE IS NULL OR instr(':'||:P541_TDSNATURE||':',':'||F.TDSNATURECODE||':') > 0 )
+                   and ( :P541_PARTY IS NULL OR instr(':'||:P541_PARTY||':',':'||A.PARTYCODE||':') > 0 )
+                  -- and :P541_MONTH is not null
+                  */
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 109944579827809431
+        }
+
+        column BASICAMOUNT (
+            type: plainText
+            heading {
+                heading: BASIC AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column CESSAMOUNT (
+            type: plainText
+            heading {
+                heading: CESS AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column CESSPERCENT (
+            type: plainText
+            heading {
+                heading: CESS PERCENT
+                alignment: end
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column CHALLANAMOUNT (
+            type: plainText
+            heading {
+                heading: CHALLAN AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column CHALLANBSRCODE (
+            type: plainText
+            heading {
+                heading: CHALLAN BSR CODE
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column CHALLANDATE (
+            type: plainText
+            heading {
+                heading: CHALLAN DATE
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column CHALLANNO (
+            type: plainText
+            heading {
+                heading: CHALLAN NO
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: COMPANY NAME
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column DOCTYPECODE (
+            type: plainText
+            heading {
+                heading: VOUCHER TYPE
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column ISCOMPANY (
+            type: plainText
+            heading {
+                heading: COMPANY / NON-COMPANY
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column ITEMNATUREONWHICHTDSDEDECTABLE (
+            type: plainText
+            heading {
+                heading: ITEM NATURE ON WHICH TDS DEDUCTABLE
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: LOCATION
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column MODULECODE (
+            type: plainText
+            heading {
+                heading: Modulecode
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: MODULE NO
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BP
+            }
+        )
+
+        column PANNO (
+            type: plainText
+            heading {
+                heading: PAN
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: PARTY
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column PARTYBILLDATE (
+            type: plainText
+            heading {
+                heading: PARTY BILL DATE
+            }
+            layout {
+                sequence: 320
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BO
+            }
+        )
+
+        column PARTYBILLNO (
+            type: plainText
+            heading {
+                heading: PARTY BILL NO
+            }
+            layout {
+                sequence: 310
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BN
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serialno
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column SURCHARGEAMOUNT (
+            type: plainText
+            heading {
+                heading: SURCHARGE AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column SURCHARGEPERCENT (
+            type: plainText
+            heading {
+                heading: SURCHARGE PERCENT
+                alignment: end
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BE
+            }
+        )
+
+        column TAXSECTIONCODE (
+            type: plainText
+            heading {
+                heading: SECTION
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column TDSAMOUNT (
+            type: plainText
+            heading {
+                heading: TDS AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column TDSDEDUCTABLERATE (
+            type: plainText
+            heading {
+                heading: TDS DEDUCTABLE RATE
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column TDSNATURENAME (
+            type: plainText
+            heading {
+                heading: NATURE OF ASSESEE
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column TDSPAYEECATEGORYCODE (
+            type: plainText
+            heading {
+                heading: TDS PAYEEE CATEGORY CODE
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column TDSPERCENT (
+            type: plainText
+            heading {
+                heading: TDS PERCENT
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column TRANSACTIONDATE (
+            type: plainText
+            heading {
+                heading: TRANSACTION DATE
+            }
+            layout {
+                sequence: 300
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BM
+            }
+        )
+
+        column TRANSACTIONMODULE (
+            type: plainText
+            heading {
+                heading: TRANSACTION MODULE
+            }
+            layout {
+                sequence: 280
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        column TRANSACTIONNO (
+            type: plainText
+            heading {
+                heading: TRANSACTION NO
+            }
+            layout {
+                sequence: 290
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BL
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: VOUCHER DATE
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: VOUCHER NO
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 16
+            pageHeaderText: "   Freight Advance Report"
+        }
+
+        savedReport 557839 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BASICAMOUNT (
+                sequence: 14
+            )
+
+            displayColumn CESSAMOUNT (
+                sequence: 18
+            )
+
+            displayColumn CESSPERCENT (
+                sequence: 17
+            )
+
+            displayColumn CHALLANAMOUNT (
+                sequence: 23
+            )
+
+            displayColumn CHALLANBSRCODE (
+                sequence: 24
+            )
+
+            displayColumn CHALLANDATE (
+                sequence: 22
+            )
+
+            displayColumn CHALLANNO (
+                sequence: 21
+            )
+
+            displayColumn COMPANYNAME (
+                sequence: 2
+            )
+
+            displayColumn DOCTYPECODE (
+                sequence: 8
+            )
+
+            displayColumn ISCOMPANY (
+                sequence: 11
+            )
+
+            displayColumn LOCATIONCODE (
+                sequence: 3
+            )
+
+            displayColumn PANNO (
+                sequence: 10
+            )
+
+            displayColumn PARTY (
+                sequence: 9
+            )
+
+            displayColumn PARTYBILLDATE (
+                sequence: 5
+            )
+
+            displayColumn PARTYBILLNO (
+                sequence: 4
+            )
+
+            displayColumn SURCHARGEAMOUNT (
+                sequence: 20
+            )
+
+            displayColumn SURCHARGEPERCENT (
+                sequence: 19
+            )
+
+            displayColumn TAXSECTIONCODE (
+                sequence: 1
+            )
+
+            displayColumn TDSAMOUNT (
+                sequence: 15
+            )
+
+            displayColumn TDSNATURENAME (
+                sequence: 13
+            )
+
+            displayColumn TDSPAYEECATEGORYCODE (
+                sequence: 12
+            )
+
+            displayColumn TDSPERCENT (
+                sequence: 16
+            )
+
+            displayColumn TRANSACTIONDATE (
+                sequence: 27
+            )
+
+            displayColumn TRANSACTIONMODULE (
+                sequence: 25
+            )
+
+            displayColumn TRANSACTIONNO (
+                sequence: 26
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 7
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 6
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: DEBITAMOUNT
+            )
+
+            aggregate (
+                column: LOADINGQUANTITY
+            )
+
+            aggregate (
+                column: REACHEDQUANTITY1
+            )
+
+            aggregate (
+                column: PASSQUANTITY
+            )
+
+            aggregate (
+                column: BILLEDAMOUNT
+            )
+
+            aggregate (
+                column: TDSDEDUCTABLEAMOUNT
+            )
+
+            aggregate (
+                column: NETPAYABLEAMOUNT
+            )
+
+            aggregate (
+                column: TDSAMOUNT
+            )
+
+            aggregate (
+                column: NETPAYABLEFROM
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+            controlBreak (
+                column: TAXSECTIONCODE
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    region tds-payable-detail (
+        name: TDS Payable Detail
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P541_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   a.CompanyName d,
+                   a.CompanyCode r
+                From Company a
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @tds-payable-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P541_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @tds-payable-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            formatMask: MON-RRRR
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)-7
+        }
+    )
+
+    pageItem P541_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select distinct
+                    B.pARTYNAME D,
+                    B.pARTYCODE R
+                    From vouchertdsdeducted a, party b
+                    where a.partycode = b.partycode
+                Order By 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @tds-payable-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Party Name
+        }
+    )
+
+    pageItem P541_SECTION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Section
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                B.TAXSECTIONCODE D,
+                B.TAXSECTIONCODE R
+                From VOUCHERTDSDEDUCTED   A,TDSNATURE   B
+                Where a.TDSNATURECODE = B.TDSNATURECODE
+                Order By 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @tds-payable-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @tds-payable-detail
+            slot: regionBody
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

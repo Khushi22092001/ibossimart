@@ -1,0 +1,488 @@
+page 364 (
+    name: Inter Unit Transfer Confirmation
+    alias: INTERUNIT-TRANSFER-CONFIRMATION
+    title: Interunit Transfer Confirmation
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region inter-unit-transfer-confirmation (
+        name: "Inter Unit Transfer Confirmation "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent4
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                  row_number() over(order by a.CCInvoiceDate) SerialNo,
+                a.CCInvoiceDate,
+                b.LocationName,
+                a.CCInvoiceNo,
+                sum(c.Quantity1) as CCInvoiceQty,
+                e.GRNNo,
+                f.LocationName as GRNLocation,
+                sum(g.ACCEPTEDQUANTITY1)  as GRNQuantity,
+                Case When sum(c.Quantity1) = sum(g.ACCEPTEDQUANTITY1) then 'CLOSED'
+                Else null 
+                End as Report
+                From CCInvoice a, Location b, CCInvoiceDetail c, GRN e, Location f, GRNDetail g
+                Where a.DoctypeCode = 'INTERUNITTRANSFER'
+                and a.LocationCode = b.LocationCode
+                and a.Tno = c.Tno
+                and a.Tno = e.InterUnitTransferCCInvoiceTno(+)
+                and e.LocationCode = f.LocationCode(+)
+                and e.Tno = g.Tno(+)
+                --and a.CCInvoiceNo = 'T/CPR/2023/00520'
+                and a.CCInvoiceDate between :P364_FROMDATE and :P364_TODATE
+                and ( :P364_LOCATION IS NULL OR instr(':'||:P364_LOCATION ||':',':'||b.LocationCode||':') > 0)
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                Group by a.CCInvoiceDate,
+                b.LocationName,
+                a.CCInvoiceNo,
+                e.GRNNo,
+                f.LocationName,
+                Rownum
+                ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 94689257404424028
+        }
+
+        column CCINVOICEDATE (
+            type: plainText
+            heading {
+                heading: CCInvoice Date
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column CCINVOICENO (
+            type: plainText
+            heading {
+                heading: CCInvoice No
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column CCINVOICEQTY (
+            type: plainText
+            heading {
+                heading: CCInvoice Qty
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column GRNLOCATION (
+            type: plainText
+            heading {
+                heading: GRN Location
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column GRNNO (
+            type: plainText
+            heading {
+                heading: GRN No
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column GRNQUANTITY (
+            type: plainText
+            heading {
+                heading: GRN Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: CCInvoice Location
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column REPORT (
+            type: plainText
+            heading {
+                heading: Report
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+
+        savedReport 952031 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CCINVOICEDATE (
+                sequence: 3
+            )
+
+            displayColumn CCINVOICENO (
+                sequence: 5
+            )
+
+            displayColumn CCINVOICEQTY (
+                sequence: 6
+            )
+
+            displayColumn GRNLOCATION (
+                sequence: 2
+            )
+
+            displayColumn GRNNO (
+                sequence: 7
+            )
+
+            displayColumn GRNQUANTITY (
+                sequence: 8
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 4
+            )
+
+            displayColumn REPORT (
+                sequence: 9
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: CCINVOICEQTY
+            )
+
+            aggregate (
+                column: GRNQUANTITY
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+            controlBreak (
+                column: GRNLOCATION
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P364_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @inter-unit-transfer-confirmation
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P364_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.LocationName d,
+                a.LocationCode r
+                From Location a
+                Order by 1
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @inter-unit-transfer-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P364_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @inter-unit-transfer-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 40
+            region: @inter-unit-transfer-confirmation
+            slot: regionBody
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

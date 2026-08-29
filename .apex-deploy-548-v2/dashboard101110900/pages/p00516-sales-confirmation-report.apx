@@ -1,0 +1,986 @@
+page 516 (
+    name: Sales Confirmation Report
+    alias: SALES-CONFIRMATION-REPORT
+    title: Sales Confirmation Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #abc .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region sales-confirmation (
+        name: Sales Confirmation
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region sales-confirmation-report (
+        name: Sales Confirmation Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    a.Tno,
+                    b.PartyName,
+                    a.Remark AS ContactPerson,
+                    a.SalesConfirmNo,
+                    a.CreditDays,
+                    d.ItemName || '-' || e.ItemSpecificationName AS Material,
+                    a.SalesConfirmDate,
+                    c.Quantity1,
+                    c.Rate,
+                
+                    /* Opening Qty (Pending before Ason Date) */
+                    NVL(c.Quantity1,0) - NVL(f.OpeningDispatchQty,0) AS OpeningQty,
+                
+                    /* Dispatch Qty (ONLY on Ason Date) */
+                    NVL(f.TodayDispatchQty,0) AS DispatchQty,
+                
+                    /* Pending / Closing Qty */
+                    NVL(c.Quantity1,0)
+                      - ( NVL(f.OpeningDispatchQty,0) + NVL(f.TodayDispatchQty,0) ) AS PendingQty,
+                
+                    c.Description
+                FROM SalesConfirm a,
+                     Party b,
+                     SalesConfirmDetail c,
+                     Item d,
+                     ItemSpecification e,
+                
+                     /* Dispatch Calculation */
+                     (
+                        SELECT
+                            aa.SalesConfirmTno,
+                
+                            /* Dispatch before Ason Date (for Opening) */
+                            SUM(
+                                CASE
+                                    WHEN cc.CCInvoiceDate < nvl(:P516_ASONDATE, :P516_TODATE)
+                                    THEN NVL(dd.Quantity1,0)
+                                    ELSE 0
+                                END
+                            ) AS OpeningDispatchQty,
+                
+                            /* Dispatch ON Ason Date only */
+                            SUM(
+                                CASE
+                                    WHEN cc.CCInvoiceDate = nvl(:P516_ASONDATE, :P516_TODATE)
+                                    THEN NVL(dd.Quantity1,0)
+                                    ELSE 0
+                                END
+                            ) AS TodayDispatchQty
+                
+                        FROM SalesOrder aa,
+                             CCInvoice cc,
+                             CCInvoiceDetail dd
+                        WHERE aa.Tno = cc.SalesOrderTno(+)
+                          AND cc.Tno = dd.Tno(+)
+                        GROUP BY aa.SalesConfirmTno
+                     ) f
+                
+                WHERE a.PartyCode = b.PartyCode(+)
+                  AND a.Tno = c.Tno(+)
+                  AND c.ItemCode = d.ItemCode(+)
+                  AND c.ItemSpecificationCode = e.ItemSpecificationCode(+)
+                  AND a.Tno = f.SalesConfirmTno(+)
+                
+                --   AND a.SalesConfirmDate <= :P516_ASONDATE
+                AND (
+                        (
+                            :P516_FROMDATE IS NOT NULL 
+                            AND :P516_TODATE IS NOT NULL
+                            AND a.SalesConfirmDate BETWEEN :P516_FROMDATE AND :P516_TODATE
+                        )
+                     OR
+                        (
+                            :P516_FROMDATE IS NULL 
+                            AND :P516_TODATE IS NULL
+                            AND a.SalesConfirmDate <= :P516_ASONDATE
+                        )
+                    )
+                    and (:P516_COMPANY IS NULL OR instr(':'||:P516_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+                    and (:P516_LOCATION IS NULL OR instr(':'||:P516_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                    and (:P516_PARTY IS NULL OR instr(':'||:P516_PARTY||':',':'||a.PartyCode||':') > 0 )
+                    and (:P516_CONTACTPERSON IS NULL OR instr(':'||:P516_CONTACTPERSON||':',':'||a.Remark||':') > 0 )
+                    and (:P516_ITEM IS NULL OR instr(':'||:P516_ITEM||':',':'||c.ItemCode||':') > 0 )
+                    and (:P516_SALESCONFIRM IS NULL OR instr(':'||:P516_SALESCONFIRM||':',':'||a.Tno||':') > 0 )
+                
+                
+                
+                
+                ```
+            pageItemsToSubmit: [
+                P516_ASONDATE
+                P516_COMPANY
+                P516_LOCATION
+                P516_ITEM
+                P516_PARTY
+                P516_CONTACTPERSON
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 48343378772030133
+        }
+
+        column CONTACTPERSON (
+            type: plainText
+            heading {
+                heading: Contact Person
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column CREDITDAYS (
+            type: plainText
+            heading {
+                heading: Credit Days
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: Description
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column DISPATCHQTY (
+            type: plainText
+            heading {
+                heading: Dispatch Qty
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.900
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column MATERIAL (
+            type: plainText
+            heading {
+                heading: Material
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column OPENINGQTY (
+            type: plainText
+            heading {
+                heading: Opening Qty
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.900
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party Name
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column PENDINGQTY (
+            type: plainText
+            heading {
+                heading: Pending Qty
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.900
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: S.C Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.900
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: Rate
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column SALESCONFIRMDATE (
+            type: plainText
+            heading {
+                heading: Sales Confirm Date
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column SALESCONFIRMNO (
+            type: plainText
+            heading {
+                heading: Sales Confirm No
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: NecessitySlip Detail Report
+        }
+
+        savedReport 232721 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn CONTACTPERSON (
+                sequence: 2
+            )
+
+            displayColumn CREDITDAYS (
+                sequence: 4
+            )
+
+            displayColumn DESCRIPTION (
+                sequence: 7
+            )
+
+            displayColumn DISPATCHQTY (
+                sequence: 11
+            )
+
+            displayColumn MATERIAL (
+                sequence: 5
+            )
+
+            displayColumn OPENINGQTY (
+                sequence: 10
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 1
+            )
+
+            displayColumn PENDINGQTY (
+                sequence: 12
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 9
+            )
+
+            displayColumn RATE (
+                sequence: 6
+            )
+
+            displayColumn SALESCONFIRMDATE (
+                sequence: 8
+            )
+
+            displayColumn SALESCONFIRMNO (
+                sequence: 3
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: NECESSITYSLIPNO
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: QUANTITY
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P516_ASONDATE (
+        type: datePicker
+        label {
+            label: As On Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                    a.CompanyName d,
+                    a.CompanyCode r
+                From Company a
+                Where exists
+                (Select 
+                  b.CompanyCode
+                  From SalesConfirm b
+                  Where b.CompanyCode = a.CompanyCode)
+                Order by 1
+                  ;
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_CONTACTPERSON (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Contact Person
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                a.Remark d,
+                a.Remark r
+                From SalesConfirm a
+                ```
+        }
+        layout {
+            sequence: 90
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                    a.ItemName d,
+                    a.ItemCode r
+                From Item a
+                Where exists
+                (Select 
+                  b.ItemCode
+                  From SalesConfirmDetail b
+                  Where b.ItemCode = a.ItemCode )
+                Order by 1
+                  ;
+                ```
+        }
+        layout {
+            sequence: 70
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                    a.LocationName d,
+                    a.LocationCode r
+                From Location a
+                Where exists
+                (Select 
+                  b.LocationCode
+                  From SalesConfirm b
+                  Where b.LocationCode = a.LocationCode)
+                Order by 1
+                  ;
+                ```
+        }
+        layout {
+            sequence: 40
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                b.PartyName d,
+                a.PartyCode r
+                From SalesConfirm a, Party b
+                Where a.PartyCode = b.PartyCode(+)
+                ```
+        }
+        layout {
+            sequence: 80
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_SALESCONFIRM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Sales Confirm
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                    a.SalesConfirmNo d,
+                    a.Tno r
+                From SalesConfirm a
+                Order by 1
+                  ;
+                ```
+        }
+        layout {
+            sequence: 100
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P516_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @sales-confirmation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 110
+            region: @sales-confirmation
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnCssClasses: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

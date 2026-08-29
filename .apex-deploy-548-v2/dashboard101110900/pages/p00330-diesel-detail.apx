@@ -1,0 +1,556 @@
+page 330 (
+    name: Diesel  Detail
+    alias: DIESEL-DETAIL
+    title: Diesel  Detail
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: [
+            #DEFAULT#
+            t-Dialog--noPadding
+        ]
+    }
+    dialog {
+        width: 1400
+        height: 800
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #did .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region diesel-detail (
+        name: Diesel Detail
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                	
+                   /*
+                   Select xx.*, ROW_NUMBER() OVER(ORDER BY xx.NecessitySlipDate) SerialNo 
+                   from 
+                   (
+                     Select
+                		a.CompanyCode,
+                      a.NecessitySlipNo,
+                	   a.NecessitySlipDate,
+                      b.Quantity1 as Quantity,
+                		a.VehicleNo,
+                    d.TransportAreaName,
+                		round(nvl(b.Quantity1, 0) * nvl(b.DieselRate, 0),2) as Amount
+                	From NecessitySlip a, NecessitySlipDetail b, CompanyVehicle c, TransportArea d, DocumentStatusDetail dsd
+                	Where a.Tno = b.Tno
+                    and a.VehicleNo = c.CompanyVehicleNo(+)
+                    and c.TransportAreaCode = d.TransportAreaCode(+)
+                		and a.Tno = dsd.ModuleTno
+                		and dsd.DocumentStatusCode = 'ACTIVE'
+                		and a.PartyCode is not null
+                		and a.VehicleNo is not null
+                		and a.VehicleGroupCode = 'SELF'
+                		and b.VehicleNecessityCode in (Select a.VehicleNecessityCode From VehicleNecessityForFuel a)
+                		and exists(
+                			Select
+                				aa.Tno
+                			From CompanyVehicle aa, Equipment bb
+                			Where aa.ModuleTno = bb.Tno
+                				and bb.EquipmentGroupCode = 'CT'
+                				and aa.CompanyVehicleNo = a.VehicleNo
+                			)
+                        and a.NecessitySlipDate between :P330_FROMDATE and :P330_TODATE
+                         and a.VehicleNo like nvl(:P330_VEHICLENO, '%')
+                	      and a.CompanyCode = :P330_COMPANYCODE
+                        and (:P330_VEHICLENO2 is null
+                       or exists(
+                         Select
+                            aa.VehicleNo
+                          From VPVehicleNo aa
+                          Where aa.VehicleNo = a.VehicleNo
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P330_VEHICLETYPE is null
+                       or exists(
+                         Select
+                            aa.VehicleTypeCode
+                          From VPVehicleType aa
+                          Where aa.VehicleTypeCode = c.VehicleTypeCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P330_TRANSPORTAREA is null
+                       or exists(
+                         Select
+                            aa.TransportAreaCode
+                          From VPTransportArea aa
+                          Where aa.TransportAreaCode = c.TransportAreaCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                	UNION ALL
+                	Select
+                		a.CompanyCode,
+                      a.NecessitySlipNo,
+                	   a.NecessitySlipDate,
+                      d1.Quantity,
+                		a.VehicleNo,
+                    i.TransportAreaName,
+                		round(g.Amount,2) as Amount
+                	From NecessitySlip a, NecessitySlipDetail b, Requisition c, Issue d,
+                   (Select
+                   b.Tno,
+                   b.Quantity1 as Quantity
+                  From IssueDetail b, Item c
+                  Where b.ItemCode = c.ItemCode
+                  and c.MeasuringUnitCode1 = 'LTR'
+                  UNION ALL
+                  Select
+                   b.Tno,
+                   b.Quantity2 as Quantity
+                  From IssueDetail b, Item c
+                  Where b.ItemCode = c.ItemCode
+                  and c.MeasuringUnitCode2 = 'LTR') d1,
+                  Voucher e, VoucherDetail f, VoucherCostCentreDetail g, CompanyVehicle h, TransportArea i, DocumentStatusDetail dsd
+                	Where a.Tno = b.Tno
+                		and a.Tno = c.ModuleTno
+                		and c.Tno = d.RequisitionTno
+                      and d.Tno = d1.Tno
+                		and d.Tno = e.ModuleTno
+                		and e.Tno = f.Tno
+                		and f.Tno = g.Tno
+                		and f.Sno = g.Sno
+                		and a.VehicleNo = g.CostCentreCode
+                    and a.VehicleNo = h.CompanyVehicleNo(+)
+                    and h.TransportAreaCode = i.TransportAreaCode(+)
+                		and a.VehicleGroupCode = 'SELF'
+                		and b.VehicleNecessityCode in (Select a.VehicleNecessityCode From VehicleNecessityForFuel a)
+                		and a.Tno = dsd.ModuleTno
+                		and dsd.DocumentStatusCode = 'ACTIVE'
+                		and exists(
+                			Select
+                				aa.Tno
+                			From IssueCostCentreDetail aa, CostCentre bb, CompanyVehicle cc, Equipment dd
+                			Where aa.CostCentreCode = bb.CostCentreCode
+                				and bb.CostCentreName = cc.CompanyVehicleNo
+                				and cc.ModuleTno = dd.Tno
+                				and dd.EquipmentGroupCode = 'CT'
+                				and aa.Tno = d.Tno
+                			)
+                        and a.NecessitySlipDate between :P330_FROMDATE and :P330_TODATE
+                         and a.VehicleNo like nvl(:P330_VEHICLENO, '%')
+                	     and a.CompanyCode = :P330_COMPANYCODE
+                       and (:P330_VEHICLENO2 is null
+                       or exists(
+                         Select
+                            aa.VehicleNo
+                          From VPVehicleNo aa
+                          Where aa.VehicleNo = a.VehicleNo
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P330_VEHICLETYPE is null
+                       or exists(
+                         Select
+                            aa.VehicleTypeCode
+                          From VPVehicleType aa
+                          Where aa.VehicleTypeCode = h.VehicleTypeCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P330_TRANSPORTAREA is null
+                       or exists(
+                         Select
+                            aa.TransportAreaCode
+                          From VPTransportArea aa
+                          Where aa.TransportAreaCode = h.TransportAreaCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                       ) xx
+                */
+                Select
+                  row_number() over(order by a.ModuleDate) SerialNo,
+                	a.ModuleName,
+                	a.ModuleNo,
+                	a.ModuleDate,
+                	a.VehicleNo,
+                  b.VehicleTypeName,
+                  c.TransportAreaName,
+                	a.Amount
+                From VehicleExpenseTable a, VehicleType b, TransportArea c
+                Where a.VehicleTypeCode = b.VehicleTypeCode(+)
+                    and a.TransportAreaCode = c.TransportAreaCode(+)
+                    and a.ModuleDate between :P330_FROMDATE and :P330_TODATE
+                		and a.VehicleNo like nvl(:P330_VEHICLENO, '%')
+                		and a.CompanyCode = :P330_COMPANYCODE
+                    and a.Creator = :APP_USER
+                    and a.Categories = 'DIESEL'
+                    and (:P330_VEHICLENO2 is null
+                       or exists(
+                         Select
+                            aa.VehicleNo
+                          From VPVehicleNo aa
+                          Where aa.VehicleNo = a.VehicleNo
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P330_VEHICLETYPE is null
+                       or exists(
+                         Select
+                            aa.VehicleTypeCode
+                          From VPVehicleType aa
+                          Where aa.VehicleTypeCode = a.VehicleTypeCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and (:P330_TRANSPORTAREA is null
+                       or exists(
+                         Select
+                            aa.TransportAreaCode
+                          From VPTransportArea aa
+                          Where aa.TransportAreaCode = a.TransportAreaCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                ```
+        }
+        layout {
+            sequence: 80
+            slot: contentBody
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: did
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 100919042600400483
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Diesel Amount
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column MODULEDATE (
+            type: plainText
+            heading {
+                heading: Module Date
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column MODULENAME (
+            type: plainText
+            heading {
+                heading: Module
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: Module No.
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column TRANSPORTAREANAME (
+            type: plainText
+            heading {
+                heading: Transport Area
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column VEHICLETYPENAME (
+            type: plainText
+            heading {
+                heading: Vehicle Type
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Diesel Detail
+        }
+
+        savedReport 505176 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn AMOUNT (
+                sequence: 8
+            )
+
+            displayColumn MODULEDATE (
+                sequence: 4
+            )
+
+            displayColumn MODULENAME (
+                sequence: 2
+            )
+
+            displayColumn MODULENO (
+                sequence: 3
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn TRANSPORTAREANAME (
+                sequence: 7
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 5
+            )
+
+            displayColumn VEHICLETYPENAME (
+                sequence: 6
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: QUANTITY
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: ISSUEDATE
+            )
+
+            aggregate (
+                function: count
+                column: NECESSITYSLIPDATE
+            )
+
+            controlBreak (
+                column: TRANSPORTAREANAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P330_COMPANYCODE (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+    )
+
+    pageItem P330_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    pageItem P330_TODATE (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+    pageItem P330_TRANSPORTAREA (
+        type: hidden
+        layout {
+            sequence: 70
+            slot: contentBody
+        }
+    )
+
+    pageItem P330_VEHICLENO (
+        type: hidden
+        layout {
+            sequence: 40
+            slot: contentBody
+        }
+    )
+
+    pageItem P330_VEHICLENO2 (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P330_VEHICLETYPE (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

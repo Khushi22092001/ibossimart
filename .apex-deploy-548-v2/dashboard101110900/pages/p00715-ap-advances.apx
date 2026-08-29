@@ -1,0 +1,1229 @@
+page 715 (
+    name: Advances and Unapplied Cash
+    alias: AP-ADVANCES
+    title: Advances and Unapplied Cash
+    pageGroup: @payables-intelligence
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: Vendor credits held, and how much payable could be cleared by allocating them. This is the largest actionable position in this ledger: only 31% of AP lines have ever been allocated, so cash sits unapplied on one row while a bill sits open on another. Vendor credits are NOT netted into gross outstanding anywhere in this dashboard - they are a separate balance with a separate cause. Contra Purchase credits are shown separately again, because a purchase from a party who is also a vendor is not a vendor advance and cannot be used to settle a sales invoice without a commercial decision.
+    }
+
+    region adjust-note (
+        name: What adjustable means
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-arnote"><span class="fa fa-magic"></span><div>
+                  <b>&ldquo;Immediately Adjustable&rdquo; is the lesser of payable and credit, per vendor.</b>
+                  It is the amount of payable that could be cleared by allocating money the company already holds &mdash;
+                  no payment call, no cash movement, just a settlement entry. It is <b>not</b> an instruction to post one:
+                  contra-purchase credits in particular represent a commercial position, not a vendor advance,
+                  and are shown as their own KPI for that reason.
+                </div></div>
+                ```
+        }
+        layout {
+            sequence: 24
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region command-header (
+        name: Advances and Unapplied Cash
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-ap-head">'
+                    || '<div class="ds-ap-eyebrow">Payables &middot; Vendor Debits</div>'
+                    || '<h1 class="ds-ap-title">Advances &amp; Unapplied Cash</h1>'
+                    || '<div class="ds-ap-sub">Where the company already holds the vendor''s money, and how much payable that money could clear today</div>'
+                    || '<div class="ds-ap-context">'
+                    || '<span class="ds-ap-chip"><span class="fa fa-crosshairs"></span>Held as at <b>' || :P715_TODATE || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P715_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P715_LOCATION),'All locations')) || '</b></span>'
+                    || Case When :P715_BOTH = 'Y' Then
+                            '<span class="ds-ap-chip ds-ap-chip--warn"><span class="fa fa-filter"></span>Showing <b>vendors holding AP and credit together</b></span>' End
+                    || '<span class="ds-ap-chip"><span class="fa fa-shield"></span>Panel <b>'
+                       || Case When (Select GetUserPanelAB_apex() From dual) Is Not Null
+                               Then (Select GetUserPanelAB_apex() From dual) || ' (enforced)'
+                               When :P715_PANEL Is Not Null Then :P715_PANEL Else 'A + B' End || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P715_FROMDATE
+                P715_TODATE
+                P715_COMPANY
+                P715_LOCATION
+                P715_PANEL
+                P715_BOTH
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ap-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p715Filters
+        }
+    )
+
+    region kpi-strip (
+        name: Vendor Credit KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P715_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select d.AccountCode Pty, d.VoucherDate Vdt,
+                              (d.Amount - nvl(al.Amt,0)) Recv,
+                              Case When v.ModuleCode = 'INVOICE'   Then 'Contra Purchase'
+                                   When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT') Then 'Payment / On-account'
+                                   When v.ModuleCode = 'DEBITNOTE' Then 'Credit Note'
+                                   When v.VoucherNo = 'OPENING'   Then 'Opening Credit'
+                                   Else 'Other' End Cls
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P715_PANEL    Is Null Or d.Panel        = :P715_PANEL)
+                          And (:P715_COMPANY  Is Null Or d.CompanyCode  = :P715_COMPANY)
+                          And (:P715_LOCATION Is Null Or d.LocationCode = :P715_LOCATION)),
+                     Part As (
+                       /* Partial Residual is the credit still sitting on a payment that
+                          HAS been allocated at least once - a genuinely different thing
+                          from a payment nobody ever touched. The two together make the
+                          unapplied total, so both are shown rather than one standing
+                          for the other. */
+                       Select nvl(Sum(Case When al.N > 0 Then d.Amount - al.Amt Else 0 End),0) Residual,
+                              Count(Case When al.N > 0 And d.Amount - al.Amt > 0.005 Then 1 End) ResidualN,
+                              nvl(Sum(al.LagW),0) LagW, nvl(Sum(al.Amt),0) AppliedAmt
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Join (Select a.CrVoucherTno Tno, a.CrVoucherSno Sno,
+                                      Sum(a.Amount) Amt, Count(*) N,
+                                      Sum(a.Amount * (cv.VoucherDate - dv.VoucherDate)) LagW
+                                 From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                                Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                                  And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                                Group By a.CrVoucherTno, a.CrVoucherSno) al
+                           On al.Tno = d.Tno And al.Sno = d.Sno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P715_PANEL    Is Null Or d.Panel        = :P715_PANEL)
+                          And (:P715_COMPANY  Is Null Or d.CompanyCode  = :P715_COMPANY)
+                          And (:P715_LOCATION Is Null Or d.LocationCode = :P715_LOCATION)),
+                     P As (Select Pty, Sum(Case When Recv > 0 Then Recv Else 0 End) Dr,
+                                       Sum(Case When Recv < 0 Then -Recv Else 0 End) Cr
+                             From Oi Group By Pty),
+                     T As (
+                       Select nvl(Sum(Case When Recv < 0 Then -Recv Else 0 End),0) Cred,
+                              nvl(Sum(Case When Recv < 0 And Cls = 'Payment / On-account' Then -Recv Else 0 End),0) Unapp,
+                              nvl(Sum(Case When Recv < 0 And Cls = 'Contra Purchase' Then -Recv Else 0 End),0) Contra,
+                              nvl(Sum(Case When Recv < 0 And Cls = 'Opening Credit' Then -Recv Else 0 End),0) OpenCr,
+                              nvl(Sum(Case When Recv < 0 And Cls = 'Payment / On-account'
+                                            And (Select D From Asof) - Vdt > 30 Then -Recv Else 0 End),0) Over30,
+                              nvl(Sum(Case When Recv < 0 And Cls = 'Payment / On-account'
+                                            And (Select D From Asof) - Vdt > 90 Then -Recv Else 0 End),0) Over90,
+                              Min(Case When Recv < 0 And Cls = 'Payment / On-account' Then Vdt End) Oldest
+                         From Oi),
+                     B As (Select Count(*) N, nvl(Sum(Least(Dr,Cr)),0) Adj, nvl(Sum(Greatest(Dr-Cr,0)),0) Need
+                             From P Where Dr > 0.005 And Cr > 0.005)
+                Select '<div class="ds-kpi ds-kpi--violet" title="Every open credit balance on a vendor account, whatever its cause.">'
+                    || '<span class="ds-kpi-ic fa fa-inbox"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Total Vendor Debits</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.Cred >= 10000000 Then to_char(Round(t.Cred/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Cred/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">held as at ' || :P715_TODATE || '</div></div></div>' As K1,
+                       '<div class="ds-kpi ds-kpi--risk" title="Payment lines with an open credit balance - cash received and never applied to any bill.">'
+                    || '<span class="ds-kpi-ic fa fa-hand-o-up"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Unapplied Payments</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.Unapp >= 10000000 Then to_char(Round(t.Unapp/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Unapp/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">oldest '
+                    || nvl(to_char(t.Oldest,'DD-MM-RRRR'),'&mdash;') || '</div></div></div>' As K2,
+                       '<div class="ds-kpi ds-kpi--amber" title="Unapplied payment cash older than 90 days. Control AR-R03.">'
+                    || '<span class="ds-kpi-ic fa fa-hourglass-end"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Unapplied Over 90 Days</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.Over90 >= 10000000 Then to_char(Round(t.Over90/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Over90/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">over 30 days &#8377;'
+                    || Case When t.Over30 >= 10000000 Then to_char(Round(t.Over30/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Over30/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div></div></div>' As K3,
+                       /* Contra purchase is separated deliberately. It is a credit on a
+                          vendor account, but it arises from buying FROM that party -
+                          it is not an advance and cannot be applied to a sales invoice
+                          without a commercial decision. */
+                       '<div class="ds-kpi ds-kpi--struct" title="Credits arising from purchases from a party who is also a vendor. Not a vendor advance.">'
+                    || '<span class="ds-kpi-ic fa fa-exchange"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Contra Purchase Credits</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.Contra >= 10000000 Then to_char(Round(t.Contra/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Contra/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">not an advance &middot; shown apart from cash</div></div></div>' As K4,
+                       '<div class="ds-kpi ds-kpi--gold" title="Vendors holding an open payable AND an open credit at the same time.">'
+                    || '<span class="ds-kpi-ic fa fa-random"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Vendors With AP + Credit</div><div class="ds-kpi-n">'
+                    || to_char(b.N,'FM999G990') || '</div>'
+                    || '<div class="ds-kpi-sub">both positions open simultaneously</div></div></div>' As K5,
+                       '<div class="ds-kpi ds-kpi--ok" title="The lesser of payable and credit, summed per vendor. This much AP can be cleared by allocation alone - no payment effort.">'
+                    || '<span class="ds-kpi-ic fa fa-magic"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Immediately Adjustable</div><div class="ds-kpi-n">&#8377;'
+                    || Case When b.Adj >= 10000000 Then to_char(Round(b.Adj/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(b.Adj/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">clearable by allocation, not by payment</div></div></div>' As K6,
+                       '<div class="ds-kpi ds-kpi--struct" title="Credit left on a payment that HAS been allocated at least once - distinct from a payment nobody ever touched. The two together make the total unapplied cash.">'
+                    || '<span class="ds-kpi-ic fa fa-adjust"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Partial Residual</div><div class="ds-kpi-n">&#8377;'
+                    || Case When pr.Residual >= 10000000 Then to_char(Round(pr.Residual/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(pr.Residual/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">on ' || to_char(pr.ResidualN,'FM999G990')
+                    || ' partly-applied payments</div></div></div>' As K7,
+                       '<div class="ds-kpi ds-kpi--teal" title="Amount-weighted days between a bill and the payment that settled it. Measured only over allocations that exist - unapplied cash has no lag and is excluded from both sides rather than counted as zero.">'
+                    || '<span class="ds-kpi-ic fa fa-clock-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Average Allocation Lag</div><div class="ds-kpi-n">'
+                    || nvl(to_char(Round(pr.LagW / Nullif(pr.AppliedAmt,0),0),'FM999G990'),'&mdash;')
+                    || ' <span style="font-size:15px">days</span></div>'
+                    || '<div class="ds-kpi-sub">weighted by amount, over applied payments only</div></div></div>' As K8
+                  From T t Cross Join B b Cross Join Part pr
+                ```
+            pageItemsToSubmit: [
+                P715_FROMDATE
+                P715_TODATE
+                P715_COMPANY
+                P715_LOCATION
+                P715_PANEL
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-kpiwrap--5up
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column K1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: K1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: K2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: K3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: K4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: K5
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: K6
+            }
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K7 (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: K7
+            }
+            layout {
+                sequence: 70
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K8 (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: K8
+            }
+            layout {
+                sequence: 80
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region vendors (
+        name: Vendors Holding Credit
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P715_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select d.AccountCode Pty, d.CompanyCode Cmp, d.LocationCode Loc, d.VoucherDate Vdt,
+                              (d.Amount - nvl(al.Amt,0)) Recv,
+                              Case When v.ModuleCode = 'INVOICE'     Then 'Contra Purchase'
+                                   When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')   Then 'Payment / On-account'
+                                   When v.ModuleCode = 'DEBITNOTE' Then 'Credit Note'
+                                   When v.VoucherNo = 'OPENING'     Then 'Opening Credit'
+                                   Else 'Other' End Cls
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P715_PANEL    Is Null Or d.Panel        = :P715_PANEL)
+                          And (:P715_COMPANY  Is Null Or d.CompanyCode  = :P715_COMPANY)
+                          And (:P715_LOCATION Is Null Or d.LocationCode = :P715_LOCATION)),
+                     G As (
+                       Select Pty, Max(Cmp) Cmp, Max(Loc) Loc,
+                              Sum(Case When Recv > 0 Then Recv Else 0 End) Dr,
+                              Sum(Case When Recv < 0 Then -Recv Else 0 End) Cr,
+                              Sum(Case When Recv < 0 And Cls = 'Payment / On-account' Then -Recv Else 0 End) Cash,
+                              Sum(Case When Recv < 0 And Cls = 'Contra Purchase' Then -Recv Else 0 End) Contra,
+                              Sum(Case When Recv < 0 And Cls = 'Credit Note' Then -Recv Else 0 End) CNote,
+                              Sum(Case When Recv < 0 And Cls = 'Opening Credit' Then -Recv Else 0 End) OpenCr,
+                              Sum(Case When Recv < 0 And Cls = 'Payment / On-account'
+                                        And (Select D From Asof) - Vdt > 90 Then -Recv Else 0 End) Cash90,
+                              Min(Case When Recv < 0 Then Vdt End) OldestCr
+                         From Oi Group By Pty)
+                Select g.Pty                                          As PARTY_CODE,
+                       apex_escape.html(nvl(p.PartyName, g.Pty))      As CUSTOMER,
+                       apex_escape.html(nvl(c.CompanyName, g.Cmp))    As COMPANY,
+                       apex_escape.html(nvl(l.LocationName, g.Loc))   As LOCATION,
+                       Round(g.Dr,2)                                  As PAYABLE,
+                       Round(g.Cr,2)                                  As CREDIT_TOTAL,
+                       Round(g.Cash,2)                                As UNAPPLIED_CASH,
+                       Round(g.Cash90,2)                              As UNAPPLIED_OVER_90,
+                       Round(g.CNote,2)                               As CREDIT_NOTES,
+                       Round(g.Contra,2)                              As CONTRA_PURCHASE,
+                       Round(g.OpenCr,2)                              As OPENING_CREDIT,
+                       Round(Least(g.Dr, g.Cr),2)                     As ADJUSTABLE_NOW,
+                       Round(Greatest(g.Dr - g.Cr,0),2)               As COLLECTION_NEEDED,
+                       Round(g.Dr - g.Cr,2)                           As NET_EXPOSURE,
+                       g.OldestCr                                     As OLDEST_CREDIT,
+                       Case When g.Dr > 0.005 And g.Cr > 0.005
+                                 Then '<span class="ds-archip ds-archip--warn">AP + Credit</span>'
+                            Else '<span class="ds-archip ds-archip--cred">Credit only</span>' End As POSITION
+                  From G g
+                  Left Join Party p On p.PartyCode = g.Pty
+                  Left Join Company c On c.CompanyCode = g.Cmp
+                  Left Join Location l On l.LocationCode = g.Loc
+                 Where g.Cr > 0.005
+                   And (nvl(:P715_BOTH,'N') <> 'Y' Or g.Dr > 0.005)
+                ```
+            pageItemsToSubmit: [
+                P715_FROMDATE
+                P715_TODATE
+                P715_COMPANY
+                P715_LOCATION
+                P715_PANEL
+                P715_BOTH
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 200000
+        }
+        messages {
+            whenNoDataFound: No vendor holds an open credit in this scope as at the As-of Date.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 69500000000000695
+        }
+
+        column ADJUSTABLE_NOW (
+            type: plainText
+            heading {
+                heading: Adjustable Now (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column COLLECTION_NEEDED (
+            type: plainText
+            heading {
+                heading: Payment Needed (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column CONTRA_PURCHASE (
+            type: plainText
+            heading {
+                heading: Contra Purchase (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column CREDIT_NOTES (
+            type: plainText
+            heading {
+                heading: Credit Notes (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column CREDIT_TOTAL (
+            type: plainText
+            heading {
+                heading: Credit Held (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column CUSTOMER (
+            type: link
+            heading {
+                heading: Vendor
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 713
+                    items: {
+                        P713_PARTY: #PARTY_CODE#
+                        P713_FROMDATE: &P715_FROMDATE.
+                        P713_TODATE: &P715_TODATE.
+                        P713_COMPANY: &P715_COMPANY.
+                        P713_LOCATION: &P715_LOCATION.
+                        P713_PANEL: &P715_PANEL.
+                    }
+                    clearCache: 713
+                }
+                linkText: #CUSTOMER#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column NET_EXPOSURE (
+            type: plainText
+            heading {
+                heading: Net Exposure (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column OLDEST_CREDIT (
+            type: plainText
+            heading {
+                heading: Oldest Credit
+            }
+            layout {
+                sequence: 140
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column OPENING_CREDIT (
+            type: plainText
+            heading {
+                heading: Opening Credit (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column PARTY_CODE (
+            type: plainText
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PAYABLE (
+            type: plainText
+            heading {
+                heading: Payable (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column POSITION (
+            type: plainText
+            heading {
+                heading: Position
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column UNAPPLIED_CASH (
+            type: plainText
+            heading {
+                heading: Unapplied Cash (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column UNAPPLIED_OVER_90 (
+            type: plainText
+            heading {
+                heading: Unapplied >90d (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 69501 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ADJUSTABLE_NOW (
+                sequence: 8
+            )
+
+            displayColumn COLLECTION_NEEDED (
+                sequence: 9
+            )
+
+            displayColumn CONTRA_PURCHASE (
+                sequence: 7
+            )
+
+            displayColumn CREDIT_TOTAL (
+                sequence: 4
+            )
+
+            displayColumn CUSTOMER (
+                sequence: 1
+            )
+
+            displayColumn OLDEST_CREDIT (
+                sequence: 10
+            )
+
+            displayColumn PAYABLE (
+                sequence: 3
+            )
+
+            displayColumn POSITION (
+                sequence: 2
+            )
+
+            displayColumn UNAPPLIED_CASH (
+                sequence: 5
+            )
+
+            displayColumn UNAPPLIED_OVER_90 (
+                sequence: 6
+            )
+
+            aggregate (
+                column: PAYABLE
+            )
+
+            aggregate (
+                column: CREDIT_TOTAL
+            )
+
+            aggregate (
+                column: UNAPPLIED_CASH
+            )
+
+            aggregate (
+                column: UNAPPLIED_OVER_90
+            )
+
+            aggregate (
+                column: ADJUSTABLE_NOW
+            )
+
+            aggregate (
+                column: COLLECTION_NEEDED
+            )
+
+        )
+
+    )
+
+    pageItem P715_BOTH (
+        type: selectList
+        label {
+            label: Show
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Everyone holding credit;N,Only vendors with AP + credit;Y
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        default {
+            type: static
+            staticValue: N
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P715_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.CompanyCode = c.CompanyCode
+                                  And v.AccountCode In (Select PartyCode From Party
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P715_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P715_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.LocationCode = l.LocationCode
+                                  And v.AccountCode In (Select PartyCode From Party
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode)
+                                  And (:P715_COMPANY Is Null Or v.CompanyCode = :P715_COMPANY))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P715_COMPANY
+            itemsToSubmit: P715_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P715_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P715_TODATE (
+        type: datePicker
+        label {
+            label: To Date / As-of
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Command Centre
+        layout {
+            sequence: 80
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 710
+                items: {
+                    P710_FROMDATE: &P715_FROMDATE.
+                    P710_TODATE: &P715_TODATE.
+                    P710_COMPANY: &P715_COMPANY.
+                    P710_LOCATION: &P715_LOCATION.
+                    P710_PANEL: &P715_PANEL.
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

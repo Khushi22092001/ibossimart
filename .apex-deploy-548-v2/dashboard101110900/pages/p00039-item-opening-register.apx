@@ -1,0 +1,1250 @@
+page 39 (
+    name: Item Opening Register
+    alias: ITEM-OPENING-REGISTER
+    title: Item Opening Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region item-opening-report (
+        name: Item Opening Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region item-opening-report-2 (
+        name: Item Opening Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      row_number() over(order by a.ItemOpeningDate) SerialNo,
+                      a.TNO,
+                      l.LocationName,
+                      dt.DocTypeName,
+                      a.ItemOpeningNo,
+                      a.ItemOpeningDate,
+                      e.itemCOde,
+                      e.ItemName||' ~ '||ee.ItemSpecificationName AS Material,
+                      ee.ItemSpecificationCode,
+                      ee.ItemSpecificationName,
+                      e.MeasuringUnitCode1,
+                      e.MeasuringUnitCode2,
+                      sl.StorageLocationName,
+                      dsd.DocumentStatusCode,
+                      a.OpeningQuantity1,
+                      a.OpeningQuantity2,
+                      a.OpeningValue,
+                      a.OpeningValue /  a.OpeningQuantity1 as Rate,
+                      GetEmployeeName(bu.EmployeeCode)||' ( '||a.Creator||' )' Creator,
+                      a.CreationTime,
+                      ios.CompanySerialNo
+                From  ItemOpening a, Location l, DocType dt, StorageLocation sl, item e, ItemSpecification ee, DocumentStatusDetail dsd, BossUser bu, ItemOpeningSerialNo ios
+                Where a.LocationCode = l.LocationCode(+)
+                  and a.DocTypeCode = dt.DocTypeCode(+)
+                  and a.StorageLocationCode = sl.StorageLocationCode(+)
+                  and a.ItemCOde = e.ItemCode(+)
+                  and a.ItemSpecificationCode = ee.ItemSpecificationCode(+)
+                  and a.TNo = dsd.ModuleTNo(+)
+                  and a.Creator = bu.LoginName(+)
+                  and a.Tno = ios.Tno(+)
+                  and a.ItemOpeningDate >= '30-JUN-2021'
+                  and instr(':'||:P39_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P39_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and instr(':'||:P39_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+                  and ( :P39_ITEM IS NULL OR instr(':'||:P39_ITEM||':',':'||a.ItemCode||':') > 0 )
+                  and ( :P39_SPECIFICATION IS NULL OR instr(':'||:P39_SPECIFICATION||':',':'||a.ItemSpecificationCode||':') > 0 ) 
+                  /* Changed on 28-may-2022
+                  and ( :P39_GROUP IS NULL OR instr(':'||:P39_GROUP||':',':'||e.ParentCode||':') > 0 ) 
+                  */
+                    -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                  and ( :P39_GROUP IS NULL
+                      or
+                      exists (select 1 from (Select ITEMCODE,
+                               parentcode,
+                               RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                               Level,
+                               CONNECT_BY_ROOT itemcode As root_id,
+                               --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                               CONNECT_BY_ISLEAF As leaf
+                          From item a
+                         Start With parentcode in ( select itemcode from item xx where
+                                                    instr(':'||:P39_GROUP||':',':'||xx.ItemCode||':') > 0)
+                                                    
+                        Connect By parentcode = Prior itemcode
+                         Order Siblings By itemcode) x where x.itemcode = e.itemcode
+                        )
+                  )
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+            cssClasses: t-Form--search
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 17781093649122309
+        }
+
+        column COMPANYSERIALNO (
+            type: plainText
+            heading {
+                heading: COMPANY SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CREATIONTIME#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: DOCTYPE
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DOCUMENTSTATUSCODE (
+            type: plainText
+            heading {
+                heading: DOCUMENT STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ITEMOPENINGDATE (
+            type: plainText
+            heading {
+                heading: OPENING_DATE
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ITEMOPENINGNO (
+            type: plainText
+            heading {
+                heading: ITEMOPENING_NO
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#ITEMOPENINGNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Itemspecificationname
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column MATERIAL (
+            type: plainText
+            heading {
+                heading: MATERIAL DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#MATERIAL#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column MEASURINGUNITCODE1 (
+            type: plainText
+            heading {
+                heading: UOM1
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column MEASURINGUNITCODE2 (
+            type: plainText
+            heading {
+                heading: UOM2
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column OPENINGQUANTITY1 (
+            type: plainText
+            heading {
+                heading: QTY 1
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column OPENINGQUANTITY2 (
+            type: plainText
+            heading {
+                heading: QTY 2
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column OPENINGVALUE (
+            type: plainText
+            heading {
+                heading: VALUE
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: RATE
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column STORAGELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: STORAGELOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Item Opening Report
+        }
+
+        savedReport 43795 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn COMPANYSERIALNO (
+                sequence: 16
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 18
+            )
+
+            displayColumn CREATOR (
+                sequence: 17
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn DOCUMENTSTATUSCODE (
+                sequence: 2
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 7
+            )
+
+            displayColumn ITEMOPENINGDATE (
+                sequence: 6
+            )
+
+            displayColumn ITEMOPENINGNO (
+                sequence: 5
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 3
+            )
+
+            displayColumn MATERIAL (
+                sequence: 8
+            )
+
+            displayColumn MEASURINGUNITCODE1 (
+                sequence: 9
+            )
+
+            displayColumn MEASURINGUNITCODE2 (
+                sequence: 12
+            )
+
+            displayColumn OPENINGQUANTITY1 (
+                sequence: 11
+            )
+
+            displayColumn OPENINGQUANTITY2 (
+                sequence: 13
+            )
+
+            displayColumn OPENINGVALUE (
+                sequence: 15
+            )
+
+            displayColumn RATE (
+                sequence: 14
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn STORAGELOCATIONNAME (
+                sequence: 10
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: ITEMOPENINGNO
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: ITEMCODE
+                sort {
+                    sequence: 3
+                }
+            )
+
+            aggregate (
+                column: OPENINGQUANTITY1
+            )
+
+            aggregate (
+                column: OPENINGVALUE
+            )
+
+            aggregate (
+                column: OPENINGQUANTITY2
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+        savedReport 43900 (
+            visibility: alternativeDefault
+            name: Group By Location
+            view {
+                groupBy: true
+                default: groupBy
+                rowsPerPage: 50
+            }
+
+            displayColumn DOCTYPENAME (
+                sequence: 3
+            )
+
+            displayColumn DOCUMENTSTATUSCODE (
+                sequence: 1
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 6
+            )
+
+            displayColumn ITEMOPENINGDATE (
+                sequence: 5
+            )
+
+            displayColumn ITEMOPENINGNO (
+                sequence: 4
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn MATERIAL (
+                sequence: 7
+            )
+
+            displayColumn MEASURINGUNITCODE1 (
+                sequence: 8
+            )
+
+            displayColumn OPENINGQUANTITY1 (
+                sequence: 10
+            )
+
+            displayColumn OPENINGVALUE (
+                sequence: 12
+            )
+
+            displayColumn RATE (
+                sequence: 11
+            )
+
+            displayColumn STORAGELOCATIONNAME (
+                sequence: 9
+            )
+
+            sort (
+                column: ITEMOPENINGNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: ITEMCODE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            groupByColumn (
+                column: LOCATIONNAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+            groupByColumn (
+                column: DOCTYPENAME
+                layout {
+                    sequence: 2
+                }
+            )
+
+            groupByAggregate (
+                heading: Total Qty
+                aggregate {
+                    column: OPENINGQUANTITY1
+                    displaySum: true
+                }
+                appearance {
+                    formatMask: 999G999G999G999G990D00
+                }
+                layout {
+                    sequence: 1
+                }
+            )
+
+            groupByAggregate (
+                heading: Total Value
+                aggregate {
+                    column: OPENINGVALUE
+                    displaySum: true
+                }
+                appearance {
+                    formatMask: 999G999G999G999G990D00
+                }
+                layout {
+                    sequence: 2
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P39_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'ITEMOPENING'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @item-opening-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P39_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'ITEMOPENING'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P39_COMPANY
+            itemsToSubmit: P39_DOCTYPE
+        }
+        layout {
+            sequence: 60
+            region: @item-opening-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter DocType
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P39_GROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select Upper(a.ItemName || ' ( ' || a.ItemCode || ' )') As d,
+                       a.ItemCode As r
+                  From Item a
+                 Where a.ItemType = 'GROUP'
+                 order by 2
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @item-opening-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 20
+            valuePlaceholder: Material Group
+        }
+    )
+
+    pageItem P39_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        e.ItemName||'( '||e.ItemCode||' )' as d,
+                        e.ItemCode as r
+                From ItemOpening a, Item e
+                Where a.ItemCode = e.itemCode
+                order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @item-opening-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 75
+            valuePlaceholder: "Material "
+        }
+    )
+
+    pageItem P39_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'ITEMOPENING'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P39_COMPANY
+            itemsToSubmit: P39_LOCATION
+        }
+        layout {
+            sequence: 20
+            region: @item-opening-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: item
+            item: P39_LOCATION
+        }
+    )
+
+    pageItem P39_SPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        ee.ItemSpecificationName as D,
+                        ee.ItemSpecificationCode as R
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P39_ITEM
+                and   e.TNo = ee.TNo
+                order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @item-opening-report
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 75
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P39_STORAGELOCATION (
+        type: hidden
+        layout {
+            sequence: 100
+            region: @item-opening-report
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @item-opening-report
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

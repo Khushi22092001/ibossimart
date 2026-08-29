@@ -1,0 +1,2568 @@
+page 529 (
+    name: Purchase Order Register
+    alias: PURCHASE-ORDER-REGISTER1
+    title: Purchase Order Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/poregister.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P27_FROMDATE').val());
+              var toDate = new Date($('#P27_TODATE').val());
+            
+            var reportParams = 
+                  '&P_COMPANY='+ $('#P27_COMPANY').val() + 
+                  '&P_FROMDATE='+ $('#P27_FROMDATE').val() +  
+                  '&P_TODATE=' + $('#P27_TODATE').val() +  
+                  '&P_LOCATION=' +$('#P27_LOCATION').val() +  
+                  '&P_STATUS=' +$('#P27_STATUS').val() + 
+                  '&P_ITEM=' +$('#P27_ITEM').val() + 
+                  '&P_ITEMSPECIFICATION=' +$('#P27_ITEMSPECIFICATION').val() + 
+                  '&P_PARTYNAME=' +$('#P27_PARTYNAME').val() + 
+                  '&P_DOCTYPE=' +$('#P27_DOCTYPE').val() + 
+                  '&P_GRNSTATUS=' +$('#P27_GRNSTATUS').val() + 
+                  '&P_PONO=' +$('#P27_PONO').val()
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://13.203.6.83:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            .a-IRR-highlight {
+              font-weight: bold !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region purchase-order-register (
+        name: Purchase Order Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region purchase-order-report (
+        name: Purchase Order Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      row_number() over(order by xxx.PurchaseOrderDate) SerialNo,
+                      xxx.TNo,
+                      xxx.SNo,
+                      xxx.LocationName,
+                      xxx.DocTypeName,
+                      xxx.PurchaseOrderNo,
+                      xxx.PurchaseOrderDate,
+                      xxx.PartyName,
+                      xxx.DeliveryDate as DeliveryDate,
+                       XXX.DELIVERYDATE - TRUNC(SYSDATE)  AS DeliveryRemainingDays,
+                      xxx.ItemCode,
+                      xxx.MaterialDetail,
+                      xxx.UOM,
+                      round(xxx.Quantity1,3) as Quantity1,
+                      xxx.UOM2,
+                      round(xxx.Quantity2,3) as Quantity2,
+                      xxx.AgentName,
+                      XXX.WITHOUTDISCOUNTRATE,
+                      XXX.DISCOUNTRATE,
+                      xxx.Rate,
+                      round(xxx.Amount,2) as Amount,
+                      xxx.CGST,
+                      xxx.SGST,
+                      xxx.IGST,
+                      xxx.TCS,
+                      round(xxx.FooterAmount,2) as FooterAmount,
+                      round((xxx.FooterAmount - (xxx.CGST + xxx.SGST + xxx.IGST + xxx.TCS)),2) as OtherAmount,
+                      round(xxx.TotalAmount,2) as TotalAmount,
+                      round(xxx.GRNReceivedQty,3) as GRNReceivedQty,
+                      round(xxx.GRNReceivedQty2,3) as GRNReceivedQty2,
+                      round(xxx.WBAcceptedWeight,3) as WBAcceptedWeight,
+                      round(xxx.WBNetWeight,3) as WBNetWeight,
+                      round(xxx.balanceQty,3) as BalanceQty,
+                      xxx.DocumentStatusCode,
+                      xxx.DocStatus,
+                      xxx.FreightTypeCode,
+                      xxx.GRNStatus,
+                      xxx.POStatus,
+                      xxx.Creator,
+                      xxx.CreationTime,
+                      'Attachment' as Attachment,
+                      xxx.Description,
+                      xxx.WarrantyDescription,
+                      xxx.MaterialInStatus,
+                      round(xxx.MaterialInQty, 3) as MaterialInQty
+                From (
+                Select
+                      xx.TNo,
+                      xx.SNo,
+                      xx.LocationName,
+                      xx.DocTypeName,
+                      xx.PurchaseOrderNo,
+                      xx.PurchaseOrderDate,
+                      xx.PartyName,
+                      xx.DeliveryDate,
+                      xx.ItemCode,
+                      xx.MaterialDetail,
+                      xx.UOM,
+                      xx.Quantity1,
+                      xx.UOM2,
+                      xx.Quantity2,
+                      xx.AgentName,
+                      XX.WITHOUTDISCOUNTRATE,
+                      XX.DISCOUNTRATE,
+                      xx.Rate,
+                      xx.Amount,
+                      sum(xx.CGST)CGST,
+                      sum(xx.SGST)SGST,
+                      sum(xx.IGST)IGST,
+                      sum(xx.TCS)TCS,
+                      xx.FooterAmount,
+                      xx.TotalAmount,
+                      xx.GRNReceivedQty,
+                      xx.GRNReceivedQty2,
+                      xx.WBAcceptedWeight,
+                      xx.WBNetWeight,
+                      xx.balanceQty,
+                      xx.DocumentStatusCode,
+                      xx.DocStatus,
+                      xx.FreightTypeCode,
+                      xx.GRNStatus,
+                      xx.POStatus,
+                      xx.Creator,
+                      xx.CreationTime,
+                      xx.Description,
+                      xx.WarrantyDescription,
+                      xx.MaterialInStatus,
+                      xx.MaterialInQty
+                From (
+                Select
+                      a.TNo,
+                      b.SNo,
+                      l.LocationName,
+                      d.DocTypeName,
+                      a.PurchaseOrderNo,
+                      a.PurchaseOrderDate,
+                      p.PartyCode,
+                      p.PartyName,
+                      a.DeliveryDate,
+                      e.ItemCode,
+                      e.ItemName,
+                      ee.ItemSpecificationName,
+                      e.ItemName||' ( '||ee.ItemSpecificationName||' )' as MaterialDetail,
+                      mu.MeasuringUnitName as UOM,
+                      b.Quantity1,
+                      e.MeasuringUnitCode2 as UOM2,
+                      b.Quantity2,
+                      GetPartyName(a.AgentCode) AgentName,
+                      B.WITHOUTDISCOUNTRATE,
+                      B.DISCOUNTRATE,
+                      B.Rate,
+                      b.Amount,
+                      Nvl(Decode(c.FooterHeadCode,'.CGST.',c.FooterValue),0) as CGST,
+                      Nvl(Decode(c.FooterHeadCode,'.SGST.',c.FooterValue),0) as SGST,
+                      Nvl(Decode(c.FooterHeadCode,'.IGST.',c.FooterValue),0) as IGST,
+                      Nvl(Decode(c.FooterHeadCode,'.TCS.',c.FooterValue),0) as TCS,
+                      b.FooterAmount,
+                      b.TotalAmount,
+                      g.GRNReceivedQuantity1 as GRNReceivedQty,
+                      g.GRNReceivedQuantity2 as GRNReceivedQty2,
+                      g.WBAcceptedWeight as WBAcceptedWeight,
+                      g.WBNetWeight as WBNetWeight,
+                      b.Quantity1 - NVL(g.GRNReceivedQuantity1,0) as balanceQty,
+                      dsd.DocumentStatusCode,
+                      case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'APPROVAL' Then 'APPROVAL'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                           When dsd.DocumentStatusCode = 'AUDITED' Then 'AUDITED'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End as DocStatus,
+                      ft.FreightTypeName as FreightTypeCode,
+                      Case When g.GRNReceivedQuantity1 >= b.quantity1 - (b.quantity1 * b.lowertolerancepercent) / 100 Then 'DONE'--  g.GRNReceivedQuantity1 Then 'DONE'
+                           --When b.Quantity1 > g.GRNReceivedQuantity1 Then 'PARTIAL'
+                	       When g.GRNReceivedQuantity1 is null or  b.Quantity1 > g.GRNReceivedQuantity1 Then 'PENDING'
+                      End as GRNStatus,
+                      nvl(decode(poc.PurchaseOrderTno,a.TNo,'SHORT-CLOSE'),'OPEN') as POStatus,
+                      'Attachment' as Attachment,
+                      'Details' as Property,
+                      'PURCHASEORDER' as Module,
+                      bue.EmployeeName||'( '||a.Creator||' )' as Creator,
+                      a.CreationTime,
+                      b.Description,
+                      b.WarrantyDescription,
+                      h.MaterialInStatus,
+                      h.MaterialInQty
+                From  PurchaseOrder a, PurchaseOrderDetail b, PurchaseOrderDetailFooter c, Location l, DocType d, Party p,  Item e, ItemSpecification ee, MeasuringUnit mu, BossUser bu, Employee bue,
+                      (Select
+                            b.ItemCode,
+                            b.ItemSpecificationCode,
+                            a.PurchaseOrderTNo,
+                            sum(b.ReceivedQuantity1) as GRNReceivedQuantity1,
+                            sum(b.ReceivedQuantity2) as GRNReceivedQuantity2,
+                            sum(w.AcceptedWeight) as WBAcceptedWeight,
+                            sum(w.NetWeight) as WBNetWeight
+                      From  GRN a, GRNDetail b, Weighment w
+                      Where a.TNo = b.TNo
+                        and a.PurchaseOrderTNo is not null
+                        and a.WeighmentTNo = w.TNo(+)
+                      Group By b.ItemCode,
+                            b.ItemSpecificationCode,
+                            a.PurchaseOrderTNo
+                      ) g, 
+                      (
+                       Select 
+                            aa.tno,
+                            sum(b.Quantity1) as MaterialInQty,
+                            Case When Max(b.Tno) is not null then 'PREPARED'
+                            When Max(b.Tno) is null then 'PENDING'
+                            End as MaterialInStatus
+                        From PurchaseOrderDetail aa, MaterialInDetail b
+                        Where aa.Tno = b.PurchaseOrderTno(+)
+                            and aa.ItemCode = b.ItemCode(+)
+                            and aa.ItemSpecificationCode = b.ItemSpecificationCode(+)
+                        Group By aa.tno
+                         )h, DocumentStatusDetail dsd, PurchaseOrderClose poc, FreightType ft
+                Where a.TNo = b.TNo(+)
+                  and b.TNo = c.TNo(+)
+                  and b.SNo = c.SNo(+)
+                  and a.LocationCode = l.LocationCode(+)
+                  and a.DocTypeCode = d.DocTypeCode(+)
+                  and a.PartyCode = p.PartyCode(+)
+                  and e.TNo = ee.TNo
+                  and b.ItemCode = e.ItemCode(+)
+                  and b.ItemSpecificationCode = ee.ItemSpecificationCode(+)
+                  and e.MeasuringUnitCode1 = mu.MeasuringUnitCode(+)
+                  and e.ItemClassificationCode = 'MATERIAL'
+                  and b.TNo = g.PurchaseOrderTNo(+)
+                  and b.ItemCode = g.ItemCode(+)
+                  and b.ItemSpecificationCode = g.ItemSpecificationCode(+)
+                  and b.Tno = h.Tno(+)
+                  and a.TNo = dsd.ModuleTno(+)
+                  and a.TNo = poc.PurchaseOrderTNo(+)
+                  and a.Creator = bu.LoginName(+)
+                  and bu.EmployeeCode = bue.EmployeeCode(+)	
+                  and a.FreightTypeCode = ft.FreightTypeCode(+)
+                  and (:P529_TODOLIST = 'YES' OR :P529_NEXTPROCESS = 'YES' OR (a.PurchaseOrderDate between NVL(:P529_FROMDATE,ADD_MONTHS(TRUNC(SYSDATE),-6)) and NVL(:P529_TODATE,TRUNC(SYSDATE)) ))
+                  and (:P529_TODOLIST = 'YES' OR :P529_NEXTPROCESS = 'YES' OR (:P529_COMPANY IS NULL OR instr(':'||:P529_COMPANY||':',':'||a.CompanyCode||':') > 0))
+                  and (:P529_TODOLIST = 'YES' OR :P529_NEXTPROCESS = 'YES' OR (:P529_LOCATION IS NULL OR instr(':'||:P529_LOCATION||':',':'||a.LocationCode||':') > 0))
+                  and (:P529_TODOLIST = 'YES' OR :P529_NEXTPROCESS = 'YES' OR (:P529_DOCTYPE IS NULL OR instr(':'||:P529_DOCTYPE||':',':'||a.DocTypeCode||':') > 0))
+                  and ( :P529_PARTYNAME IS NULL OR instr(':'||:P529_PARTYNAME||':',':'||a.PartyCode||':') > 0 ) 
+                  and ( :P529_ITEM IS NULL OR instr(':'||:P529_ITEM||':',':'||e.ItemCode||':') > 0 ) 
+                  and ( :P529_ITEMSPECIFICATION IS NULL OR instr(':'||:P529_ITEMSPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  and nvl(decode(poc.PurchaseOrderTno,a.TNo,'SHORT-CLOSE'),'OPEN') like nvl(:P529_POSTATUS,'%')
+                 /*Case When g.GRNReceivedQuantity1 >= b.quantity1 - (b.quantity1 * b.lowertolerancepercent) / 100 Then 'DONE'--  g.GRNReceivedQuantity1 Then 'DONE'
+                           --When b.Quantity1 > g.GRNReceivedQuantity1 Then 'PARTIAL'
+                	       When g.GRNReceivedQuantity1 is null or  b.Quantity1 > g.GRNReceivedQuantity1 Then 'PENDING'
+                      End like nvl(:P529_GRNSTATUS,'%')
+                */
+                /*  and Case When b.Quantity1 <= g.GRNReceivedQuantity1 Then 'DONE'
+                           When b.Quantity1 > g.GRNReceivedQuantity1 Then 'PARTIAL'
+                	       When g.GRNReceivedQuantity1 is null Then 'PENDING'
+                      End like nvl(:P529_GRNSTATUS,'%')
+                */
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'APPROVAL' Then 'APPROVAL'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                           When dsd.DocumentStatusCode = 'AUDITED' Then 'AUDITED'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End  like nvl(:P529_STATUS,'%')
+                  and a.PurchaseOrderNo like nvl(:P529_PONO,'%')
+                  )xx
+                  where xx.GRNSTATUS like nvl(:P529_GRNSTATUS,'%')
+                    
+                Group By 
+                        xx.TNo,
+                      xx.SNo,
+                      xx.LocationName,
+                      xx.DocTypeName,
+                      xx.PurchaseOrderNo,
+                      xx.PurchaseOrderDate,
+                      xx.PartyName,
+                      xx.DeliveryDate,
+                      xx.ItemCode,
+                      xx.MaterialDetail,
+                      xx.UOM,
+                      xx.Quantity1,
+                      xx.UOM2,
+                      xx.Quantity2,
+                      xx.AgentName,
+                      XX.WITHOUTDISCOUNTRATE,
+                      XX.DISCOUNTRATE,
+                      xx.Rate,
+                      xx.Amount,
+                      xx.FooterAmount,
+                      xx.TotalAmount,
+                      xx.GRNReceivedQty,
+                      xx.GRNReceivedQty2,
+                      xx.WBAcceptedWeight,
+                      xx.WBNetWeight,
+                      xx.balanceQty,
+                      xx.DocumentStatusCode,
+                      xx.DocStatus,
+                      xx.FreightTypeCode,
+                      xx.GRNStatus,
+                      xx.POStatus,
+                      xx.Creator,
+                      xx.CreationTime,
+                      xx.Description,
+                      xx.WarrantyDescription,
+                      xx.MaterialInStatus,
+                      xx.MaterialInQty
+                )xxx
+                where (:P529_TODOLIST='NO' OR  (:P529_TODOLIST='YES' AND EXISTS ( SELECT 1 FROM ONTHETABLE_APEX YY WHERE YY.TNO=XXX.TNO) ))
+                AND ( :P529_NEXTPROCESS='NO' OR (:P529_NEXTPROCESS = 'YES' AND (  getdocumentstatuscode('PURCHASEORDER',XXX.TNO)='ACTIVE'
+                                                    AND  NOT EXISTS (Select 1 From MaterialIn AA Where AA.Purchaseordertno = XXX.TNO)
+                                                ))
+                                                
+                 )
+                 and ( nvl(:P529_REMAININGDELIVERYDAYS,0) = 0 or XXX.DELIVERYDATE - TRUNC(SYSDATE) <= nvl(:P529_REMAININGDELIVERYDAYS,0) )
+                 and xxx.MaterialInStatus like nvl(:P529_MATERIALSTATUS,'%')
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        download {
+            authorization: @candownload
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 97346754856575913
+        }
+
+        column AGENTNAME (
+            type: plainText
+            heading {
+                heading: AGENT NAME
+                alignment: center
+            }
+            layout {
+                sequence: 400
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#AGENTNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#AMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column ATTACHMENT (
+            type: hidden
+            heading {
+                heading: ATTACHMENT
+            }
+            layout {
+                sequence: 370
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column BALANCEQTY (
+            type: plainText
+            heading {
+                heading: BALANCE QTY
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#BALANCEQTY#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column CGST (
+            type: plainText
+            heading {
+                heading: CGST
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#CGST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY HH:MIPM
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CREATIONTIME#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 350
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CREATOR#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column DELIVERYDATE (
+            type: plainText
+            heading {
+                heading: DELIVERY DATE
+            }
+            layout {
+                sequence: 450
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#DELIVERYDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column DELIVERYREMAININGDAYS (
+            type: plainText
+            heading {
+                heading: DELIVERY REMAINING DAYS
+                alignment: end
+            }
+            layout {
+                sequence: 460
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <B>#DELIVERYREMAININGDAYS#</B>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: DESCRIPTION
+            }
+            layout {
+                sequence: 430
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#DESCRIPTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column DISCOUNTRATE (
+            type: plainText
+            heading {
+                heading: DISCOOUNT RATE
+                alignment: end
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column DOCSTATUS (
+            type: plainText
+            heading {
+                heading: DOC STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DOCSTATUS#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: DOCTYPE
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column DOCUMENTSTATUSCODE (
+            type: plainText
+            heading {
+                heading: "DOCUMENT STATUS "
+                alignment: center
+            }
+            layout {
+                sequence: 300
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#DOCUMENTSTATUSCODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column FOOTERAMOUNT (
+            type: plainText
+            heading {
+                heading: FOOTER AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#FOOTERAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column FREIGHTTYPECODE (
+            type: plainText
+            heading {
+                heading: FREIGHT TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 320
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#FREIGHTTYPECODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column GRNRECEIVEDQTY (
+            type: plainText
+            heading {
+                heading: GRN RECEIVED P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#GRNRECEIVEDQTY#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column GRNRECEIVEDQTY2 (
+            type: plainText
+            heading {
+                heading: GRN RECEIVED S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 410
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#GRNRECEIVEDQTY2#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column GRNSTATUS (
+            type: plainText
+            heading {
+                heading: GRN STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#GRNSTATUS#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column IGST (
+            type: plainText
+            heading {
+                heading: IGST
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#IGST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column MATERIALDETAIL (
+            type: plainText
+            heading {
+                heading: MATERIAL DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:300px">#MATERIALDETAIL#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column MATERIALINQTY (
+            type: plainText
+            heading {
+                heading: MATERIAL IN QTY
+                alignment: end
+            }
+            layout {
+                sequence: 480
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column MATERIALINSTATUS (
+            type: plainText
+            heading {
+                heading: MATERIAL IN STATUS
+            }
+            layout {
+                sequence: 470
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column OTHERAMOUNT (
+            type: plainText
+            heading {
+                heading: OTHER AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#OTHERAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: VENDOR NAME
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column POSTATUS (
+            type: plainText
+            heading {
+                heading: PO STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 340
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#POSTATUS#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column PURCHASEORDERDATE (
+            type: plainText
+            heading {
+                heading: PURCHASE ORDER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PURCHASEORDERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PURCHASEORDERNO (
+            type: plainText
+            heading {
+                heading: PURCHASE ORDER NO
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#PURCHASEORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#QUANTITY1#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 390
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#QUANTITY2#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: RATE
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#RATE#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serialno
+                alignment: center
+            }
+            layout {
+                sequence: 420
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column SGST (
+            type: plainText
+            heading {
+                heading: SGST
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#SGST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column SNO (
+            type: plainText
+            heading {
+                heading: Sno
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column TCS (
+            type: plainText
+            heading {
+                heading: TCS
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#TCS#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#TOTALAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: P UOM
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#UOM#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column UOM2 (
+            type: plainText
+            heading {
+                heading: S UOM
+                alignment: center
+            }
+            layout {
+                sequence: 380
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#UOM2#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column WARRANTYDESCRIPTION (
+            type: plainText
+            heading {
+                heading: WARRANTY DESCRIPTION
+            }
+            layout {
+                sequence: 440
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#WARRANTYDESCRIPTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column WBACCEPTEDWEIGHT (
+            type: plainText
+            heading {
+                heading: WB ACCEPTED WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#WBACCEPTEDWEIGHT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column WBNETWEIGHT (
+            type: plainText
+            heading {
+                heading: WB NET WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#WBNETWEIGHT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column WITHOUTDISCOUNTRATE (
+            type: plainText
+            heading {
+                heading: RATE BEFORE DISCOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        page {
+            size: a3
+            units: millimeters
+            width: 420
+            height: 297
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText:
+                ```
+                Purchase Order Report
+                From Date &P27_FROMDATE., To Date &P27_TODATE.
+                Doctype &P27_DOCTYPE.
+                Location &P27_LOCATION.
+                COMPANY &P27_COMPANY.
+                
+                ```
+        }
+
+        savedReport 36764 (
+            visibility: alternativeDefault
+            name: PO VS ACTUAL RECEIVED QUANTITY
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 11
+            )
+
+            displayColumn BALANCEQTY (
+                sequence: 21
+            )
+
+            displayColumn CGST (
+                sequence: 12
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 23
+            )
+
+            displayColumn CREATOR (
+                sequence: 22
+            )
+
+            displayColumn DOCSTATUS (
+                sequence: 1
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 2
+            )
+
+            displayColumn FREIGHTTYPECODE (
+                sequence: 18
+            )
+
+            displayColumn GRNRECEIVEDQTY (
+                sequence: 20
+            )
+
+            displayColumn GRNSTATUS (
+                sequence: 19
+            )
+
+            displayColumn IGST (
+                sequence: 14
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 6
+            )
+
+            displayColumn MATERIALDETAIL (
+                sequence: 7
+            )
+
+            displayColumn OTHERAMOUNT (
+                sequence: 16
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 4
+            )
+
+            displayColumn PURCHASEORDERDATE (
+                sequence: 3
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 5
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 8
+            )
+
+            displayColumn RATE (
+                sequence: 10
+            )
+
+            displayColumn SGST (
+                sequence: 13
+            )
+
+            displayColumn TCS (
+                sequence: 15
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 17
+            )
+
+            displayColumn UOM (
+                sequence: 9
+            )
+
+            sort (
+                column: PURCHASEORDERDATE
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: PARTYNAME
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: CGST
+            )
+
+            aggregate (
+                column: SGST
+            )
+
+            aggregate (
+                column: IGST
+            )
+
+            aggregate (
+                column: TCS
+            )
+
+            aggregate (
+                column: OTHERAMOUNT
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+            aggregate (
+                column: GRNRECEIVEDQTY
+            )
+
+            aggregate (
+                column: BALANCEQTY
+            )
+
+        )
+
+        savedReport 38221 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGENTNAME (
+                sequence: 8
+            )
+
+            displayColumn AMOUNT (
+                sequence: 20
+            )
+
+            displayColumn BALANCEQTY (
+                sequence: 33
+            )
+
+            displayColumn CGST (
+                sequence: 21
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 35
+            )
+
+            displayColumn CREATOR (
+                sequence: 34
+            )
+
+            displayColumn DELIVERYDATE (
+                sequence: 6
+            )
+
+            displayColumn DELIVERYREMAININGDAYS (
+                sequence: 7
+            )
+
+            displayColumn DESCRIPTION (
+                sequence: 11
+            )
+
+            displayColumn DISCOUNTRATE (
+                sequence: 18
+            )
+
+            displayColumn DOCSTATUS (
+                sequence: 1
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 2
+            )
+
+            displayColumn FREIGHTTYPECODE (
+                sequence: 27
+            )
+
+            displayColumn GRNRECEIVEDQTY (
+                sequence: 29
+            )
+
+            displayColumn GRNRECEIVEDQTY2 (
+                sequence: 30
+            )
+
+            displayColumn GRNSTATUS (
+                sequence: 28
+            )
+
+            displayColumn IGST (
+                sequence: 23
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 9
+            )
+
+            displayColumn MATERIALDETAIL (
+                sequence: 10
+            )
+
+            displayColumn MATERIALINQTY (
+                sequence: 31
+            )
+
+            displayColumn MATERIALINSTATUS (
+                sequence: 32
+            )
+
+            displayColumn OTHERAMOUNT (
+                sequence: 25
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 4
+            )
+
+            displayColumn PURCHASEORDERDATE (
+                sequence: 3
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 5
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 14
+            )
+
+            displayColumn QUANTITY2 (
+                sequence: 16
+            )
+
+            displayColumn RATE (
+                sequence: 19
+            )
+
+            displayColumn SGST (
+                sequence: 22
+            )
+
+            displayColumn TCS (
+                sequence: 24
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 26
+            )
+
+            displayColumn UOM (
+                sequence: 13
+            )
+
+            displayColumn UOM2 (
+                sequence: 15
+            )
+
+            displayColumn WARRANTYDESCRIPTION (
+                sequence: 12
+            )
+
+            displayColumn WITHOUTDISCOUNTRATE (
+                sequence: 17
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: PURCHASEORDERDATE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: PARTYNAME
+                sort {
+                    sequence: 3
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: CGST
+            )
+
+            aggregate (
+                column: SGST
+            )
+
+            aggregate (
+                column: IGST
+            )
+
+            aggregate (
+                column: TCS
+            )
+
+            aggregate (
+                column: OTHERAMOUNT
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+            aggregate (
+                column: GRNRECEIVEDQTY
+            )
+
+            aggregate (
+                column: BALANCEQTY
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+            highlight ir-condition (
+                name: DELIVERY DAYS
+                condition {
+                    column: DELIVERYREMAININGDAYS
+                    operator: <=
+                    value: 7
+                }
+                highlight {
+                    type: cell
+                }
+                colors {
+                    background: #fcfbf8
+                    text: #f81313
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+        )
+
+        savedReport 38225 (
+            visibility: alternativeDefault
+            name: Last Purchase Rate
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn GRNSTATUS (
+                sequence: 7
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 4
+            )
+
+            displayColumn MATERIALDETAIL (
+                sequence: 5
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 3
+            )
+
+            displayColumn PURCHASEORDERDATE (
+                sequence: 1
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 2
+            )
+
+            displayColumn RATE (
+                sequence: 6
+            )
+
+            sort (
+                column: PURCHASEORDERDATE
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: PARTYNAME
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: CGST
+            )
+
+            aggregate (
+                column: SGST
+            )
+
+            aggregate (
+                column: IGST
+            )
+
+            aggregate (
+                column: TCS
+            )
+
+            aggregate (
+                column: OTHERAMOUNT
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+            aggregate (
+                column: GRNRECEIVEDQTY
+            )
+
+            aggregate (
+                column: BALANCEQTY
+            )
+
+        )
+
+    )
+
+    pageItem P529_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'PURCHASEORDER'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P529_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'PURCHASEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  and instr(':'||:P529_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order by 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P529_COMPANY
+            itemsToSubmit: P529_DOCTYPE
+        }
+        layout {
+            sequence: 100
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Doc Type Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P529_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: "TRUNC(SYSDATE) -1 "
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P529_GRNSTATUS (
+        type: selectList
+        label {
+            label: GRN Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:PENDING;PENDING,DONE;DONE
+            nullDisplayValue: -Select GRN Status-
+        }
+        layout {
+            sequence: 120
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P529_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      e.ItemName||'( '||e.ItemCode||' )' as d,
+                      e.ItemCode r
+                From PurchaseOrderDetail a,Item e
+                Where a.ItemCode = e.ItemCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 110
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 74
+            valuePlaceholder: Material
+        }
+    )
+
+    pageItem P529_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      ee.ItemSpecificationName as d,
+                      ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P529_ITEM
+                  and e.TNo = ee.TNO
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P529_ITEM
+            itemsToSubmit: P529_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 130
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P529_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PURCHASEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  and instr(':'||:P529_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P529_COMPANY
+            itemsToSubmit: P529_LOCATION
+        }
+        layout {
+            sequence: 50
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P529_MATERIALSTATUS (
+        type: selectList
+        label {
+            label: Material status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:PREPARED;PREPARED,PENDING;PENDING
+            nullDisplayValue: --Select Material Status--
+        }
+        layout {
+            sequence: 180
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P529_NEXTPROCESS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 170
+            region: @purchase-order-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P529_PARTYNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From PurchaseOrder a, Party p
+                Where a.PartyCode = p.PartyCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 74
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P529_PONO (
+        type: textFieldWithAutocomplete
+        label {
+            label: PoNo
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select PurchaseOrderNo From PurchaseOrder 
+                Where instr(':'||:P529_LOCATION||':',':'||LocationCode||':') > 0
+                  and PurchaseOrderDate Between :P529_FROMDATE and :P529_TODATE
+                Order by 1
+                ```
+        }
+        cascadingLov {
+            parentItems: P529_LOCATION
+            itemsToSubmit: P529_PONO
+        }
+        layout {
+            sequence: 140
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Purchase Order No
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P529_REMAININGDELIVERYDAYS (
+        type: numberField
+        label {
+            label: Remaining Delivery Days
+            alignment: left
+        }
+        layout {
+            sequence: 150
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P529_STATUS (
+        type: selectList
+        label {
+            label: Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:Active;ACTIVE,Non-Active;NONACTIVE,Canceled;CANCELED,Closed;CLOSED,Preparing;PREPARING,Prepared;PREPARED,Authorised;AUTHORISED,On Hold;ONHOLD,Approval;APPROVAL,Dept Approved;DEPTAPPROVED,Store Approval;STOREAPPROVED,Audited;AUDITED,Short Closed;SHORTCLOSED,Store Approved;STOREAPPROVED
+            nullDisplayValue: --Select Status--
+        }
+        layout {
+            sequence: 20
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P529_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @purchase-order-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P529_TODOLIST (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @purchase-order-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 190
+            region: @purchase-order-register
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P529_PONO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P529_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P529_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 12793885287253659
+        }
+    )
+
+)
+

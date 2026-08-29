@@ -1,0 +1,1187 @@
+page 497 (
+    name: Comparative Statement Register
+    alias: COMPARATIVE-STATEMENT-REGISTER-NEW
+    title: "Comparative Statement Register "
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region comparative-statement-register (
+        name: "Comparative Statement Register "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                   a.Tno,
+                   row_number() over(order by a.comparativeStatementDate) SerialNo,
+                   a.ComparativeStatementNo,
+                   a.ComparativeStatementDate,
+                   d.LocationName,
+                   f.VendorName,
+                   g.ItemName,
+                   h.ItemSpecificationName,
+                   ee.Description,
+                   ee.Quantity1,
+                   ee.Rate,
+                   round(ee.Amount,2) as Amount,
+                   ee.FooterAmount as GSTAmount,
+                   ee.TotalAmount,
+                   Round(ee.Amount,2) as LandingCost,
+                --    Round((ee.Amount)/ nvl(ee.Quantity1,1),2) as LandedRate,
+                   l.EmployeeName||' ( '||a.Creator||' )' as Creator,
+                   a.CreationTime,
+                   m.PurchaseOrderNo,
+                   e.QuotationNo,
+                   e.QuotationDate,
+                   n.EnquiryNo,
+                   n.EnquiryDate
+                From ComparativeStatement a,ComparativeStatementDetail b, Location d, Quotation e, QuotationDetail ee, Vendor f, Item g, ItemSpecification h,
+                (Select
+                               x.Tno,
+                               Sum(x.FooterValue) as GSTAmount
+                              From QuotationDetailFooter x
+                              Where x.FooterHeadCode in ('.IGST.','.CGST.','.SGST.')
+                              Group By x.Tno
+                            )i,
+                 (Select
+                               x.Tno,
+                               Sum(x.FooterValue) as OtherAmount
+                              From QuotationDetailFooter x
+                              Where x.FooterHeadCode not in ('.IGST.','.CGST.','.SGST.')
+                              Group By x.Tno
+                            )j, BossUser k, Employee l , 
+                           (
+                             select aa.quotationtno,aa.itemcode,aa.itemspecificationcode , cc.purchaseorderno
+                             from comparativestatementitem aa, purchaseorderdetail bb, purchaseorder cc
+                             where aa.quotationtno = cc.quotationtno
+                             and aa.itemcode = bb.itemcode
+                             and aa.itemspecificationcode = bb.itemspecificationcode
+                             and bb.tno = cc.tno
+                           ) m, Enquiry n
+                            
+                
+                Where a.Tno = b.Tno(+)
+                and a.LocationCode = d.LocationCode(+)
+                and b.QuotationTno = e.Tno(+)
+                and e.Tno = ee.Tno(+)
+                and e.PartyCode = f.VendorCode(+)
+                and ee.ItemCode = g.ItemCode(+)
+                and ee.ItemSpecificationCode = h.ItemSpecificationCode(+)
+                and ee.Tno = i.Tno(+)
+                and ee.Tno = j.Tno(+)
+                and a.Creator = k.LoginName(+)
+                and k.EmployeeCode = l.EmployeeCode(+)
+                and ee.Tno = m.QuotationTno(+)
+                and ee.itemcode = m.itemcode(+)
+                and ee.itemspecificationcode=m.itemspecificationcode(+)
+                and a.EnquiryTno = n.Tno(+)
+                  and a.ComparativeStatementDate between :P497_FROMDATE and :P497_TODATE
+                  and ( :P497_COMPANY IS NULL OR instr(':'||:P497_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+                  and ( :P497_LOCATION IS NULL OR instr(':'||:P497_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                  and ( :P497_PARTY IS NULL OR instr(':'||:P497_PARTY||':',':'||f.VendorCode||':') > 0 ) 
+                  and ( :P497_ITEM IS NULL OR instr(':'||:P497_ITEM||':',':'||ee.ItemCode||':') > 0 ) 
+                  and ( :P497_ITEMSPECIFICATION IS NULL OR instr(':'||:P497_ITEMSPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                
+                
+                ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 75078933466009312
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Basic Amount
+                alignment: end
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column COMPARATIVESTATEMENTDATE (
+            type: plainText
+            heading {
+                heading: CS Date
+            }
+            layout {
+                sequence: 150
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#COMPARATIVESTATEMENTDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column COMPARATIVESTATEMENTNO (
+            type: plainText
+            heading {
+                heading: CS No.
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:170px">#COMPARATIVESTATEMENTNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: Creation Time
+            }
+            layout {
+                sequence: 290
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#CREATIONTIME#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 280
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:220px">#CREATOR#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: Description
+            }
+            layout {
+                sequence: 200
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#DESCRIPTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column ENQUIRYDATE (
+            type: plainText
+            heading {
+                heading: Enquiry Date
+            }
+            layout {
+                sequence: 340
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#ENQUIRYDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column ENQUIRYNO (
+            type: plainText
+            heading {
+                heading: Enquiry No
+            }
+            layout {
+                sequence: 330
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#ENQUIRYNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column GSTAMOUNT (
+            type: plainText
+            heading {
+                heading: GST Amount
+                alignment: end
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Material Name
+            }
+            layout {
+                sequence: 180
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#ITEMNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: "Material Specification "
+            }
+            layout {
+                sequence: 190
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:170px">#ITEMSPECIFICATIONNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column LANDINGCOST (
+            type: plainText
+            heading {
+                heading: Landing Cost
+                alignment: end
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:170px">#LOCATIONNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column PURCHASEORDERNO (
+            type: plainText
+            heading {
+                heading: Purchase Order No
+            }
+            layout {
+                sequence: 300
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#PURCHASEORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Qty
+                alignment: end
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column QUOTATIONDATE (
+            type: plainText
+            heading {
+                heading: Quotation Date
+            }
+            layout {
+                sequence: 320
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#QUOTATIONDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column QUOTATIONNO (
+            type: plainText
+            heading {
+                heading: Quotation No
+            }
+            layout {
+                sequence: 310
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#QUOTATIONNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: Basic Rate
+                alignment: end
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: Total Order Value
+                alignment: end
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column VENDORNAME (
+            type: plainText
+            heading {
+                heading: Vendor Name
+            }
+            layout {
+                sequence: 170
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#VENDORNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 16
+            pageHeaderText: Comparative Statement Register (New)
+        }
+
+        savedReport 557839 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 15
+            )
+
+            displayColumn COMPARATIVESTATEMENTDATE (
+                sequence: 3
+            )
+
+            displayColumn COMPARATIVESTATEMENTNO (
+                sequence: 2
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 20
+            )
+
+            displayColumn CREATOR (
+                sequence: 19
+            )
+
+            displayColumn DESCRIPTION (
+                sequence: 11
+            )
+
+            displayColumn ENQUIRYDATE (
+                sequence: 8
+            )
+
+            displayColumn ENQUIRYNO (
+                sequence: 7
+            )
+
+            displayColumn GSTAMOUNT (
+                sequence: 16
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 9
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 10
+            )
+
+            displayColumn LANDINGCOST (
+                sequence: 18
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 1
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 4
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 13
+            )
+
+            displayColumn QUOTATIONDATE (
+                sequence: 6
+            )
+
+            displayColumn QUOTATIONNO (
+                sequence: 5
+            )
+
+            displayColumn RATE (
+                sequence: 14
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 17
+            )
+
+            displayColumn VENDORNAME (
+                sequence: 12
+            )
+
+            sort (
+                column: COMPARATIVESTATEMENTNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: VENDORNAME
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: DEBITAMOUNT
+            )
+
+            aggregate (
+                column: LOADINGQUANTITY
+            )
+
+            aggregate (
+                column: REACHEDQUANTITY1
+            )
+
+            aggregate (
+                column: PASSQUANTITY
+            )
+
+            aggregate (
+                column: BILLEDAMOUNT
+            )
+
+            aggregate (
+                column: TDSDEDUCTABLEAMOUNT
+            )
+
+            aggregate (
+                column: NETPAYABLEAMOUNT
+            )
+
+            aggregate (
+                column: TDSAMOUNT
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: GSTAMOUNT
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+            aggregate (
+                column: LANDINGCOST
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+            highlight ir-condition (
+                condition {
+                    column: PURCHASEORDERNO
+                    operator: isNotNull
+                }
+                colors {
+                    background: #8efca8
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P497_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ComparativeStatement a, Company c
+                Where a.companycode = c.companycode
+                Order by 1
+                  ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P497_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P497_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select    Distinct
+                          e.ItemName||' ( '||e.ItemCode||' )' as d,
+                          e.ItemCode r
+                From ComparativeStatementItem a, Item e
+                Where a.ItemCode = e.ItemCode
+                Order by 2
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Material List
+        }
+    )
+
+    pageItem P497_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select    
+                          ee.ItemSpecificationName as d,
+                          ee.ItemSpecificationCode as r
+                
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P494_ITEM
+                 and e.TNo = ee.TNo
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P494_ITEM
+            itemsToSubmit: P494_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 80
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P497_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'COMPARATIVESTATEMENT'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P497_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                	Distinct
+                	p.VendorName d,
+                	p.VendorCode r
+                From Quotation a, Vendor p
+                Where a.PartyCode = p.VendorCode(+)
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Vendor List
+        }
+    )
+
+    pageItem P497_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @comparative-statement-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @comparative-statement-register
+            slot: regionBody
+            startNewRow: false
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

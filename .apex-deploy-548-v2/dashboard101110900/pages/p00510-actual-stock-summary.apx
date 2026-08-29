@@ -1,0 +1,855 @@
+page 510 (
+    name: Actual Stock Summary
+    alias: ACTUAL-STOCK-SUMMARY
+    title: Actual Stock Summary
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region actual-stock-summary (
+        name: Actual Stock Summary
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With
+                -- Opening balance before from-date
+                OPENBAL As
+                 (Select itemcode,
+                         Sum(in_qty - out_qty) As OPENING_QTY,
+                         Sum(in_amt - out_amt) As OPENING_AMT
+                    From (
+                          -- Stock receipts before fromdate
+                          Select bb.itemcode,
+                                  Sum(bb.stockquantity1) As in_qty,
+                                  0 As out_qty,
+                                  Sum(bb.amount) As in_amt,
+                                  0 As out_amt
+                            From stock bb
+                           Where (bb.stockdate < :P510_FROMDATE OR BB.STOCKMODULECODE='ITEMOPENING')
+                           Group By bb.itemcode
+                          
+                          Union All
+                          -- Stock usage before fromdate
+                          Select aa.itemcode,
+                                  0,
+                                  Sum(bb.usedstockquantity1),
+                                  0,
+                                  Sum(aa.rate * bb.usedstockquantity1)
+                            From stock aa
+                            Join usedstock bb
+                              On aa.tno = bb.stocktno
+                           Where bb.usedstockdate < :P510_FROMDATE
+                           Group By aa.itemcode
+                          
+                          Union All
+                          -- Physical gap transactions before fromdate
+                          Select d.physicalgapitemcode,
+                                  Sum(d.stockquantity1), -- in_qty
+                                  Sum(d.usedstockquantity1), -- out_qty
+                                  Sum(d.stockamount), -- in_amt
+                                  Sum(d.usedstockamount) -- out_amt
+                            From physicalgapitemtransaction d
+                           Where d.transactiondate < :P510_FROMDATE
+                           Group By d.physicalgapitemcode)
+                   Group By itemcode),
+                
+                -- Movements within date range
+                TXN As
+                 (Select itemcode,
+                         Sum(stock_in) As STOCK_QTY,
+                         Sum(stock_out) As USED_QTY,
+                         Sum(phy_in) As PHYIN_QTY,
+                         Sum(phy_out) As PHYOUT_QTY,
+                         Sum(stock_in_amt) As STOCK_AMT,
+                         Sum(stock_out_amt) As USED_AMT,
+                         Sum(phy_in_amt) As PHYIN_AMT,
+                         Sum(phy_out_amt) As PHYOUT_AMT
+                    From (
+                          -- Stock in
+                          Select bb.itemcode,
+                                  Sum(bb.stockquantity1) As stock_in,
+                                  0 As stock_out,
+                                  0 As phy_in,
+                                  0 As phy_out,
+                                  Sum(bb.amount) As stock_in_amt,
+                                  0 As stock_out_amt,
+                                  0 As phy_in_amt,
+                                  0 As phy_out_amt
+                            From stock bb
+                           Where bb.stockdate Between :P510_FROMDATE And :P510_TODATE
+                             AND BB.STOCKMODULECODE != 'ITEMOPENING'
+                           Group By bb.itemcode
+                          
+                          Union All
+                          -- Stock used
+                          Select aa.itemcode,
+                                  0,
+                                  Sum(bb.usedstockquantity1),
+                                  0,
+                                  0,
+                                  0,
+                                  Sum(aa.rate * bb.usedstockquantity1),
+                                  0,
+                                  0
+                            From stock aa
+                            Join usedstock bb
+                              On aa.tno = bb.stocktno
+                           Where bb.usedstockdate Between :P510_FROMDATE And :P510_TODATE
+                           Group By aa.itemcode
+                          
+                          Union All
+                          -- Physical gap transactions
+                          Select --d.physicalgapitemcode,
+                                  E.ITEMCODE,
+                                  0,
+                                  0,
+                                  Sum(d.stockquantity1),
+                                  Sum(d.usedstockquantity1),
+                                  0,
+                                  0,
+                                  Sum(d.stockamount),
+                                  Sum(d.usedstockamount)
+                            From physicalgapitemtransaction d, ITEM E
+                           Where d.transactiondate Between :P510_FROMDATE And :P510_TODATE
+                             AND D.PHYSICALGAPITEMCODE = E.PHYSICALGAPITEMCODE
+                           Group By E.ITEMCODE --d.physicalgapitemcode
+                           )
+                   Group By itemcode),
+                
+                -- Item master
+                IT As
+                 (Select ITEMCODE, ITEMNAME, PHYSICALGAPITEMCODE
+                    From ITEM X
+                   Where X.PHYSICALGAPITEMCODE Is Not Null
+                     And (:P510_ITEM Is Null Or X.ITEMCODE = :P510_ITEM) -- optional filter
+                  )
+                
+                -- Final summary
+                Select :P510_FROMDATE FROMDATE,
+                       :P510_TODATE TODATE,
+                       it.ITEMCODE,
+                       it.ITEMNAME,
+                       
+                       ROUND(NVL(ob.OPENING_QTY, 0), 3) As OPENING_QTY,
+                       ROUND(NVL(tx.STOCK_QTY, 0), 3) As STOCK_QTY,
+                       ROUND(NVL(tx.PHYIN_QTY, 0), 3) As PHYIN_QTY,
+                       ROUND(NVL(tx.USED_QTY, 0), 3) As USED_QTY,
+                       ROUND(NVL(tx.PHYOUT_QTY, 0), 3) As PHYOUT_QTY,
+                       ROUND(NVL(ob.OPENING_QTY, 0) + NVL(tx.STOCK_QTY, 0) +
+                             NVL(tx.PHYIN_QTY, 0) - NVL(tx.USED_QTY, 0) -
+                             NVL(tx.PHYOUT_QTY, 0),
+                             3) As CLOSING_QTY,
+                       ROUND(NVL(ob.OPENING_AMT, 0), 2) As OPENING_AMT,
+                       ROUND(NVL(tx.STOCK_AMT, 0), 2) As STOCK_AMT,
+                       ROUND(NVL(tx.PHYIN_AMT, 0), 2) As PHYIN_AMT,
+                       ROUND(NVL(tx.USED_AMT, 0), 2) As USED_AMT,
+                       ROUND(NVL(tx.PHYOUT_AMT, 0), 2) As PHYOUT_AMT,
+                       ROUND(NVL(ob.OPENING_AMT, 0) + NVL(tx.STOCK_AMT, 0) +
+                             NVL(tx.PHYIN_AMT, 0) - NVL(tx.USED_AMT, 0) -
+                             NVL(tx.PHYOUT_AMT, 0),
+                             2) As CLOSING_AMT
+                
+                  From IT it
+                  Left Join OPENBAL ob
+                    On it.ITEMCODE = ob.ITEMCODE
+                  Left Join TXN tx
+                    On it.ITEMCODE = tx.ITEMCODE
+                    ;
+                
+                
+                ```
+            pageItemsToSubmit: [
+                P510_FROMDATE
+                P510_TODATE
+                P510_ITEM
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 16175721001890324
+        }
+
+        savedReport 221620 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @ITEMCODE
+                layout {
+                    show: false
+                    width: 43
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @ITEMNAME
+                layout {
+                    width: 143
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @OPENING_QTY
+                layout {
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @STOCK_QTY
+                layout {
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @PHYIN_QTY
+                layout {
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @USED_QTY
+                layout {
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @PHYOUT_QTY
+                layout {
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @CLOSING_QTY
+                layout {
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @STOCK_AMT
+                layout {
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @PHYIN_AMT
+                layout {
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @USED_AMT
+                layout {
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @PHYOUT_AMT
+                layout {
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @CLOSING_AMT
+                layout {
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @OPENING_AMT
+                layout {
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @FROMDATE
+                layout {
+                    show: false
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @TODATE
+                layout {
+                    show: false
+                    sequence: 16
+                }
+            )
+
+            sort (
+                column: @ITEMNAME
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+        )
+
+        columnGroup amount (
+            heading: Amount
+        )
+
+        columnGroup quantity (
+            heading: Quantity
+        )
+
+        column CLOSING_AMT (
+            type: numberField
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+                group: @amount
+            }
+            source {
+                databaseColumn: CLOSING_AMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column CLOSING_QTY (
+            type: numberField
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+                group: @quantity
+            }
+            source {
+                databaseColumn: CLOSING_QTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column FROMDATE (
+            type: textarea
+            heading {
+                heading: Fromdate
+            }
+            layout {
+                sequence: 150
+            }
+            validation {
+                maxLength: 2000
+            }
+            source {
+                databaseColumn: FROMDATE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column ITEMCODE (
+            type: textField
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: ITEMCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ITEMNAME (
+            type: link
+            heading {
+                heading: Itemname
+            }
+            layout {
+                sequence: 20
+            }
+            link {
+                target: {
+                    page: 511
+                    items: {
+                        P511_FROMDATE: &FROMDATE.
+                        P511_TODATE: &TODATE.
+                        P511_ITEM: &ITEMCODE.
+                    }
+                    clearCache: 511
+                }
+                linkText: &ITEMNAME.
+            }
+            source {
+                databaseColumn: ITEMNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column OPENING_AMT (
+            type: numberField
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+                group: @amount
+            }
+            source {
+                databaseColumn: OPENING_AMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column OPENING_QTY (
+            type: numberField
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+                group: @quantity
+            }
+            source {
+                databaseColumn: OPENING_QTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PHYIN_AMT (
+            type: numberField
+            heading {
+                heading: Phy Stock
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+                group: @amount
+            }
+            source {
+                databaseColumn: PHYIN_AMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PHYIN_QTY (
+            type: numberField
+            heading {
+                heading: Phy Stock
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+                group: @quantity
+            }
+            source {
+                databaseColumn: PHYIN_QTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PHYOUT_AMT (
+            type: numberField
+            heading {
+                heading: Phy Used Stock
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+                group: @amount
+            }
+            source {
+                databaseColumn: PHYOUT_AMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PHYOUT_QTY (
+            type: numberField
+            heading {
+                heading: Phy Used
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+                group: @quantity
+            }
+            source {
+                databaseColumn: PHYOUT_QTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column STOCK_AMT (
+            type: numberField
+            heading {
+                heading: Stock
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+                group: @amount
+            }
+            source {
+                databaseColumn: STOCK_AMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column STOCK_QTY (
+            type: numberField
+            heading {
+                heading: Stock
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+                group: @quantity
+            }
+            source {
+                databaseColumn: STOCK_QTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TODATE (
+            type: textarea
+            heading {
+                heading: Todate
+            }
+            layout {
+                sequence: 160
+            }
+            validation {
+                maxLength: 2000
+            }
+            source {
+                databaseColumn: TODATE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column USED_AMT (
+            type: numberField
+            heading {
+                heading: Used
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+                group: @amount
+            }
+            source {
+                databaseColumn: USED_AMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column USED_QTY (
+            type: numberField
+            heading {
+                heading: Used
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+                group: @quantity
+            }
+            source {
+                databaseColumn: USED_QTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    pageItem P510_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P510_ITEM (
+        type: popupLov
+        label {
+            label: Item
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT ITEMNAME, ITEMCODE FROM ITEM A
+                WHERE A.PHYSICALGAPITEMCODE IS NOT NULL 
+                ORDER BY 1
+                ```
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P510_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            minDate: item
+            minItem: P510_FROMDATE
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: &nbsp Refresh
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                fa
+                fa-refresh
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @actual-stock-summary
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

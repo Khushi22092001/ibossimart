@@ -1,0 +1,493 @@
+page 268 (
+    name: Maintenance Report
+    alias: MAINTENANCE-REPORT
+    title: Maintenance Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region maintenance-report (
+        name: Maintenance Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select a.*,
+                NVL(b.BreakDown,0) as BreakDown,
+                (a.NoofEquipment - NVL(b.BreakDown,0)) as OnRoad From
+                (Select 
+                a.EquipmentGroupName,
+                a.EquipmentGroupCode,
+                Count(Distinct(b.EquipmentName)) as NoofEquipment
+                from EquipmentGroup a ,  Equipment b ,EquipmentLogBook c 
+                where a.EquipmentGroupCode = b.EquipmentGroupCode(+)
+                and b.Tno = c.EquipmentTno(+) 
+                and (:P268_LOCATION IS NULL OR instr(':'||:P268_LOCATION||':',':'||b.LocationCode||':') > 0)
+                and (:P268_EQUIPMENTGROUP IS NULL OR instr(':'||:P268_EQUIPMENTGROUP||':',':'||a.EquipmentGroupCode||':') > 0)
+                Group by EquipmentGroupName, a.EquipmentGroupCode ) a, 
+                (
+                Select
+                Sum (a.BreakDown) as BreakDown,
+                a.EquipmentGroupCode
+                From
+                (
+                Select 
+                Case When 
+                Sum(a.BreakDown) > 0 Then 1 else 0 end as BreakDown,
+                a.EquipmentGroupCode,
+                a.Tno
+                
+                From
+                (
+                Select 
+                Case When
+                c.BreakDownInTime is Not null Then 1
+                else 0 end as BreakDown,
+                b.EquipmentLogBookDate,
+                a.EquipmentGroupCode,
+                a.Tno
+                From Equipment a,EquipmentLogBook b, EquipmentLogBookBreakDown c
+                Where a.Tno = b.EquipmentTno(+)
+                and b.Tno = c.tno(+)
+                and c.BreakDownOutTime is null
+                and c.BreakDownInTime is not null
+                and b.EquipmentLogBookDate <= :P268_ONDATE
+                and (:P268_LOCATION IS NULL OR instr(':'||:P268_LOCATION||':',':'||a.LocationCode||':') > 0)
+                and (:P268_EQUIPMENTGROUP IS NULL OR instr(':'||:P268_EQUIPMENTGROUP||':',':'||a.EquipmentGroupCode||':') > 0)
+                ) a
+                Group by a.EquipmentGroupCode, a.Tno) a 
+                Group by a.EquipmentGroupCode) b
+                where a.EquipmentGroupCode = b.EquipmentGroupCode(+)
+                and :P268_EQUIPMENTCATEGORY = 'EQUIPMENTLOGBOOK'
+                
+                
+                Union All
+                
+                Select a.*,
+                Nvl(b.BreakDown,0) as BreakDown,
+                 (a.NoofEquipment - Nvl(b.BreakDown,0)) as OnRoad From
+                (Select 
+                a.EquipmentGroupName,
+                a.EquipmentGroupCode,
+                Count(Distinct(b.EquipmentName)) as NoofEquipment
+                from EquipmentGroup a ,  Equipment b ,VehicleLogBook c 
+                where a.EquipmentGroupCode = b.EquipmentGroupCode(+)
+                and (:P268_LOCATION IS NULL OR instr(':'||:P268_LOCATION||':',':'||b.LocationCode||':') > 0)
+                and (:P268_EQUIPMENTGROUP IS NULL OR instr(':'||:P268_EQUIPMENTGROUP||':',':'||a.EquipmentGroupCode||':') > 0)
+                and b.Tno = c.EquipmentTno(+) Group by a.EquipmentGroupName, a.EquipmentGroupCode ) a, 
+                (
+                Select
+                 Sum (a.BreakDown) as BreakDown,
+                a.EquipmentGroupCode,
+                a.VehicleLogBookDate
+                From
+                (
+                Select 
+                Case When 
+                Sum(a.BreakDown)> 0 Then 1 else 0 end as BreakDown,
+                a.EquipmentGroupCode,
+                a.VehicleLogBookDate,
+                a.Tno
+                
+                From
+                (
+                Select 
+                Case When
+                c.BreakDownInTime is Not null Then 1
+                else 0 end as BreakDown,
+                b.VehicleLogBookDate,
+                a.EquipmentGroupCode,
+                a.Tno
+                From Equipment a,VehicleLogBook b, VehicleLogBookBreakDownDetail c
+                Where a.Tno = b.EquipmentTno(+)
+                and b.Tno = c.tno(+)
+                and c.BreakDownOutTime is null
+                and c.BreakDownInTime is not null
+                and b.VehicleLogBookDate <= :P268_ONDATE
+                and (:P268_EQUIPMENTGROUP IS NULL OR instr(':'||:P268_EQUIPMENTGROUP||':',':'||a.EquipmentGroupCode||':') > 0)
+                and (:P268_LOCATION IS NULL OR instr(':'||:P268_LOCATION||':',':'||a.LocationCode||':') > 0)
+                ) a
+                Group by a.EquipmentGroupCode, a.Tno,a.VehicleLogBookDate) a 
+                Group by a.EquipmentGroupCode, a.VehicleLogBookDate) b
+                where a.EquipmentGroupCode = b.EquipmentGroupCode(+)
+                and :P268_EQUIPMENTCATEGORY = 'VEHICLELOGBOOK'
+                
+                
+                
+                
+                
+                
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 269
+                items: {
+                    P269_EQUIPMENTCATEGORY: &P268_EQUIPMENTCATEGORY.
+                    P269_ONDATE: &P268_ONDATE.
+                    P269_GROUPCODE: #EQUIPMENTGROUPCODE#
+                    P269_LOCATION: &P268_LOCATION.
+                }
+            }
+            linkIcon: <img src="#APEX_FILES#app_ui/img/icons/apex-edit-pencil.png" class="apex-edit-pencil" alt="">
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 11715507839539245
+        }
+
+        column BREAKDOWN (
+            type: plainText
+            heading {
+                heading: Break Down
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column EQUIPMENTGROUPCODE (
+            type: hidden
+            heading {
+                heading: Equipment Group Code
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column EQUIPMENTGROUPNAME (
+            type: plainText
+            heading {
+                heading: Equipment Group Name
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column NOOFEQUIPMENT (
+            type: plainText
+            heading {
+                heading: No of Equipment
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ONROAD (
+            type: plainText
+            heading {
+                heading: On Road
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+
+        savedReport 127370 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BREAKDOWN (
+                sequence: 3
+            )
+
+            displayColumn EQUIPMENTGROUPNAME (
+                sequence: 1
+            )
+
+            displayColumn NOOFEQUIPMENT (
+                sequence: 2
+            )
+
+            displayColumn ONROAD (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    pageItem P268_EQUIPMENTCATEGORY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment Category
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Vehicle Log Book ;VEHICLELOGBOOK  ,Equipment Log Book  ;EQUIPMENTLOGBOOK
+        }
+        layout {
+            sequence: 10
+            region: @maintenance-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 5
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P268_EQUIPMENTGROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: "Equipment Group "
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select EquipmentGroupName D,
+                EquipmentGroupCode R    
+                 from
+                 EquipmentGroup;
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @maintenance-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 5
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P268_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select LocationName D,
+                LocationCode R
+                From Location;
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @maintenance-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 5
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P268_ONDATE (
+        type: datePicker
+        label {
+            label: On Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @maintenance-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 5
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 10
+            region: @maintenance-report
+            slot: create
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

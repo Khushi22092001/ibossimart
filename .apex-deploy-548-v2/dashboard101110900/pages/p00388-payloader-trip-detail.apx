@@ -1,0 +1,382 @@
+page 388 (
+    name: Payloader Trip Detail
+    alias: PAYLOADER-TRIP-DETAIL
+    title: Payloader Trip Detail
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: [
+            #DEFAULT#
+            t-Dialog--noPadding
+        ]
+    }
+    dialog {
+        width: 1400
+        height: 800
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #abc .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region payloader-trip-detail (
+        name: Payloader  Trip Detail
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                   row_number() over(order by a.freightAdvanceDate) SerialNo,
+                   a.CompanyCode,
+                   a.Amount,
+                   a.FreightAdvanceNo as ModuleNo,
+                   a.FreightAdvanceDate as ModuleDate,
+                   b.Tno as EquipmentTno,
+                   b.EquipmentID,
+                   c.ModuleName,
+                   lo.LocationName
+                From FreightAdvance a, Equipment b, Module c,DocumentStatusDetail dsd, Location lo
+                Where a.EquipmentTno = b.Tno
+                   and a.LocationCode = lo.LocationCode
+                   and c.Modulecode = 'FREIGHTADVANCE'
+                   and a.Tno = dsd.ModuleTno
+                   and dsd.DocumentStatusCode = 'ACTIVE'
+                   and a.DrAccountCode = 'TRIPEXPENSES'
+                   and b.EquipmentGroupCode = 'PL'
+                   and nvl(a.Amount, 0) > 0
+                   and a.EquipmentTno is not null
+                   and a.VehicleGroupCode = 'SELF'
+                   and (:P388_LOCATION is null
+                       or exists(
+                         Select
+                            aa.LocationCode
+                          From PayloaderPerformanceLocation aa
+                          Where aa.LocationCode = a.LocationCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                   and a.FreightAdvanceDate between :P388_FROMDATE and :P388_TODATE
+                   and (:P388_COMPANYCODE is Null Or Instr (':' || :P388_COMPANYCODE || ':' , ':' || a.CompanyCode || ':') > 0)
+                   and (:P388_EQUIPMENTID is Null Or Instr (':' || :P388_EQUIPMENTID || ':' , ':' || b.Tno || ':') > 0)
+                UNION ALL
+                Select
+                   row_number() over(order by a.FreightAdvanceDate) SerialNo,
+                   a.CompanyCode,
+                   a.Amount2 as Amount,
+                   a.FreightAdvanceNo as ModuleNo,
+                   a.FreightAdvanceDate as ModuleDate,
+                   b.Tno as EquipmentTno,
+                   b.EquipmentID,
+                   c.ModuleName,
+                   lo.LocationName
+                From FreightAdvance a, Equipment b,Module c, DocumentStatusDetail dsd, Location lo
+                Where a.EquipmentTno = b.Tno
+                   and a.LocationCode = lo.LocationCode
+                   and c.ModuleCode = 'FREIGHTADVANCE'
+                   and a.Tno = dsd.ModuleTno
+                   and dsd.DocumentStatusCode = 'ACTIVE'
+                   and a.DrAccountCode2 = 'TRIPEXPENSES'
+                   and b.EquipmentGroupCode = 'PL'
+                   and nvl(a.Amount2, 0) > 0
+                   and a.VehicleNo is not null
+                   and a.VehicleGroupCode = 'SELF'
+                   and (:P388_LOCATION is null
+                       or exists(
+                         Select
+                            aa.LocationCode
+                          From PayloaderPerformanceLocation aa
+                          Where aa.LocationCode = a.LocationCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                   and a.FreightAdvanceDate between :P388_FROMDATE and :P388_TODATE
+                   and (:P388_COMPANYCODE is Null Or Instr (':' || :P388_COMPANYCODE || ':' , ':' || a.CompanyCode || ':') > 0)
+                   and (:P388_EQUIPMENTID is Null Or Instr (':' || :P388_EQUIPMENTID || ':' , ':' || b.Tno || ':') > 0)
+                
+                ```
+        }
+        layout {
+            sequence: 70
+            slot: contentBody
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+            cssClasses: abc
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 890305368843418267
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column EQUIPMENTID (
+            type: plainText
+            heading {
+                heading: Equipment  ID
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column EQUIPMENTTNO (
+            type: plainText
+            heading {
+                heading: Equipmenttno
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column MODULEDATE (
+            type: plainText
+            heading {
+                heading: Module Date
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column MODULENAME (
+            type: plainText
+            heading {
+                heading: Module Name
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: Module No.
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Open Billed Detail
+        }
+
+        savedReport 1102245 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100000
+            }
+
+            displayColumn AMOUNT (
+                sequence: 5
+            )
+
+            displayColumn EQUIPMENTID (
+                sequence: 4
+            )
+
+            displayColumn MODULEDATE (
+                sequence: 3
+            )
+
+            displayColumn MODULENAME (
+                sequence: 1
+            )
+
+            displayColumn MODULENO (
+                sequence: 2
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+        )
+
+    )
+
+    pageItem P388_COMPANYCODE (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+    )
+
+    pageItem P388_EQUIPMENTID (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P388_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    pageItem P388_LOCATION (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+    )
+
+    pageItem P388_TODATE (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+)
+

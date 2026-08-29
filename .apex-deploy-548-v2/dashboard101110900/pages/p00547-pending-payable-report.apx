@@ -1,0 +1,609 @@
+page 547 (
+    name: Pending  Payable Report
+    alias: PENDING-PAYABLE-REPORT
+    title: Pending  Payable Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region pending-payable-report (
+        name: Pending  Payable Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                    b.PartyBillNo AS InvoiceNo,
+                    b.PartyBillDate AS InvoiceDate,
+                    e.PartyName AS SupplierName,
+                    max(c.CreditDays) as CreditDays,
+                    b.PartyBillDate + max(c.CreditDays) AS CreditDate,
+                    d.PartyName AS AgentName,
+                    a.PBPassAmount,
+                    g.Amount,
+                   -- a.PBPassAmount - NVL(g.Amount, 0) AS NetPayableFrom
+                   b.PurchaseBillAmount - NVL(g.Amount, 0) AS NetPayableFrom
+                FROM
+                    PBPass a,
+                    PurchaseBill b,
+                    PurchaseBillDetail b1,
+                    PurchaseOrder c,
+                    PurchaseOrderDetail c1,
+                    Party d,
+                    Party e,
+                    (
+                        SELECT
+                            a.ModuleTNo,
+                            SUM(NVL(b.Amount, 0)) AS Amount
+                        FROM Voucher a,
+                             DRCRAllocation b
+                        WHERE a.TNo = b.CRVoucherTNo
+                        GROUP BY a.ModuleTNo
+                    ) g
+                WHERE
+                    a.PurchaseBillTNo = b.TNo(+)
+                    AND b.TNo = b1.TNo(+)
+                    AND b1.PurchaseOrderTNo = c.TNo(+)
+                    AND c.TNo = c1.TNo(+)
+                    AND b1.ItemCode = c1.ItemCode(+)
+                    AND b1.ItemSpecificationCode = c1.ItemSpecificationCode(+)
+                    AND b1.Quantity1 = c1.Quantity1(+)
+                    AND c.AgentCode = d.PartyCode(+)
+                    AND b.PartyCode = e.PartyCode(+)
+                    AND a.TNo = g.ModuleTNo(+)
+                    AND (b.PurchaseBillAmount - NVL(g.Amount, 0)) >= 1
+                    AND c.DocTypeCode = 'RAWMATERIALPURCHASE'
+                 AND TRUNC(b.PartyBillDate) <= :P547_ASONDATE
+                 AND (:P547_COMPANY IS NULL OR INSTR(':'||:P547_COMPANY||':', ':'||a.CompanyCode||':') > 0)
+                 AND (:P547_LOCATION IS NULL OR INSTR(':'||:P547_LOCATION||':', ':'||a.LocationCode||':') > 0)    
+                Group By b.PartyBillNo,
+                    b.PartyBillDate,
+                    e.PartyName,
+                    b.PartyBillDate,
+                    d.PartyName,
+                    a.PBPassAmount,
+                    g.Amount,
+                    b.PurchaseBillAmount ,
+                    g.Amount
+                   
+                 /*   -- AND (:P547_COMPANY IS NULL OR INSTR(':'||:P547_COMPANY||':', ':'||a.CompanyCode||':') > 0)
+                    -- AND (:P547_LOCATION IS NULL OR INSTR(':'||:P547_LOCATION||':', ':'||a.LocationCode||':') > 0)
+                Select 
+                    b.PartyBillNo as InvoiceNo,
+                    b.PartyBillDate as InvoiceDate,
+                    e.PartyName as SupplierName,
+                    c.CreditDays,
+                    b.PartyBillDate + c.CreditDays as CreditDate,
+                    d.PartyName as AgentName,
+                    -- nvl(a.AmountAfterTDS,0) - nvl(f.Amount,0) as
+                    -- (a.PBPassAmount - nvl(a.SumofTDSAmount,0)) - nvl(f.Amount,0) 
+                    --change karaye hai net payable amount ki value ke liye
+                    a.PBPassAmount - nvl(g.Amount,0)   as  NetPayableFrom
+                From PBPass a, PBPassDetail a1,PurchaseBill b, PurchaseBillDetail b1,
+                PurchaseOrder c, Party d, Party e, Paymentadvicereference f,
+                (Select a.ModuleTNo,sum(nvl(b.Amount,0)) Amount
+                        From   Voucher a,DRCRAllocation b
+                        Where  a.TNo = b.CRVoucherTNo
+                        Group By a.Moduletno
+                        )g
+                Where a.Tno = a1.Tno(+)
+                 and a.PurchaseBillTno = b.Tno(+)
+                 and a1.ItemCode = d1.ItemCode(+)
+                 and b.PurchaseOrderTno = c.Tno(+)
+                 and c.AgentCode = d.PartyCode(+)
+                 and b.PartyCode = e.PartyCode(+)
+                 and b.Tno = f.ReferenceModuleTno(+)
+                 and a.Tno = g.ModuleTno(+)
+                 and (a.PBPassAmount - nvl(g.Amount,0))  > 0
+                 and c.DoctypeCode = 'RAWMATERIALPURCHASE'
+                 and trunc(b.PartyBillDate) <= :P547_ASONDATE
+                  and ( :P547_COMPANY IS NULL OR instr(':'||:P547_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                  and ( :P547_LOCATION IS NULL OR instr(':'||:P547_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                ;
+                */
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 104252371199198496
+        }
+
+        column AGENTNAME (
+            type: plainText
+            heading {
+                heading: AGENT NAME
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column CREDITDATE (
+            type: plainText
+            heading {
+                heading: CREDIT DATE
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column CREDITDAYS (
+            type: plainText
+            heading {
+                heading: CREDIT DAYS
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: INVOICE DATE
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: INVOICE NO
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column NETPAYABLEFROM (
+            type: plainText
+            heading {
+                heading: NET PAYABLE
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column PBPASSAMOUNT (
+            type: plainText
+            heading {
+                heading: Pbpassamount
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column SUPPLIERNAME (
+            type: plainText
+            heading {
+                heading: SUPPLIER NAME
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 16
+            pageHeaderText: "   Freight Advance Report"
+        }
+
+        savedReport 557839 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGENTNAME (
+                sequence: 6
+            )
+
+            displayColumn CREDITDATE (
+                sequence: 5
+            )
+
+            displayColumn CREDITDAYS (
+                sequence: 4
+            )
+
+            displayColumn INVOICEDATE (
+                sequence: 2
+            )
+
+            displayColumn INVOICENO (
+                sequence: 1
+            )
+
+            displayColumn NETPAYABLEFROM (
+                sequence: 7
+            )
+
+            displayColumn SUPPLIERNAME (
+                sequence: 3
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: DEBITAMOUNT
+            )
+
+            aggregate (
+                column: LOADINGQUANTITY
+            )
+
+            aggregate (
+                column: REACHEDQUANTITY1
+            )
+
+            aggregate (
+                column: PASSQUANTITY
+            )
+
+            aggregate (
+                column: BILLEDAMOUNT
+            )
+
+            aggregate (
+                column: TDSDEDUCTABLEAMOUNT
+            )
+
+            aggregate (
+                column: NETPAYABLEAMOUNT
+            )
+
+            aggregate (
+                column: TDSAMOUNT
+            )
+
+            aggregate (
+                column: NETPAYABLEFROM
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+            controlBreak (
+                column: SUPPLIERNAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P547_ASONDATE (
+        type: datePicker
+        label {
+            label: As On Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @pending-payable-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P547_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   a.CompanyName d,
+                   a.CompanyCode r
+                From Company a
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @pending-payable-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P547_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                   a.LocationName d,
+                   a.LocationCode r
+                From Location a
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @pending-payable-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @pending-payable-report
+            slot: regionBody
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

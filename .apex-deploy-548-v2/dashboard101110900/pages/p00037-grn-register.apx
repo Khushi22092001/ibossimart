@@ -1,0 +1,3052 @@
+page 37 (
+    name: GRN Register
+    alias: GRN-REGISTER
+    title: GRN Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/grnregister.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P37_FROMDATE').val());
+              var toDate = new Date($('#P37_TODATE').val());
+            
+              var reportParams = 
+              '&P37_COMPANY=' +  $('#P37_COMPANY').val() +
+              '&P37_STATUS=' +  $('#P37_STATUS').val() +
+                '&P37_FROMDATE='  +  $('#P37_FROMDATE').val() +
+                '&P37_TODATE='  +  $('#P37_TODATE').val() +
+                '&P37_LOCATION=' +  $('#P37_LOCATION').val() +
+                '&P37_ITEMGROUP=' +  $('#P37_ITEMGROUP').val() +
+                '&P37_DOCTYPE='+ $('#P37_DOCTYPE').val() +
+                '&P37_ITEM=' +  $('#P37_ITEM').val() +
+                '&P37_INSPECTIONSTATUS=' +  $('#P37_INSPECTIONSTATUS').val() +
+                '&P37_SPECIFICATION=' +  $('#P37_SPECIFICATION').val() +
+                '&P37_GRNNO=' + $('#P37_GRNNO').val() +
+                '&P37_PARTY=' +  $('#P37_PARTY').val() +
+                '&P37_CREATOR=' +  $('#P37_CREATOR').val() +
+                '&P37_TRANSPORTER=' + $('#P37_TRANSPORTER').val() 
+                ;
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region grn-register (
+        name: GRN Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+            renderComponents: belowContent
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region grn-report (
+        name: GRN Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT ROWNUM AS SERIALNO,
+                       XX.*
+                FROM (
+                Select
+                    --ROWNUM AS SerialNo,
+                    a.TNo,
+                    b.SNo,
+                    l.LocationName,
+                    d.DocTypeName,
+                    a.GRNNo,
+                    a.GRNDate,
+                    p.PartyName,
+                    a.RefDocNo as PartyInvoiceNo,
+                    a.RefDocDate as PartyInvoiceDate,
+                    a.RefDocAmount as PartyInvoiceAmount,
+                    mi.MaterialInNo,
+                    mi.MaterialInDate,
+                    'PurchaseOrder' as Reference,
+                    po.TNo as ReferenceTNO,
+                    po.PurchaseOrderNo as ReferenceNo,
+                    po.PurchaseOrderDate as ReferenceDate,
+                    w.TNo as WeighmentTNo,
+                    w.WeighmentNo,
+                    w.WeighmentDate,
+                    W.Netweight,
+                    ROUND(nvl(b.acceptedquantity1,w.acceptedweight),3) as AcceptedWeight,    
+                    t.PartyName as Transporter,
+                    a.VehicleNo,
+                    a.LRNO,
+                    a.LRDATE,
+                    e.ItemCode,
+                    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+                   -- b.Description,
+                    e.MeasuringUnitCode1 as UOM,
+                    ROUND(b.ChalanQuantity1,3) AS ChalanQuantity1,
+                    ROUND(b.ReceivedQuantity1,3) AS ReceivedQuantity1,
+                    e.MeasuringUnitCode2 as UOM2,
+                    ROUND(b.ChalanQuantity2,3) AS ChalanQuantity2,
+                    ROUND(b.ReceivedQuantity2,3) AS ReceivedQuantity2,
+                    ROUND((ReceivedQuantity1- b.ChalanQuantity1),3) as Difference,
+                    ROUND((ReceivedQuantity2- b.ChalanQuantity2),3) as Difference2,
+                    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+                         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+                         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+                    End As ShortageExcess,
+                 /*   sl.StorageLocationName,
+                    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+                    i.InspectionNo,
+                    i.InspectionDate, 
+                    case When i.InspectionDate is not null Then null
+                         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1
+                    End as DaysPending,*/
+                    dsd.DocumentStatusCode,
+                    b.WarrantyUpTo,
+                  --  'Details' as SerialNo,
+                    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End as DocStatus,
+                      b.Rate,
+                      b.Amount,
+                      GetDepartmentName(ii.DepartmentCode) as Department,
+                      GetEmployeeName(bu.EmployeeCode)||'('||a.Creator||')' as Creator,
+                      a.CreationTime,
+                      b.Description,
+                      b.WarrantyUptoDays,
+                      b.WarrantyUptoHMRKMR,
+                      ra.RakeNo,
+                 Case
+                   When a.freightunitcode = 'MT' Then
+                    a.freightrate 
+                   When a.freightunitcode = 'TRIP' Then
+                    A.FREIGHTRATE / B.RECEIVEDQUANTITY1 
+                 End FREIGHTAMOUNT,
+                 A.TRANSPORTERCODE,
+                 GETPARTYNAME(A.TRANSPORTERCODE) TRANSPORTERNAE,
+                 (Select Round((Sum(Y.FOOTERPERCENT) * B.AMOUNT) / 100, 2)
+                    From PURCHASEORDERDETAIL X, PURCHASEORDERDETAILFOOTER Y
+                   Where X.TNO = PO.TNO
+                     And X.TNO = Y.TNO
+                     And X.SNO = Y.SNO
+                     And X.ITEMCODE = B.ITEMCODE
+                     And X.ITEMSPECIFICATIONCODE = B.ITEMSPECIFICATIONCODE
+                     And Y.FOOTERHEADCODE In ('.IGST.', '.SGST.', '.CGST.')) GSTAMOUNT,
+                     A.FREIGHTADVANCEAMOUNT
+                 
+                From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, PurchaseOrder po, Party t, DocumentStatusDetail dsd,
+                    Item e, ItemSpecification ee,-- StorageLocation sl, Inspection i, 
+                    DInspectionDetail did, indent ii, BossUser bu, Rake ra
+                Where a.TNo = b.TNo
+                  and a.LocationCode = l.LocationCode
+                  and a.DocTypeCode = d.DocTypeCode
+                  --and a.DocTypeCode = 'PURCHASE'
+                  and a.PartyCode = p.PartyCode
+                  and a.MaterialINTNo = mi.TNo
+                  and a.PurchaseOrderTNo = po.TNo(+)
+                  and a.WeighmentTNo = w.TNo(+)
+                  and a.TransporterCode = t.PartyCode(+)
+                  and a.TNo = dsd.ModuleTNo(+)
+                  and e.TNo = ee.TNo
+                  and b.ItemCode = e.ItemCode
+                  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+                  --and b.StorageLocationCode = sl.StorageLocationCode(+)
+                  --and a.TNo = i.GRNTNo(+)
+                  and b.TNo = did.GRNTNo(+)
+                  and b.ItemCode = did.ItemCode(+)
+                  and b.ItemSpecificationCode = did.ItemSpecificationCode(+)
+                  and did.IndentTNo = ii.TNo(+)
+                  and a.Creator = bu.LoginName(+)
+                  and a.RakeTno = ra.Tno(+)
+                    -- 22-APR-2025
+                  and ( GetUserPanelAB_apex(:global_loginname) is null  or a.panel = GetUserPanelAB_apex(:global_loginname))
+                  and (:P37_TODOLIST = 'YES' OR :P37_NEXTPROCESS = 'YES' OR (a.GRNDate Between :P37_FROMDATE and :P37_TODATE))
+                  and (:P37_TODOLIST = 'YES' OR :P37_NEXTPROCESS = 'YES' OR (instr(':'||:P37_COMPANY||':',':'||a.CompanyCode||':') > 0))
+                  and (:P37_TODOLIST = 'YES' OR :P37_NEXTPROCESS = 'YES' OR (instr(':'||:P37_LOCATION||':',':'||a.LocationCode||':') > 0))
+                  and (:P37_TODOLIST = 'YES' OR :P37_NEXTPROCESS = 'YES' OR (instr(':'||:P37_DOCTYPE||':',':'||a.DocTypeCode||':') > 0))
+                  --and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P37_INSPECTIONSTATUS,'%')
+                  and ( :P37_PARTY IS NULL OR instr(':'||:P37_PARTY||':',':'||a.PartyCode||':') > 0 )
+                  and ( :P37_TRANSPORTER IS NULL OR instr(':'||:P37_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+                  and ( :P37_RAKENO IS NULL OR instr(':'||:P37_RAKENO||':',':'||a.RakeTNo||':') > 0 )
+                  and ( :P37_ITEM IS NULL OR instr(':'||:P37_ITEM||':',':'||e.ItemCode||':') > 0 )
+                  and ( :P37_SPECIFICATION IS NULL OR instr(':'||:P37_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  and ( :P37_GRNNO IS NULL OR instr(':'||:P37_GRNNO||':',':'||a.GRNNo||':') > 0 )
+                  and ( :P37_REFERENCE IS NULL OR instr(':'||:P37_REFERENCE||':',':'||po.PurchaseOrderNo||':') > 0 )
+                 --- and a.GRNNo like nvl(:P37_GRNNO,'%')
+                -- aDDED ON 28-MAY-2022
+                and ( :P37_ITEMGROUP IS NULL
+                      or
+                      exists (select 1 from (Select ITEMCODE,
+                               parentcode,
+                               RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                               Level,
+                               CONNECT_BY_ROOT itemcode As root_id,
+                               '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                               CONNECT_BY_ISLEAF As leaf
+                          From item a
+                         Start With parentcode in ( select itemcode from item xx where
+                                                    instr(':'||:P37_ITEMGROUP||':',':'||xx.ItemCode||':') > 0)
+                                                    
+                        Connect By parentcode = Prior itemcode
+                         Order Siblings By itemcode) x where x.itemcode = e.itemcode
+                        )
+                  )
+                
+                  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End like nvl(:P37_STATUS,'%')
+                ) XX
+                where ( :P37_TODOLIST='NO' OR (:P37_TODOLIST='YES' AND EXISTS ( SELECT 1 FROM ONTHETABLE_APEX YY WHERE YY.TNO=XX.TNO) ))
+                AND ( :P37_NEXTPROCESS = 'NO' OR (:P37_NEXTPROCESS = 'YES' AND (  getdocumentstatuscode('GRN',XX.TNO)='ACTIVE'
+                                                    AND  NOT EXISTS ( Select 1 From dinspection AA Where AA.grntno = XX.TNO )
+                                                ))
+                
+                 )
+                
+                /*Union All
+                Select
+                    a.TNo,
+                    b.SNo,
+                    l.LocationName,
+                    d.DocTypeName,
+                    a.GRNNo,
+                    a.GRNDate,
+                    p.PartyName,
+                    a.RefDocNo as PartyInvoiceNo,
+                    a.RefDocDate as PartyInvoiceDate,
+                    a.RefDocAmount as PartyInvoiceAmount,
+                    mi.MaterialInNo,
+                    mi.MaterialInDate,
+                    'CCInvoice' as Reference,
+                    cc.TNo as ReferenceTNO,
+                    cc.CCInvoiceNo as ReferenceNo,
+                    cc.CCInvoiceDate as ReferenceDate,
+                    w.TNo as WeighmentTNo,
+                    w.WeighmentNo,
+                    w.WeighmentDate,
+                    W.Netweight,
+                    nvl(b.acceptedquantity1,w.AcceptedWeight) as AcceptedWeight,
+                    t.PartyName as Transporter,
+                    a.VehicleNo,
+                    a.LRNO,
+                    a.LRDATE,
+                    e.ItemCode,
+                    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+                    b.Description,
+                    e.MeasuringUnitCode1 as UOM,
+                    b.ChalanQuantity1,
+                    b.ReceivedQuantity1,
+                    ReceivedQuantity1- b.ChalanQuantity1  as Difference,
+                    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+                         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+                         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+                    End As ShortageExcess,
+                    sl.StorageLocationName,
+                    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+                    i.InspectionNo,
+                    i.InspectionDate,    
+                    case When i.InspectionDate is not null Then null
+                         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1
+                    End as DaysPending,
+                    dsd.DocumentStatusCode,
+                    b.WarrantyUpTo,
+                    'Details' as SerialNo,
+                    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End as DocStatus,
+                      b.Rate,
+                      b.Amount,
+                      GetDepartmentName(di.DepartmentCode) as Department
+                From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, CCInvoice cc, Party t, DocumentStatusDetail dsd,
+                    Item e, ItemSpecification ee, StorageLocation sl, Inspection i, Dinspection di
+                Where a.TNo = b.TNo
+                  and a.LocationCode = l.LocationCode
+                  and a.DocTypeCode = d.DocTypeCode
+                  and a.DocTypeCode IN ('INTRAUNITTRANSFER','INTERUNITTRANSFER')
+                  and a.PartyCode = p.PartyCode
+                  and a.MaterialINTNo = mi.TNo
+                  and a.InterUnitTransferCCInvoiceTNo = cc.TNo
+                  and a.WeighmentTNo = w.TNo(+)
+                  and a.TransporterCode = t.PartyCode(+)
+                  and a.TNo = dsd.ModuleTNo(+)
+                  and e.TNo = ee.TNo
+                  and b.ItemCode = e.ItemCode
+                  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+                  and b.StorageLocationCode = sl.StorageLocationCode(+)
+                  and a.TNo = i.GRNTNo(+)
+                  and a.TNo = di.GRNTNo(+)
+                  and a.GRNDate Between :P37_FROMDATE and :P37_TODATE
+                  and instr(':'||:P37_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P37_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and instr(':'||:P37_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+                  and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P37_INSPECTIONSTATUS,'%')
+                  and ( :P37_PARTY IS NULL OR instr(':'||:P37_PARTY||':',':'||a.PartyCode||':') > 0 )
+                  and ( :P37_TRANSPORTER IS NULL OR instr(':'||:P37_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+                  and ( :P37_ITEM IS NULL OR instr(':'||:P37_ITEM||':',':'||e.ItemCode||':') > 0 )
+                  and ( :P37_SPECIFICATION IS NULL OR instr(':'||:P37_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  and ( :P37_ITEMGROUP IS NULL OR instr(':'||:P37_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )
+                  and a.GRNNo like nvl(:P37_GRNNO,'%')
+                  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End like nvl(:P37_STATUS,'%')
+                Union All
+                Select
+                    a.TNo,
+                    b.SNo,
+                    l.LocationName,
+                    d.DocTypeName,
+                    a.GRNNo,
+                    a.GRNDate,
+                    p.PartyName,
+                    a.RefDocNo as PartyInvoiceNo,
+                    a.RefDocDate as PartyInvoiceDate,
+                    a.RefDocAmount as PartyInvoiceAmount,
+                    mi.MaterialInNo,
+                    mi.MaterialInDate,
+                    'EquipmentTransfer' as Reference,
+                    etn.TNo as ReferenceTNO,
+                    etn.EquipmentTransferNoteNo as ReferenceNo,
+                    etn.EquipmentTransferNoteDate as ReferenceDate,
+                    w.TNo as WeighmentTNo,
+                    w.WeighmentNo,
+                    w.WeighmentDate,
+                    W.Netweight,
+                    nvl(b.acceptedquantity1,w.acceptedweight) as AcceptedWeight,
+                    t.PartyName as Transporter,
+                    a.VehicleNo,
+                    a.LRNO,
+                    a.LRDATE,
+                    e.ItemCode,
+                    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+                    b.Description,
+                    e.MeasuringUnitCode1 as UOM,
+                    b.ChalanQuantity1,
+                    b.ReceivedQuantity1,
+                    ReceivedQuantity1- b.ChalanQuantity1  as Difference,
+                    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+                         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+                         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+                    End As ShortageExcess,
+                    sl.StorageLocationName,
+                    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+                    i.InspectionNo,
+                    i.InspectionDate,    
+                    case When i.InspectionDate is not null Then null
+                         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1 
+                    End as DaysPending,
+                    dsd.DocumentStatusCode,
+                    b.WarrantyUpTo,
+                    'Details' as SerialNo,
+                    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End as DocStatus,
+                      b.Rate,
+                      b.Amount,
+                      GetDepartmentName(di.DepartmentCode) as Department
+                From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, EquipmentTransferNote etn, Party t, DocumentStatusDetail dsd,
+                    Item e, ItemSpecification ee, StorageLocation sl, Inspection i, DInspection di
+                Where a.TNo = b.TNo
+                  and a.LocationCode = l.LocationCode
+                  and a.DocTypeCode = d.DocTypeCode
+                  and a.DocTypeCode = 'EQUIPMENTTRANSFER'
+                  and a.PartyCode = p.PartyCode
+                  and a.MaterialINTNo = mi.TNo
+                  and mi.equipmenttransfernotetno = etn.TNo
+                  and a.WeighmentTNo = w.TNo(+)
+                  and a.TransporterCode = t.PartyCode(+)
+                  and a.TNo = dsd.ModuleTNo(+)
+                  and e.TNo = ee.TNo
+                  and b.ItemCode = e.ItemCode
+                  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+                  and b.StorageLocationCode = sl.StorageLocationCode(+)
+                  and a.TNo = i.GRNTNo(+)
+                  and a.TNo = di.GRNTNo(+)
+                  and a.GRNDate Between :P37_FROMDATE and :P37_TODATE
+                  and instr(':'||:P37_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P37_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and instr(':'||:P37_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+                  and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P37_INSPECTIONSTATUS,'%')
+                  and ( :P37_PARTY IS NULL OR instr(':'||:P37_PARTY||':',':'||a.PartyCode||':') > 0 )
+                  and ( :P37_TRANSPORTER IS NULL OR instr(':'||:P37_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+                  and ( :P37_ITEM IS NULL OR instr(':'||:P37_ITEM||':',':'||e.ItemCode||':') > 0 )
+                  and ( :P37_SPECIFICATION IS NULL OR instr(':'||:P37_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  and ( :P37_ITEMGROUP IS NULL OR instr(':'||:P37_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )
+                  and a.GRNNo like nvl(:P37_GRNNO,'%')
+                  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End like nvl(:P37_STATUS,'%')
+                Union All
+                Select
+                    a.TNo,
+                    b.SNo,
+                    l.LocationName,
+                    d.DocTypeName,
+                    a.GRNNo,
+                    a.GRNDate,
+                    p.PartyName,
+                    a.RefDocNo as PartyInvoiceNo,
+                    a.RefDocDate as PartyInvoiceDate,
+                    a.RefDocAmount as PartyInvoiceAmount,
+                    mi.MaterialInNo,
+                    mi.MaterialInDate,
+                    'Gatepass' as Reference,
+                    gp.TNo as ReferenceTNO,
+                    gp.GatePassNo as ReferenceNo,
+                    gp.GatePassDate as ReferenceDate,
+                    w.TNo as WeighmentTNo,
+                    w.WeighmentNo,
+                    w.WeighmentDate,
+                    W.Netweight,
+                    nvl(b.acceptedquantity1,w.AcceptedWeight) as AcceptedWeight,
+                    t.PartyName as Transporter,
+                    a.VehicleNo,
+                    a.LRNO,
+                    a.LRDATE,
+                    e.ItemCode,
+                    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+                    b.Description,
+                    e.MeasuringUnitCode1 as UOM,
+                    b.ChalanQuantity1,
+                    b.ReceivedQuantity1,
+                    e.MeasuringUnitCode1 as UOM2,
+                    b.ChalanQuantity2,
+                    b.ReceivedQuantity2,
+                    ReceivedQuantity1- b.ChalanQuantity1  as Difference,
+                    ReceivedQuantity2- b.ChalanQuantity2  as Difference2,
+                    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+                         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+                         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+                    End As ShortageExcess,
+                    sl.StorageLocationName,
+                    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+                    i.InspectionNo,
+                    i.InspectionDate,    
+                    case When i.InspectionDate is not null Then null
+                         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1
+                    End as DaysPending,
+                    dsd.DocumentStatusCode,
+                    b.WarrantyUpTo,
+                    'Details' as SerialNo,
+                    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End as DocStatus,
+                      b.Rate,
+                      b.Amount,
+                      GetDepartmentName(di.DepartmentCode) as Department,
+                      GetEmployeeName(bu.EmployeeCode)||'('||a.Creator||')' as Creator,
+                      a.CreationTime
+                From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, GatePass gp, Party t, DocumentStatusDetail dsd,
+                    Item e, ItemSpecification ee, StorageLocation sl, Inspection i, Dinspection di, Bossuser bu
+                Where a.TNo = b.TNo
+                  and a.LocationCode = l.LocationCode
+                  and a.DocTypeCode = d.DocTypeCode
+                  and a.PartyCode = p.PartyCode
+                  and a.MaterialINTNo = mi.TNo
+                  and a.GatePassTNo = gp.TNo
+                  and a.WeighmentTNo = w.TNo(+)
+                  and a.TransporterCode = t.PartyCode(+)
+                  and a.TNo = dsd.ModuleTNo(+)
+                  and e.TNo = ee.TNo
+                  and b.ItemCode = e.ItemCode
+                  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+                  and b.StorageLocationCode = sl.StorageLocationCode(+)
+                  and a.TNo = i.GRNTNo(+)
+                  and a.TNo = di.GRNTNo(+)
+                  and a.Creator = bu.LoginName(+)
+                  and a.GRNDate Between :P37_FROMDATE and :P37_TODATE
+                  and instr(':'||:P37_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P37_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and instr(':'||:P37_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+                  and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P37_INSPECTIONSTATUS,'%')
+                  and ( :P37_PARTY IS NULL OR instr(':'||:P37_PARTY||':',':'||a.PartyCode||':') > 0 )
+                  and ( :P37_TRANSPORTER IS NULL OR instr(':'||:P37_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+                  and ( :P37_ITEM IS NULL OR instr(':'||:P37_ITEM||':',':'||e.ItemCode||':') > 0 )
+                  and ( :P37_SPECIFICATION IS NULL OR instr(':'||:P37_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  and ( :P37_ITEMGROUP IS NULL OR instr(':'||:P37_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )
+                  and a.GRNNo like nvl(:P37_GRNNO,'%')
+                  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End like nvl(:P37_STATUS,'%')*/
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+        }
+        download {
+            authorization: @candownload
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 24809764635310439
+        }
+
+        column ACCEPTEDWEIGHT (
+            type: plainText
+            heading {
+                heading: ACCEPTED WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 450
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 470
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column CHALANQUANTITY1 (
+            type: plainText
+            heading {
+                heading: CHALAN P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column CHALANQUANTITY2 (
+            type: plainText
+            heading {
+                heading: CHALAN S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 500
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 540
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CREATIONTIME#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 530
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CREATOR#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column DEPARTMENT (
+            type: plainText
+            heading {
+                heading: DEPARTMENT
+                alignment: center
+            }
+            layout {
+                sequence: 480
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: EXTRA DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 290
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:210px">#DESCRIPTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column DIFFERENCE (
+            type: plainText
+            heading {
+                heading: VARIANCE P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 330
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column DIFFERENCE2 (
+            type: plainText
+            heading {
+                heading: VARIANCE S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 520
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column DOCSTATUS (
+            type: plainText
+            heading {
+                heading: DOC STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 430
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: DOCTYPE
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column DOCUMENTSTATUSCODE (
+            type: plainText
+            heading {
+                heading: Documentstatuscode
+                alignment: center
+            }
+            layout {
+                sequence: 400
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column FREIGHTADVANCEAMOUNT (
+            type: plainText
+            heading {
+                heading: FREIGHT ADVANCE AMT
+                alignment: end
+            }
+            layout {
+                sequence: 630
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        column FREIGHTAMOUNT (
+            type: plainText
+            heading {
+                heading: FREIGHT RATE
+                alignment: end
+            }
+            layout {
+                sequence: 590
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column GRNDATE (
+            type: plainText
+            heading {
+                heading: GRN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#GRNDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column GRNNO (
+            type: plainText
+            heading {
+                heading: GRN NO
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#GRNNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column GSTAMOUNT (
+            type: plainText
+            heading {
+                heading: GST AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 620
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column LRDATE (
+            type: plainText
+            heading {
+                heading: LRD ATE
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#LRDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column LRNO (
+            type: plainText
+            heading {
+                heading: LR NO
+                alignment: center
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column MATERIAL (
+            type: plainText
+            heading {
+                heading: MATERIAL DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 280
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:300px">#MATERIAL#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column MATERIALINDATE (
+            type: plainText
+            heading {
+                heading: MATERIALIN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#MATERIALINDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column MATERIALINNO (
+            type: plainText
+            heading {
+                heading: MATERIALIN NO
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#MATERIALINNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column NETWEIGHT (
+            type: plainText
+            heading {
+                heading: NET WEIGHT
+                alignment: center
+            }
+            layout {
+                sequence: 440
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column PARTYINVOICEAMOUNT (
+            type: plainText
+            heading {
+                heading: PARTY INVOICE AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column PARTYINVOICEDATE (
+            type: plainText
+            heading {
+                heading: PARTY INVOICE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PARTYINVOICEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column PARTYINVOICENO (
+            type: plainText
+            heading {
+                heading: PARTY INVOICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#PARTYINVOICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: VENDOR NAME
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column RAKENO (
+            type: plainText
+            heading {
+                heading: RAKE NO
+            }
+            layout {
+                sequence: 580
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: RATE
+                alignment: center
+            }
+            layout {
+                sequence: 460
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column RECEIVEDQUANTITY1 (
+            type: plainText
+            heading {
+                heading: RECEIVED P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column RECEIVEDQUANTITY2 (
+            type: plainText
+            heading {
+                heading: RECEIVED S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 510
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column REFERENCE (
+            type: plainText
+            heading {
+                heading: REFERENCE
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#REFERENCE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column REFERENCEDATE (
+            type: plainText
+            heading {
+                heading: REFERENCE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#REFERENCEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column REFERENCENO (
+            type: plainText
+            heading {
+                heading: REFERENCE NO
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#REFERENCENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column REFERENCETNO (
+            type: plainText
+            heading {
+                heading: Referencetno
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:10px">#REFERENCETNO#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 550
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column SHORTAGEEXCESS (
+            type: plainText
+            heading {
+                heading: SHORTAGE / EXCESS
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column SNO (
+            type: plainText
+            heading {
+                heading: Sno
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TRANSPORTER (
+            type: plainText
+            heading {
+                heading: TRANSPORTER
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#TRANSPORTER#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column TRANSPORTERCODE (
+            type: plainText
+            heading {
+                heading: Transportercode
+            }
+            layout {
+                sequence: 600
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column TRANSPORTERNAE (
+            type: plainText
+            heading {
+                heading: Transporternae
+            }
+            layout {
+                sequence: 610
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: P UOM
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column UOM2 (
+            type: plainText
+            heading {
+                heading: S UOM
+                alignment: center
+            }
+            layout {
+                sequence: 490
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: VEHICLE NO
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VEHICLENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column WARRANTYUPTO (
+            type: plainText
+            heading {
+                heading: WARRANTY UP TO
+                alignment: center
+            }
+            layout {
+                sequence: 410
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column WARRANTYUPTODAYS (
+            type: plainText
+            heading {
+                heading: WARRANTY UPTO DAYS
+                alignment: end
+            }
+            layout {
+                sequence: 560
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column WARRANTYUPTOHMRKMR (
+            type: plainText
+            heading {
+                heading: WARRANTY UPTO HMR KMR
+                alignment: end
+            }
+            layout {
+                sequence: 570
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BE
+            }
+        )
+
+        column WEIGHMENTDATE (
+            type: plainText
+            heading {
+                heading: WEIGHMENT DATE
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#WEIGHMENTDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column WEIGHMENTNO (
+            type: plainText
+            heading {
+                heading: WEIGHMENT NO
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#WEIGHMENTNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column WEIGHMENTTNO (
+            type: plainText
+            heading {
+                heading: Weighmenttno
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText:
+                ```
+                GRN Report
+                
+                ```
+        }
+
+        savedReport 42873 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCEPTEDWEIGHT (
+                sequence: 35
+            )
+
+            displayColumn AMOUNT (
+                sequence: 28
+            )
+
+            displayColumn CHALANQUANTITY1 (
+                sequence: 22
+            )
+
+            displayColumn CHALANQUANTITY2 (
+                sequence: 37
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 41
+            )
+
+            displayColumn DEPARTMENT (
+                sequence: 3
+            )
+
+            displayColumn DESCRIPTION (
+                sequence: 20
+            )
+
+            displayColumn DIFFERENCE (
+                sequence: 24
+            )
+
+            displayColumn DIFFERENCE2 (
+                sequence: 39
+            )
+
+            displayColumn DOCSTATUS (
+                sequence: 2
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn FREIGHTADVANCEAMOUNT (
+                sequence: 29
+            )
+
+            displayColumn FREIGHTAMOUNT (
+                sequence: 30
+            )
+
+            displayColumn GRNDATE (
+                sequence: 6
+            )
+
+            displayColumn GRNNO (
+                sequence: 7
+            )
+
+            displayColumn GSTAMOUNT (
+                sequence: 27
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 18
+            )
+
+            displayColumn LRDATE (
+                sequence: 17
+            )
+
+            displayColumn LRNO (
+                sequence: 16
+            )
+
+            displayColumn MATERIAL (
+                sequence: 19
+            )
+
+            displayColumn MATERIALINNO (
+                sequence: 8
+            )
+
+            displayColumn NETWEIGHT (
+                sequence: 34
+            )
+
+            displayColumn PARTYINVOICEDATE (
+                sequence: 14
+            )
+
+            displayColumn PARTYINVOICENO (
+                sequence: 13
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 5
+            )
+
+            displayColumn RAKENO (
+                sequence: 40
+            )
+
+            displayColumn RATE (
+                sequence: 26
+            )
+
+            displayColumn RECEIVEDQUANTITY1 (
+                sequence: 23
+            )
+
+            displayColumn RECEIVEDQUANTITY2 (
+                sequence: 38
+            )
+
+            displayColumn REFERENCE (
+                sequence: 10
+            )
+
+            displayColumn REFERENCEDATE (
+                sequence: 12
+            )
+
+            displayColumn REFERENCENO (
+                sequence: 11
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SHORTAGEEXCESS (
+                sequence: 25
+            )
+
+            displayColumn TRANSPORTER (
+                sequence: 31
+            )
+
+            displayColumn UOM (
+                sequence: 21
+            )
+
+            displayColumn UOM2 (
+                sequence: 36
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 15
+            )
+
+            displayColumn WARRANTYUPTODAYS (
+                sequence: 32
+            )
+
+            displayColumn WARRANTYUPTOHMRKMR (
+                sequence: 33
+            )
+
+            displayColumn WEIGHMENTNO (
+                sequence: 9
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: DEPARTMENT
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: DOCTYPENAME
+                sort {
+                    sequence: 3
+                }
+            )
+
+            sort (
+                column: PARTYNAME
+                sort {
+                    sequence: 4
+                }
+            )
+
+            sort (
+                column: GRNDATE
+                sort {
+                    sequence: 5
+                }
+            )
+
+            aggregate (
+                column: CHALANQUANTITY1
+            )
+
+            aggregate (
+                column: RECEIVEDQUANTITY1
+            )
+
+            aggregate (
+                column: DIFFERENCE
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: RECEIVEDQUANTITY2
+            )
+
+            aggregate (
+                column: DIFFERENCE2
+            )
+
+            aggregate (
+                column: CHALANQUANTITY2
+            )
+
+            highlight ir-condition (
+                name: Green
+                condition {
+                    column: SHORTAGEEXCESS
+                    value: Equal
+                }
+                highlight {
+                    type: cell
+                }
+                colors {
+                    background: #47FF53
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+            highlight ir-condition-2 (
+                name: Yellow
+                condition {
+                    column: SHORTAGEEXCESS
+                    value: Excess
+                }
+                highlight {
+                    type: cell
+                }
+                colors {
+                    background: #FFFF00
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+            highlight ir-condition-3 (
+                name: Red
+                condition {
+                    column: SHORTAGEEXCESS
+                    value: Shortage
+                }
+                highlight {
+                    type: cell
+                }
+                colors {
+                    background: #FF0000
+                    text: #FFFFFF
+                }
+                execution {
+                    sequence: 10
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P37_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'GRN'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P37_CREATOR (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Creator
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        GetEmployeeName(bu.EmployeeCode)||'('||a.Creator||')' d,
+                        GetEmployeeName(bu.EmployeeCode)||'('||a.Creator||')' r
+                From GRN a,BossUser bu
+                Where a.Creator = bu.LoginName(+)
+                Order By 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 130
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 40
+            valuePlaceholder: Creator Name
+        }
+    )
+
+    pageItem P37_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'GRN'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P37_COMPANY
+            itemsToSubmit: P37_DOCTYPE
+        }
+        layout {
+            sequence: 70
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter DocType Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P37_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)-7
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P37_GRNNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: GRN No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct 
+                       a.GRNNo d,
+                       a.GRNNo r   
+                From GRN a
+                Order By 1
+                ```
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P37_LOCATION
+            itemsToSubmit: P37_GRNNO
+        }
+        layout {
+            sequence: 110
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P37_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select    Distinct
+                          e.ItemName||' ( '||e.ItemCode||' )' as d,
+                          e.ItemCode r
+                
+                From GRNDetail a, Item e
+                Where a.ItemCode = e.ItemCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material
+        }
+    )
+
+    pageItem P37_ITEMGROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select Upper(a.ItemName || ' ( ' || a.ItemCode || ' )') As d,
+                       a.ItemCode As r
+                  From Item a
+                 Where a.ItemType = 'GROUP'
+                 order by 2
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material Group
+        }
+    )
+
+    pageItem P37_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'GRN'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P37_COMPANY
+            itemsToSubmit: P37_LOCATION
+        }
+        layout {
+            sequence: 50
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P37_NEXTPROCESS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 190
+            region: @grn-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P37_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        p.PartyName d,
+                        p.PartyCode r
+                From GRN a,party p
+                Where a.PartyCode = p.PartyCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 120
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P37_RAKENO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Rake No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        b.RakeNo d,
+                        b.Tno as r
+                From GRN a,Rake b
+                Where a.RakeTno = b.Tno(+)
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 150
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 40
+            valuePlaceholder: Rake No
+        }
+    )
+
+    pageItem P37_REFERENCE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Reference No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct 
+                       b.PurchaseOrderNo d,
+                       b.PurchaseOrderNo r   
+                From   GRN a,PurchaseOrder b
+                Where  a.PurchaseOrderTNo = b.TNo  
+                Order By 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P37_SPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select    Distinct
+                          ee.ItemSpecificationName d,
+                          ee.ItemSpecificationCode r
+                
+                From Item e, ItemSpecification ee
+                Where e.TNo = ee.TNo
+                 and  e.itemCode = :P37_ITEM
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P37_ITEM
+            itemsToSubmit: P37_SPECIFICATION
+        }
+        layout {
+            sequence: 100
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P37_STATUS (
+        type: selectList
+        label {
+            label: Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:Active;ACTIVE,Non-Active;NONACTIVE,Canceled;CANCELED,Closed;CLOSED,Preparing;PREPARING,Prepared;PREPARED,Authorised;AUTHORISED,On Hold;ONHOLD,Short Closed;SHORTCLOSED,Dept Approved;DEPTAPPROVED,Store Approval;STOREAPPROVED
+            nullDisplayValue: --Select GRN Status--
+        }
+        layout {
+            sequence: 20
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P37_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P37_TODOLIST (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 180
+            region: @grn-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P37_TRANSPORTER (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Transporter
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        p.PartyName d,
+                        p.PartyCode r
+                From GRN a,party p
+                Where a.TransporterCode = p.PartyCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 140
+            region: @grn-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Transporter Name
+        }
+    )
+
+    button custom (
+        buttonName: CUSTOM
+        label: Custom
+        layout {
+            sequence: 20
+            region: @grn-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--iconRight
+            ]
+            icon: fa-file-excel-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: item=value
+            item: 1
+            value: 2
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @grn-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 200
+            region: @grn-register
+            slot: regionBody
+            column: 9
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 30
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                
+                begin
+                  if :P37_GRNNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P37_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P37_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 5717014288768331
+        }
+    )
+
+)
+

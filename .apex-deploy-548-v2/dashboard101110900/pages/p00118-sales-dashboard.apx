@@ -1,0 +1,3057 @@
+page 118 (
+    name: Sales Dashboard
+    alias: SALES-DASHBOARD
+    title: Sales Dashboard
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .mycardtext{color:white;}
+            .mycardsize{font-size: 15px;font-weight:bold;}
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region parameters (
+        name: Parameters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region posted (
+        name: Posted
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                '₹ '||to_number(Round(sum(a.InvoiceAmount)/100000,2),'99999999999.99') ||' Lac' Value,
+                'Posted' as Text,
+                'u-color-18' as card_color
+                From  Invoice a, Financialyear b
+                Where to_Char(a.InvoiceDate,'YYYY') = to_Char(To_Date(:P118_DATE,'DD-MM-YYYY'),'YYYY')
+                  and exists (Select 1 from Voucher v where v.ModuleTNo = a.TNo)
+                  and a.FinancialYearCode = b.FinancialyearCode
+                  and :P118_DATE between b.FinancialYearBegin and b.FinancialyearEnd
+                  and a.InvoiceDate <= :P118_DATE
+                ```
+            pageItemsToSubmit: P118_DATE
+        }
+        layout {
+            sequence: 60
+            parentRegion: @top-kpi-trends
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--styleB
+            ]
+        }
+        card {
+            cssClasses: &CARD_COLOR!ATTR.
+        }
+        title {
+            column: TEXT
+        }
+        subtitle {
+            column: VALUE
+            cssClasses: [
+                u-color-13-text
+                mycardtext
+                mycardsize
+            ]
+        }
+
+        action action (
+            type: fullCard
+            layout {
+                sequence: 10
+            }
+            behavior {
+                target: {
+                    page: 56
+                    items: {
+                        P56_COMPANY: 1
+                        P56_DOCTYPE: &P118_DOCTYPE.
+                        P56_LOCATION: &P118_LOCATION.
+                        P56_FROMDATE: &P118_FROMDATE.
+                        P56_TODATE: &P118_DATE.
+                        P56_STATUS: ACTIVE
+                    }
+                }
+            }
+        )
+
+    )
+
+    region sales-per-day (
+        name: Sales Per Day
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                '₹ '||to_number(Round(sum(a.CCInvoiceAmount) /
+                GetDayofYear(To_Date(:P118_DATE,'DD-MM-YYYY'))/ 1000000
+                ,0),'99999999999.99') ||' Lac'
+                 Value,
+                'Sales per Day' as Text,
+                'u-color-5' as card_color
+                From CCInvoice a, financialyear b
+                 Where a.financialyearcode = b.financialyearcode
+                   And :P118_DATE Between b.financialyearbegin And b.financialyearend
+                   And to_Char(a.CCInvoiceDate, 'YYYY') = to_Char(To_Date(:P118_DATE, 'DD-MM-YYYY'), 'YYYY')
+                   And a.CCInvoiceDate <= :P118_DATE
+                ```
+            pageItemsToSubmit: P118_DATE
+        }
+        layout {
+            sequence: 40
+            parentRegion: @top-kpi-trends
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--styleB
+            ]
+        }
+        card {
+            cssClasses: &CARD_COLOR!ATTR.
+        }
+        title {
+            column: TEXT
+        }
+        subtitle {
+            column: VALUE
+            cssClasses: [
+                u-color-13-text
+                mycardsize
+                mycardtext
+            ]
+        }
+    )
+
+    region sales-trend (
+        name: Sales Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /*
+                Select
+                      Case When :P118_COMPARE = 'MONTH' then To_Char(a.CCInvoiceDate,'MON-YY')
+                           else To_Char(a.CCInvoiceDate,'YYYY')
+                      End as MONTHYEAR,
+                      sum(a.CCInvoiceAmount) CMA,
+                      (
+                          Select
+                                sum(aa.CCInvoiceAmount)
+                          From  CCInvoice aa
+                          Where to_Char(aa.CCInvoiceDate,'YYYYMM') = 
+                                to_Char(Add_Months(to_date(:P118_DATE,'DD-MON-YYYY'),-1 * (Decode(:P118_COMPARE,'MONTH',1,12)) * nvl(:P118_VALUE,1)) ,'YYYYMM'
+                                )
+                      ) as PMA
+                
+                From  CCInvoice a
+                Where To_Char(a.CCInvoiceDate,'YYYY') = To_Char(to_date(:P118_DATE,'DD-MON-YYYY'),'YYYY')
+                Group by 
+                        Case When :P118_COMPARE = 'MONTH' then To_Char(a.CCInvoiceDate,'MON-YY')
+                           else To_Char(a.CCInvoiceDate,'YYYY')
+                        End
+                
+                */
+                Select Decode(:P118_COMPARE,
+                              'MONTH',
+                              to_char(a.ccinvoicedate, 'MON-YY'),
+                              to_char(a.ccinvoicedate, 'YYYY')) CurrentYear,
+                       Sum(a.ccinvoiceamount) As CurrentMOnthAmount,
+                       NVL((Select Sum(AA.CCINVOICEAMOUNT)
+                          From ccinvoice aa
+                         Where to_char(aa.ccinvoicedate, 'YYYYMM') =
+                               to_char(ADD_MONTHS(to_date(:P118_DATE,'DD-MON-YYYY'),
+                                                  -1 * (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  Nvl(:P118_VALUE, 1)),
+                                       'YYYYMM')),0) As PrevAmount
+                  From CCINVOICE A
+                 Where Decode(:P118_COMPARE,
+                              'MONTH',
+                              to_char(a.ccinvoicedate, 'MON-YY'),
+                              to_char(a.ccinvoicedate, 'YYYY')) =
+                       Decode(:P118_COMPARE,
+                              'MONTH',
+                              TO_CHAR(TO_DATE(:P118_DATE, 'DD-MON-YYYY'), 'MON-YY'),
+                              TO_CHAR(TO_DATE(:P118_DATE, 'DD-MON-YYYY'), 'YYYY'))
+                 Group By Decode(:P118_COMPARE,
+                                 'MONTH',
+                                 to_char(a.ccinvoicedate, 'MON-YY'),
+                                 to_char(a.ccinvoicedate, 'YYYY'))
+                
+                
+                ```
+        }
+        layout {
+            sequence: 80
+            slot: body
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        serverSideCondition {
+            type: item=value
+            item: 1
+            value: 2
+        }
+        chartLayout {
+            height: 400
+        }
+        legend {
+            position: top
+        }
+
+        series jet_chart_series (
+            name: 1
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: CURRENTYEAR
+                value: CURRENTMONTHAMOUNT
+            }
+            label {
+                show: true
+                position: outsideSlice
+                fontStyle: italic
+            }
+        )
+
+        series jet_chart_series-2 (
+            name: 2
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: CURRENTYEAR
+                value: PREVAMOUNT
+            }
+            label {
+                show: true
+                position: outsideSlice
+                fontStyle: italic
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region sales-trend-2 (
+        name: Sales Trend 2
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                    x.LabelName,
+                    x.ValueName,
+                    Case When rownum = 1 then '#76B947'
+                         When rownum = 2 then '#2E8BC0'
+                         When rownum = 3 then '#FFA384'
+                         When rownum = 4 then '#FF8300'
+                         When rownum = 5 then '#B7AC44'
+                         When rownum = 6 then '#FF4500'
+                         When rownum = 7 then '#DF362D'
+                         When rownum = 8 then '#FAD02C'
+                         When rownum = 9 then '#333652'
+                         When rownum = 10 then '#90ADC6'
+                         When rownum = 11 then '#94C973'
+                         When rownum = 12 then 'u-color-12'
+                    End as Color
+                
+                From
+                (Select
+                      
+                      Decode(nvl(:P118_COMPARE,'MONTH'),
+                              'MONTH',
+                              to_char(a.ccinvoicedate, 'MON-YY'),
+                              to_char(a.ccinvoicedate, 'YYYY')) LabelName,
+                      Decode(nvl(:P118_COMPARE,'MONTH'),
+                               'MONTH',
+                               to_char(a.ccinvoicedate, 'YYYYMM'),
+                               to_char(a.ccinvoicedate, 'YYYY')) OrderName,       
+                      Round(sum(TotalAmount),2)as ValueName
+                From  BI_SRevenue a, FinancialYear b
+                Where a.CCInvoiceDate <= NVL(:P118_DATE,TRUNC(SYSDATE))
+                  and a.FinancialyearCode = b.Financialyearcode
+                  and :P118_DATE between b.FinancialyearBegin and b.FinancialyearEnd
+                Group by Decode(nvl(:P118_COMPARE,'MONTH'),
+                              'MONTH',
+                              to_char(a.ccinvoicedate, 'MON-YY'),
+                              to_char(a.ccinvoicedate, 'YYYY')) ,
+                      Decode(nvl(:P118_COMPARE,'MONTH'),
+                               'MONTH',
+                               to_char(a.ccinvoicedate, 'YYYYMM'),
+                               to_char(a.ccinvoicedate, 'YYYY'))
+                Order by Decode(nvl(:P118_COMPARE,'MONTH'),
+                               'MONTH',
+                               to_char(a.ccinvoicedate, 'YYYYMM'),
+                               to_char(a.ccinvoicedate, 'YYYY')) desc
+                )x
+                Where Rownum <= NVL(:P118_VALUE,1)
+                ```
+            pageItemsToSubmit: [
+                P118_VALUE
+                P118_DATE
+                P118_COMPARE
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                js-showMaximizeButton
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            show: false
+        }
+
+        series jet_chart_series (
+            name: 1
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: VALUENAME
+            }
+            appearance {
+                color: &COLOR.
+            }
+            label {
+                show: true
+                position: outsideBarEdge
+                fontStyle: italic
+                fontSize: 10
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region top-10-customer (
+        name: Top 10 Customer
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select LABELNAME,
+                       LABELVALUE,
+                       P1,
+                       P2,
+                       P3,
+                       P4,
+                       P5,
+                       P6,
+                       P7,
+                       P8,
+                       P9,
+                       P10,
+                       P11,
+                       P12
+                  from TEMP_TOP10CUSTOMER
+                Order by 2 desc
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                js-showMaximizeButton
+                t-Region--showIcon
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueDesc
+        }
+        legend {
+            show: false
+        }
+
+        series current (
+            name: Current
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: LABELVALUE
+            }
+        )
+
+        series previous (
+            name: Previous_1
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P1
+            }
+        )
+
+        series previous-10 (
+            name: Previous_10
+            execution {
+                sequence: 110
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P10
+            }
+        )
+
+        series previous-11 (
+            name: Previous_11
+            execution {
+                sequence: 120
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P11
+            }
+        )
+
+        series previous-12 (
+            name: Previous_12
+            execution {
+                sequence: 130
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P12
+            }
+        )
+
+        series previous-2 (
+            name: Previous_2
+            execution {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P2
+            }
+        )
+
+        series previous-3 (
+            name: Previous_3
+            execution {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P3
+            }
+        )
+
+        series previous-4 (
+            name: Previous_4
+            execution {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P4
+            }
+        )
+
+        series previous-5 (
+            name: Previous_5
+            execution {
+                sequence: 60
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P5
+            }
+        )
+
+        series previous-6 (
+            name: Previous_6
+            execution {
+                sequence: 70
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P6
+            }
+        )
+
+        series previous-7 (
+            name: Previous_7
+            execution {
+                sequence: 80
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P7
+            }
+        )
+
+        series previous-8 (
+            name: Previous_8
+            execution {
+                sequence: 90
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P8
+            }
+        )
+
+        series previous-9 (
+            name: Previous_9
+            execution {
+                sequence: 100
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P9
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region top-10-product (
+        name: Top 10  Product
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select LABELNAME,
+                       LABELVALUE,
+                       P1,
+                       P2,
+                       P3,
+                       P4,
+                       P5,
+                       P6,
+                       P7,
+                       P8,
+                       P9,
+                       P10,
+                       P11,
+                       P12
+                  from TEMP_TOP10Item
+                Order by 2 desc
+                ```
+        }
+        layout {
+            sequence: 90
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                js-showMaximizeButton
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueDesc
+        }
+        legend {
+            show: false
+        }
+
+        series current (
+            name: Current
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: LABELVALUE
+            }
+        )
+
+        series previous (
+            name: Previous_1
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P1
+            }
+        )
+
+        series previous-10 (
+            name: Previous_10
+            execution {
+                sequence: 110
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P10
+            }
+        )
+
+        series previous-11 (
+            name: Previous_11
+            execution {
+                sequence: 120
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P11
+            }
+        )
+
+        series previous-12 (
+            name: Previous_12
+            execution {
+                sequence: 130
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P12
+            }
+        )
+
+        series previous-2 (
+            name: Previous_2
+            execution {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P2
+            }
+        )
+
+        series previous-3 (
+            name: Previous_3
+            execution {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P3
+            }
+        )
+
+        series previous-4 (
+            name: Previous_4
+            execution {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P4
+            }
+        )
+
+        series previous-5 (
+            name: Previous_5
+            execution {
+                sequence: 60
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P5
+            }
+        )
+
+        series previous-6 (
+            name: Previous_6
+            execution {
+                sequence: 70
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P6
+            }
+        )
+
+        series previous-7 (
+            name: Previous_7
+            execution {
+                sequence: 80
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P7
+            }
+        )
+
+        series previous-8 (
+            name: Previous_8
+            execution {
+                sequence: 90
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P8
+            }
+        )
+
+        series previous-9 (
+            name: Previous_9
+            execution {
+                sequence: 100
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P9
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region top-10-state (
+        name: Top 10  State
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select LABELNAME,
+                       LABELVALUE,
+                       P1,
+                       P2,
+                       P3,
+                       P4,
+                       P5,
+                       P6,
+                       P7,
+                       P8,
+                       P9,
+                       P10,
+                       P11,
+                       P12
+                  from TEMP_TOP10state
+                Order by 2 desc
+                ```
+        }
+        layout {
+            sequence: 60
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                js-showMaximizeButton
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueDesc
+        }
+        legend {
+            show: false
+        }
+
+        series current (
+            name: Current
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: LABELVALUE
+            }
+        )
+
+        series previous (
+            name: Previous_1
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P1
+            }
+        )
+
+        series previous-10 (
+            name: Previous_10
+            execution {
+                sequence: 110
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P10
+            }
+        )
+
+        series previous-11 (
+            name: Previous_11
+            execution {
+                sequence: 120
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P11
+            }
+        )
+
+        series previous-12 (
+            name: Previous_12
+            execution {
+                sequence: 130
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P12
+            }
+        )
+
+        series previous-2 (
+            name: Previous_2
+            execution {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P2
+            }
+        )
+
+        series previous-3 (
+            name: Previous_3
+            execution {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P3
+            }
+        )
+
+        series previous-4 (
+            name: Previous_4
+            execution {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P4
+            }
+        )
+
+        series previous-5 (
+            name: Previous_5
+            execution {
+                sequence: 60
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P5
+            }
+        )
+
+        series previous-6 (
+            name: Previous_6
+            execution {
+                sequence: 70
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P6
+            }
+        )
+
+        series previous-7 (
+            name: Previous_7
+            execution {
+                sequence: 80
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P7
+            }
+        )
+
+        series previous-8 (
+            name: Previous_8
+            execution {
+                sequence: 90
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P8
+            }
+        )
+
+        series previous-9 (
+            name: Previous_9
+            execution {
+                sequence: 100
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABELNAME
+                value: P9
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region top-kpi-trends (
+        name: Top KPI Trends
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--showIcon
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            icon: fa-credit-card
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region total-quantity (
+        name: Total Quantity
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Round(sum(a.Quantity1),3) ||' MT' Value,
+                'Total Quantity' as Text,
+                'u-color-11' as card_color
+                From  BI_SRevenue a, Item e, FinancialYear f
+                Where to_Char(a.CCInvoiceDate,'YYYY') = to_Char(To_Date(:P118_DATE,'DD-MM-YYYY'),'YYYY')
+                  and e.MeasuringUnitCode1 = 'MT'
+                  and a.ItemCode = e.ItemCode
+                  and a.financialyearcode = f.financialyearCode
+                  and :P118_DATE between f.financialyearbegin and f.financialyearend
+                  and a.CCInvoiceDate <= :P118_DATE
+                ```
+            pageItemsToSubmit: P118_DATE
+        }
+        layout {
+            sequence: 50
+            parentRegion: @top-kpi-trends
+            slot: subRegions
+            columnSpan: 4
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--styleB
+            ]
+        }
+        card {
+            cssClasses: &CARD_COLOR!ATTR.
+        }
+        title {
+            column: TEXT
+        }
+        subtitle {
+            column: VALUE
+            cssClasses: [
+                u-color-13-text
+                mycardtext
+                mycardsize
+            ]
+        }
+    )
+
+    region total-sales (
+        name: Total Sales
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                '₹ '||to_number(Round(sum(a.CCInvoiceAmount)/100000,2),'99999999999.99') ||' Lac' Value,
+                'Total Sales' as Text,
+                'u-color-22' as card_color
+                From CCInvoice a, financialyear b
+                 Where a.financialyearcode = b.financialyearcode
+                   And :P118_DATE Between b.financialyearbegin And b.financialyearend
+                   And to_Char(a.CCInvoiceDate, 'YYYY') = to_Char(To_Date(:P118_DATE, 'DD-MM-YYYY'), 'YYYY')
+                   And a.CCInvoiceDate <= :P118_DATE
+                ```
+            pageItemsToSubmit: P118_DATE
+        }
+        layout {
+            sequence: 20
+            parentRegion: @top-kpi-trends
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--styleB
+            ]
+        }
+        card {
+            cssClasses: &CARD_COLOR!ATTR.
+        }
+        title {
+            column: TEXT
+        }
+        subtitle {
+            column: VALUE
+            cssClasses: [
+                u-color-13-text
+                mycardsize
+            ]
+        }
+
+        action action (
+            type: fullCard
+            layout {
+                sequence: 10
+            }
+            behavior {
+                target: {
+                    page: 119
+                    items: {
+                        P119_DATE: &P118_DATE.
+                    }
+                    clearCache: 119
+                }
+            }
+        )
+
+    )
+
+    region total-transactions (
+        name: Total Transactions
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                count(a.TNo),
+                'Total Transaction' as Text,
+                'u-color-14' as card_color
+                From CCInvoice a, financialyear b
+                 Where a.financialyearcode = b.financialyearcode
+                   And a.CCINvoiceDate Between B.FinancialYearBegin And :P118_DATE
+                   And to_Char(a.CCInvoiceDate, 'YYYY') = to_Char(To_Date(:P118_DATE, 'DD-MM-YYYY'), 'YYYY')
+                   And a.CCInvoiceDate <= To_Date(:P118_DATE, 'DD-MM-YYYY')
+                
+                ```
+            pageItemsToSubmit: P118_DATE
+        }
+        layout {
+            sequence: 10
+            parentRegion: @top-kpi-trends
+            slot: subRegions
+            columnSpan: 4
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--styleB
+            ]
+        }
+        card {
+            cssClasses: &CARD_COLOR!ATTR.
+        }
+        title {
+            column: TEXT
+        }
+        subtitle {
+            column: COUNT(A.TNO)
+            cssClasses: [
+                u-color-13-text
+                mycardsize
+            ]
+        }
+
+        action action (
+            type: fullCard
+            layout {
+                sequence: 10
+            }
+            behavior {
+                target: {
+                    page: 56
+                    items: {
+                        P56_COMPANY: 1
+                        P56_FROMDATE: &P118_FROMDATE.
+                        P56_TODATE: &P118_DATE.
+                        P56_LOCATION: &P118_LOCATION.
+                        P56_DOCTYPE: &P118_DOCTYPE.
+                    }
+                }
+            }
+        )
+
+    )
+
+    region un-posted (
+        name: Un-Posted
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                '₹ '||to_number(Round(sum(a.InvoiceAmount)/100000,2),'99999999999.99') ||' Lac' Value,
+                'Un-Posted' as Text,
+                'u-color-9' as card_color
+                From  Invoice a, Financialyear b
+                Where to_Char(a.InvoiceDate,'YYYY') = to_Char(To_Date(:P118_DATE,'DD-MM-YYYY'),'YYYY')
+                  and not exists (Select 1 from Voucher v where v.ModuleTNo = a.TNo)
+                  and a.FinancialyearCode = b.Financialyearcode
+                  and :P118_DATE between b.Financialyearbegin and b.FinancialyearEnd
+                  and a.InvoiceDate <= :P118_DATE
+                ```
+            pageItemsToSubmit: P118_DATE
+        }
+        layout {
+            sequence: 70
+            parentRegion: @top-kpi-trends
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--styleB
+            ]
+        }
+        card {
+            cssClasses: &CARD_COLOR!ATTR.
+        }
+        title {
+            column: TEXT
+        }
+        subtitle {
+            column: VALUE
+            cssClasses: [
+                u-color-13-text
+                mycardtext
+                mycardsize
+            ]
+        }
+
+        action action (
+            type: fullCard
+            layout {
+                sequence: 10
+            }
+            behavior {
+                target: {
+                    page: 56
+                    items: {
+                        P56_COMPANY: 1
+                        P56_FROMDATE: &P118_FROMDATE.
+                        P56_TODATE: &P118_DATE.
+                        P56_LOCATION: &P118_LOCATION.
+                        P56_DOCTYPE: &P118_DOCTYPE.
+                        P56_STATUS: NONACTIVE
+                    }
+                }
+            }
+        )
+
+    )
+
+    pageItem P118_COMPARE (
+        type: radioGroup
+        label {
+            label: Compare
+            alignment: left
+        }
+        settings {
+            noOfCols: 2
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:MONTH;MONTH,YEAR;YEAR
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @parameters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+        default {
+            type: static
+            staticValue: MONTH
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P118_DATE (
+        type: datePicker
+        label {
+            label: Month/Year
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @parameters
+            slot: regionBody
+            alignment: left
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P118_DOCTYPE (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @parameters
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: CHALANCUMINVOICE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P118_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @parameters
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select a.financialyearbegin
+                From financialyear a 
+                Where nvl(:P118_DATE,TRUNC(SYSDATE)) Between a.financialyearbegin And a.financialyearend
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P118_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT ITEMNAME D, ITEMCODE R FROM ITEM
+                WHERE GETDOCUMENTSTATUSCODE('ITEM',TNO)='ACTIVE'
+                ```
+        }
+        layout {
+            sequence: 80
+            region: @parameters
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 40
+        }
+    )
+
+    pageItem P118_LOCATION (
+        type: hidden
+        layout {
+            sequence: 30
+            region: @parameters
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: CO
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P118_VALUE (
+        type: numberField
+        label {
+            label: Value (1-12)
+            alignment: left
+        }
+        settings {
+            minValue: 1
+            maxValue: 12
+            numberAlignment: end
+            virtualKeyboard: text
+        }
+        layout {
+            sequence: 70
+            region: @parameters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 7
+            valuePlaceholder: Value ( 1-3)
+        }
+        default {
+            type: static
+            staticValue: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button clear (
+        buttonName: CLEAR
+        label: Clear
+        layout {
+            sequence: 10
+            region: @parameters
+            slot: regionBody
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @parameters
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction clear-compare-item (
+        name: Clear Compare Item
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @clear
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P118_COMPARE
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process create-temp-data (
+        name: create temp data
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /* Top 10 Customer */
+                Declare
+                  i Number;
+                
+                  vp1  Number;
+                  vp2  Number;
+                  vp3  Number;
+                  vp4  Number;
+                  vp5  Number;
+                  vp6  Number;
+                  vp7  Number;
+                  vp8  Number;
+                  vp9  Number;
+                  vp10 Number;
+                  vp11 Number;
+                  vp12 Number;
+                
+                Begin
+                  Delete From temp_top10customer;
+                  For c In (Select x.LabelName, x.ValueName, X.PARTYCODE
+                              From (Select GetPartyname(a.PartyCode) LabelName,
+                                           Sum(a.TotalAmount) As ValueName,
+                                           A.PARTYCODE
+                                      From BI_SRevenue a, Financialyear b
+                                     Where a.CCInvoiceDate <= :P118_DATE
+                                       and a.Financialyearcode = b.Financialyearcode
+                                       and :P118_DATE between b.Financialyearbegin and b.Financialyearend
+                                     Group By GetPartyname(a.PartyCode), A.PARTYCODE
+                                     Order By 2 Desc) x
+                             Where rownum <= 10) Loop
+                    For i In 1 .. to_number(:p118_value) Loop
+                      If I-1 = 1 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp1
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 2 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp2
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 3 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp3
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 4 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp4
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 5 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp5
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 6 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp6
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 7 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp7
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 8 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp8
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 9 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp9
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 10 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp10
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 11 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp11
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 12 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp12
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      End If;
+                    End Loop;
+                  
+                    Insert Into temp_top10customer
+                      (labelname,
+                       labelvalue,
+                       p1,
+                       p2,
+                       p3,
+                       p4,
+                       p5,
+                       p6,
+                       p7,
+                       p8,
+                       p9,
+                       p10,
+                       p11,
+                       p12)
+                    Values
+                      (c.labelname,
+                       c.valuename,
+                       vp1,
+                       vp2,
+                       vp3,
+                       vp4,
+                       vp5,
+                       vp6,
+                       vp7,
+                       vp8,
+                       vp9,
+                       vp10,
+                       vp11,
+                       vp12);
+                  End Loop;
+                End;
+                
+                /* Top 10 State */
+                Declare
+                  i Number;
+                
+                  vp1  Number;
+                  vp2  Number;
+                  vp3  Number;
+                  vp4  Number;
+                  vp5  Number;
+                  vp6  Number;
+                  vp7  Number;
+                  vp8  Number;
+                  vp9  Number;
+                  vp10 Number;
+                  vp11 Number;
+                  vp12 Number;
+                
+                Begin
+                  Delete From temp_top10state;
+                  For vTopItem In (Select x.LabelName, x.ValueName, X.StateCode
+                                     From (Select c.StateName LabelName,
+                                                  Sum(a.TotalAmount) As ValueName,
+                                                  C.StateCode
+                                             From BI_SRevenue a, Party b, State c, FinancialYear d
+                                            Where a.partyCode = b.PartyCode
+                                              And b.Officestatecode = c.StateCode
+                                              And a.CCInvoiceDate <= :P118_DATE
+                                              and a.FinancialyearCode = d.Financialyearcode
+                                              and :P118_DATE between d.financialyearbegin and d.financialyearend
+                                            Group By c.StateName, c.StateCode
+                                            Order By 2 Desc) x
+                                    Where rownum <= 10) Loop
+                    For i In 1 .. to_number(:p118_value) Loop
+                      If I-1 = 1 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp1
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 2 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp2
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 3 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp3
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 4 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp4
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 5 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp5
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 6 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp6
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 7 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp7
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 8 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp8
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 9 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp9
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 10 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp10
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 11 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp11
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 12 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp12
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      End If;
+                    End Loop;
+                  
+                    Insert Into temp_top10State
+                      (labelname,
+                       labelvalue,
+                       p1,
+                       p2,
+                       p3,
+                       p4,
+                       p5,
+                       p6,
+                       p7,
+                       p8,
+                       p9,
+                       p10,
+                       p11,
+                       p12)
+                    Values
+                      (vTopItem.labelname,
+                       vTopItem.valuename,
+                       vp1,
+                       vp2,
+                       vp3,
+                       vp4,
+                       vp5,
+                       vp6,
+                       vp7,
+                       vp8,
+                       vp9,
+                       vp10,
+                       vp11,
+                       vp12);
+                  End Loop;
+                End;
+                
+                /* TOP 10 Item */
+                Declare
+                  i Number;
+                
+                  vp1  Number;
+                  vp2  Number;
+                  vp3  Number;
+                  vp4  Number;
+                  vp5  Number;
+                  vp6  Number;
+                  vp7  Number;
+                  vp8  Number;
+                  vp9  Number;
+                  vp10 Number;
+                  vp11 Number;
+                  vp12 Number;
+                
+                Begin
+                  Delete From temp_top10Item;
+                  For vTopItem In (Select x.LabelName, x.ValueName, X.ITEMCODE
+                                     From (Select GetItemname(a.ItemCode) LabelName,
+                                                  Sum(a.TotalAmount) As ValueName,
+                                                  A.ITEMCODE
+                                             From BI_SRevenue a, Financialyear b
+                                            Where a.CCInvoiceDate <= :P118_DATE
+                                              and a.FinancialyearCode = b.FinancialyearCode
+                                              and :P118_DATE between b.FinancialyearBegin and b.FinancialyearEnd
+                                            Group By GetItemname(a.ItemCode), A.ITEMCODE
+                                            Order By 2 Desc) x
+                                    Where rownum <= 10) Loop
+                    For i In 1 .. to_number(:p118_value) Loop
+                      If I-1 = 1 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp1
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 2 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp2
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 3 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp3
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 4 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp4
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 5 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp5
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 6 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp6
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 7 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp7
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 8 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp8
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 9 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp9
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 10 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp10
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 11 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp11
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 12 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp12
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      End If;
+                    End Loop;
+                  
+                    Insert Into temp_top10item
+                      (labelname,
+                       labelvalue,
+                       p1,
+                       p2,
+                       p3,
+                       p4,
+                       p5,
+                       p6,
+                       p7,
+                       p8,
+                       p9,
+                       p10,
+                       p11,
+                       p12)
+                    Values
+                      (vTopItem.labelname,
+                       vTopItem.valuename,
+                       vp1,
+                       vp2,
+                       vp3,
+                       vp4,
+                       vp5,
+                       vp6,
+                       vp7,
+                       vp8,
+                       vp9,
+                       vp10,
+                       vp11,
+                       vp12);
+                  End Loop;
+                End;
+                
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 18194171963995130
+        }
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /* Top 10 Customer */
+                Declare
+                  i Number;
+                
+                  vp1  Number;
+                  vp2  Number;
+                  vp3  Number;
+                  vp4  Number;
+                  vp5  Number;
+                  vp6  Number;
+                  vp7  Number;
+                  vp8  Number;
+                  vp9  Number;
+                  vp10 Number;
+                  vp11 Number;
+                  vp12 Number;
+                
+                Begin
+                  Delete From temp_top10customer;
+                  For c In (Select x.LabelName, x.ValueName, X.PARTYCODE
+                              From (Select GetPartyname(a.PartyCode) LabelName,
+                                           Sum(a.TotalAmount) As ValueName,
+                                           A.PARTYCODE
+                                      From BI_SRevenue a, Financialyear b
+                                     Where a.CCInvoiceDate <= :P118_DATE
+                                       and a.Financialyearcode = b.Financialyearcode
+                                       and :P118_DATE between b.Financialyearbegin and b.Financialyearend
+                                     Group By GetPartyname(a.PartyCode), A.PARTYCODE
+                                     Order By 2 Desc) x
+                             Where rownum <= 10) Loop
+                    For i In 1 .. to_number(:p118_value) Loop
+                      If I-1 = 1 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp1
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 2 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp2
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 3 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp3
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 4 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp4
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 5 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp5
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 6 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp6
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 7 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp7
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 8 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp8
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 9 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp9
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 10 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp10
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 11 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp11
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 12 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp12
+                          From CCInvoice aa
+                         Where AA.PARTYCODE = C.PARTYCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      End If;
+                    End Loop;
+                  
+                    Insert Into temp_top10customer
+                      (labelname,
+                       labelvalue,
+                       p1,
+                       p2,
+                       p3,
+                       p4,
+                       p5,
+                       p6,
+                       p7,
+                       p8,
+                       p9,
+                       p10,
+                       p11,
+                       p12)
+                    Values
+                      (c.labelname,
+                       c.valuename,
+                       vp1,
+                       vp2,
+                       vp3,
+                       vp4,
+                       vp5,
+                       vp6,
+                       vp7,
+                       vp8,
+                       vp9,
+                       vp10,
+                       vp11,
+                       vp12);
+                  End Loop;
+                End;
+                
+                /* Top 10 State */
+                Declare
+                  i Number;
+                
+                  vp1  Number;
+                  vp2  Number;
+                  vp3  Number;
+                  vp4  Number;
+                  vp5  Number;
+                  vp6  Number;
+                  vp7  Number;
+                  vp8  Number;
+                  vp9  Number;
+                  vp10 Number;
+                  vp11 Number;
+                  vp12 Number;
+                
+                Begin
+                  Delete From temp_top10state;
+                  For vTopItem In (Select x.LabelName, x.ValueName, X.StateCode
+                                     From (Select c.StateName LabelName,
+                                                  Sum(a.TotalAmount) As ValueName,
+                                                  C.StateCode
+                                             From BI_SRevenue a, Party b, State c, FinancialYear d
+                                            Where a.partyCode = b.PartyCode
+                                              And b.Officestatecode = c.StateCode
+                                              And a.CCInvoiceDate <= :P118_DATE
+                                              and a.FinancialyearCode = d.Financialyearcode
+                                              and :P118_DATE between d.financialyearbegin and d.financialyearend
+                                            Group By c.StateName, c.StateCode
+                                            Order By 2 Desc) x
+                                    Where rownum <= 10) Loop
+                    For i In 1 .. to_number(:p118_value) Loop
+                      If I-1 = 1 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp1
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 2 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp2
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 3 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp3
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 4 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp4
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 5 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp5
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 6 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp6
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 7 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp7
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 8 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp8
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 9 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp9
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 10 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp10
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 11 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp11
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 12 Then
+                        Select Sum(aa.CCInvoiceAmount)
+                          Into vp12
+                          From CCInvoice aa, Party bb, State CC
+                         Where AA.PartyCode = bb.PartyCode
+                           And bb.officestatecode = cc.statecode
+                           And cc.statecode = vTopItem.Statecode
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      End If;
+                    End Loop;
+                  
+                    Insert Into temp_top10State
+                      (labelname,
+                       labelvalue,
+                       p1,
+                       p2,
+                       p3,
+                       p4,
+                       p5,
+                       p6,
+                       p7,
+                       p8,
+                       p9,
+                       p10,
+                       p11,
+                       p12)
+                    Values
+                      (vTopItem.labelname,
+                       vTopItem.valuename,
+                       vp1,
+                       vp2,
+                       vp3,
+                       vp4,
+                       vp5,
+                       vp6,
+                       vp7,
+                       vp8,
+                       vp9,
+                       vp10,
+                       vp11,
+                       vp12);
+                  End Loop;
+                End;
+                
+                /* TOP 10 Item */
+                Declare
+                  i Number;
+                
+                  vp1  Number;
+                  vp2  Number;
+                  vp3  Number;
+                  vp4  Number;
+                  vp5  Number;
+                  vp6  Number;
+                  vp7  Number;
+                  vp8  Number;
+                  vp9  Number;
+                  vp10 Number;
+                  vp11 Number;
+                  vp12 Number;
+                
+                Begin
+                  Delete From temp_top10Item;
+                  For vTopItem In (Select x.LabelName, x.ValueName, X.ITEMCODE
+                                     From (Select GetItemname(a.ItemCode) LabelName,
+                                                  Sum(a.TotalAmount) As ValueName,
+                                                  A.ITEMCODE
+                                             From BI_SRevenue a, Financialyear b
+                                            Where a.CCInvoiceDate <= :P118_DATE
+                                              and a.FinancialyearCode = b.FinancialyearCode
+                                              and :P118_DATE between b.FinancialyearBegin and b.FinancialyearEnd
+                                            Group By GetItemname(a.ItemCode), A.ITEMCODE
+                                            Order By 2 Desc) x
+                                    Where rownum <= 10) Loop
+                    For i In 1 .. to_number(:p118_value) Loop
+                      If I-1 = 1 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp1
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 2 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp2
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 3 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp3
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 4 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp4
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 5 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp5
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 6 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp6
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 7 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp7
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 8 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp8
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 9 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp9
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 10 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp10
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 11 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp11
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      Elsif I-1 = 12 Then
+                        Select Sum(aa.TotalAmount)
+                          Into vp12
+                          From BI_SRevenue aa
+                         Where AA.ITEMCODE = vTopItem.ITEMCODE
+                           And to_Char(aa.CCInvoiceDate, 'YYYYMM') =
+                               to_Char(Add_Months(to_date(:P118_DATE, 'DD-MON-YYYY'),
+                                                  -1 *
+                                                  (Decode(:P118_COMPARE, 'MONTH', 1, 12)) *
+                                                  nvl(i-1, 1)),
+                                       'YYYYMM');
+                      End If;
+                    End Loop;
+                  
+                    Insert Into temp_top10item
+                      (labelname,
+                       labelvalue,
+                       p1,
+                       p2,
+                       p3,
+                       p4,
+                       p5,
+                       p6,
+                       p7,
+                       p8,
+                       p9,
+                       p10,
+                       p11,
+                       p12)
+                    Values
+                      (vTopItem.labelname,
+                       vTopItem.valuename,
+                       vp1,
+                       vp2,
+                       vp3,
+                       vp4,
+                       vp5,
+                       vp6,
+                       vp7,
+                       vp8,
+                       vp9,
+                       vp10,
+                       vp11,
+                       vp12);
+                  End Loop;
+                End;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 9184865494621457
+        }
+    )
+
+)
+

@@ -1,0 +1,919 @@
+page 312 (
+    name: InterUnitTransfer
+    alias: INTERUNITTRANSFER
+    title: InterUnitTransfer
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Rownum as SerialNo,
+                l.LocationName,
+                dl.LocationName as ToLocation,
+                a.InterUnitTransferNo,
+                a.InterUnitTransferDate,
+                p.PartyName,
+                i.EmployeeName,
+                '('||e.ItemCode||')'||e.ItemName ||' ~ '||ee.ItemSpecificationName as ItemDetail,
+                mu.MeasuringUnitName as PUOM,
+                mu2.MeasuringUnitName as SUOM,
+                b.Quantity1 as PQty,
+                b.Quantity2 as SQty,
+                b.CCInvoiceQuantity1,
+                b.CCInvoiceQuantity2,
+                nvl(b.Quantity1,0)-nvl(b.CCInvoiceQuantity1,0) as BalancePQty,
+                nvl(b.Quantity2,0)-nvl(b.CCInvoiceQuantity2,0) as BalanceSQty
+                From InterUnitTransfer a,InterUnitTransferDetail b, Location l, Location dl, Employee i, Party p, Item e, ItemSpecification ee, MeasuringUnit mu, MeasuringUnit mu2
+                Where 1=1
+                  and a.TNo = b.TNo
+                  and a.LocationCode = l.LocationCode
+                  and a.ToLocationCode = dl.LocationCode
+                  and a.EmployeeCode = i.EmployeeCode(+)
+                  and a.PartyCode = p.PartyCode(+)
+                  and b.ItemCode = e.ItemCode
+                  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+                  and e.MeasuringUnitCode1 = mu.MeasuringUnitCode
+                  and e.MeasuringUnitCode2 = mu2.MeasuringUnitCode(+)
+                  and a.InterUnitTransferDate between :P312_FROMDATE and :P312_TODATE
+                  and instr(':'||:P312_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P312_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and ( :P312_ITEM IS NULL OR instr(':'||:P312_ITEM||':',':'||e.ItemCode||':') > 0 ) 
+                  and ( :P312_ITEMSPECIFICATION IS NULL OR instr(':'||:P312_ITEMSPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 39704284869348106
+        }
+
+        column BALANCEPQTY (
+            type: plainText
+            heading {
+                heading: Balance P-Qty
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:80px>#BALANCEPQTY#</Div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column BALANCESQTY (
+            type: plainText
+            heading {
+                heading: Balance S-Qty
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:80px>#BALANCESQTY#</Div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column CCINVOICEQUANTITY1 (
+            type: plainText
+            heading {
+                heading: Billed P-Qty
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:70px>#CCINVOICEQUANTITY1#</Div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column CCINVOICEQUANTITY2 (
+            type: plainText
+            heading {
+                heading: Billed S-Qty
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:70px>#CCINVOICEQUANTITY2#</Div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: plainText
+            heading {
+                heading: Employee
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:150px>#EMPLOYEENAME#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column INTERUNITTRANSFERDATE (
+            type: plainText
+            heading {
+                heading: Transfer Date
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:70px>#INTERUNITTRANSFERDATE#</Div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column INTERUNITTRANSFERNO (
+            type: plainText
+            heading {
+                heading: Transfer No
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:150px>#INTERUNITTRANSFERNO#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ITEMDETAIL (
+            type: plainText
+            heading {
+                heading: Material Description
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:300px>#ITEMDETAIL#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: From Location
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:120px>#LOCATIONNAME#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:210px>#PARTYNAME#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column PQTY (
+            type: plainText
+            heading {
+                heading: P-QTY
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:70px>#PQTY#</Div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column PUOM (
+            type: plainText
+            heading {
+                heading: P-UOM
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:50px>#PUOM#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column SQTY (
+            type: plainText
+            heading {
+                heading: S-QTY
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:70px>#SQTY#</Div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column SUOM (
+            type: plainText
+            heading {
+                heading: S-UOM
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:50px>#SUOM#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column TOLOCATION (
+            type: plainText
+            heading {
+                heading: To Location
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= width:120px>#TOLOCATION#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+
+        savedReport 451829 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BALANCEPQTY (
+                sequence: 15
+            )
+
+            displayColumn BALANCESQTY (
+                sequence: 16
+            )
+
+            displayColumn CCINVOICEQUANTITY1 (
+                sequence: 13
+            )
+
+            displayColumn CCINVOICEQUANTITY2 (
+                sequence: 14
+            )
+
+            displayColumn EMPLOYEENAME (
+                sequence: 7
+            )
+
+            displayColumn INTERUNITTRANSFERDATE (
+                sequence: 5
+            )
+
+            displayColumn INTERUNITTRANSFERNO (
+                sequence: 4
+            )
+
+            displayColumn ITEMDETAIL (
+                sequence: 8
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 6
+            )
+
+            displayColumn PQTY (
+                sequence: 11
+            )
+
+            displayColumn PUOM (
+                sequence: 9
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SQTY (
+                sequence: 12
+            )
+
+            displayColumn SUOM (
+                sequence: 10
+            )
+
+            displayColumn TOLOCATION (
+                sequence: 3
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: PQTY
+            )
+
+            aggregate (
+                column: SQTY
+            )
+
+            aggregate (
+                column: CCINVOICEQUANTITY1
+            )
+
+            aggregate (
+                column: CCINVOICEQUANTITY2
+            )
+
+            aggregate (
+                column: BALANCEPQTY
+            )
+
+            aggregate (
+                column: BALANCESQTY
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    region select-criteria (
+        name: Select Criteria
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                js-useLocalStorage
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P312_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'INTERUNITTRANSFER'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P312_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select From Date
+        }
+    )
+
+    pageItem P312_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                e.ItemName||'('||e.ItemCode||')' as d,
+                e.ItemCode as r
+                From InterunitTransferDetail a, Item e
+                Where a.ItemCode = e.ItemCode
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Item Name
+        }
+    )
+
+    pageItem P312_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                e.ItemSpecificationName as d,
+                e.ItemSpecificationCode as r
+                From InterunitTransferDetail a, ItemSpecification e
+                Where a.ItemSpecificationCode = e.ItemSpecificationCode
+                  and a.ItemCode = :P312_ITEM
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P312_ITEM
+            itemsToSubmit: P312_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 60
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Item Specification Name
+        }
+    )
+
+    pageItem P312_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'INTERUNITTRANSFER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P312_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select To Date
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @select-criteria
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

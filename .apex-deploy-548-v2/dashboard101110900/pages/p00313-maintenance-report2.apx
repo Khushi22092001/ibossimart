@@ -1,0 +1,720 @@
+page 313 (
+    name: Maintenance Report
+    alias: MAINTENANCE-REPORT2
+    title: Maintenance Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region maintenance-report (
+        name: Maintenance Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT *
+                FROM (
+                  SELECT e.EquipmentName,
+                         e.equipmentstartupdate,
+                         a.maintenancerequestdate,
+                         emo.OrderFinishDate,
+                         GetLocationName(GetEquipmentLocationCode(e.TNo,Sysdate)) as CurrentLocation,
+                         (SELECT aa.InitialValue FROM serviceentrysheetcounterdetail aa WHERE aa.TNo = ses.TNo AND (aa.PropertyCode = '57')) as KMReading,
+                         CASE WHEN act.ActivityName IS NOT NULL THEN 'Yes' ELSE 'No' END AS ActivityPerformed,
+                         act.ActivityName
+                  FROM MaintenanceRequest a, Equipment e, Location l, EquipmentMaintenanceOrder emo, ServiceEntrySheet ses, ServiceEntrySheetDetail sesd, Activity act
+                  WHERE a.EquipmentTNo = e.TNo
+                    AND a.LocationCode = l.LocationCode
+                    AND a.TNo = emo.MaintenanceRequestTNo
+                    AND emo.TNo = ses.equipmentmaintenanceordertno
+                    AND ses.TNo = sesd.TNo
+                    AND sesd.JobTypeCode = 'MAINTENANCE:' || act.ActivityCode
+                    AND e.EquipmentCategoryCode = 'VEHICLE'
+                    AND a.MaintenanceRequestDate Between :P313_FROMDATE and :P313_TODATE
+                    AND instr(':'||:P313_COMPANY||':',':'||a.CompanyCode||':') > 0
+                    AND instr(':'||:P313_LOCATION||':',':'||GetEquipmentLocationCode(e.TNo,Sysdate)||':') > 0
+                    AND (:P313_EQUIPMENT is null or e.EquipmentName = :P313_EQUIPMENT)
+                )
+                PIVOT (
+                  max(ActivityPerformed)
+                  FOR ActivityName IN ('WELDING','BRAKE SETTING','CLUTCH SETTING','HEADLIGHT WORK','DOOR HANDLE WORK','TYRE','ENG OIL','GREASING')
+                )
+                ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        actionsMenu {
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                excel
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 35087941268123104
+        }
+
+        column "'BRAKE SETTING'" (
+            type: plainText
+            heading {
+                heading: Brake Setting
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column "'CLUTCH SETTING'" (
+            type: plainText
+            heading {
+                heading: Clutch Setting
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column "'DOOR HANDLE WORK'" (
+            type: plainText
+            heading {
+                heading: Door Handle Work
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column "'ENG OIL'" (
+            type: plainText
+            heading {
+                heading: Eng Oil
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column 'GREASING' (
+            type: plainText
+            heading {
+                heading: Greasing
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column "'HEADLIGHT WORK'" (
+            type: plainText
+            heading {
+                heading: Headlight Work
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column 'TYRE' (
+            type: plainText
+            heading {
+                heading: Tyre
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column 'WELDING' (
+            type: plainText
+            heading {
+                heading: Welding
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CURRENTLOCATION (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= Width:150px>#CURRENTLOCATION#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column EQUIPMENTNAME (
+            type: plainText
+            heading {
+                heading: Vehicle No
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= Width:120px>#EQUIPMENTNAME#</Div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column EQUIPMENTSTARTUPDATE (
+            type: plainText
+            heading {
+                heading: DOS
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= Width:80px>#EQUIPMENTSTARTUPDATE#</Div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column KMREADING (
+            type: plainText
+            heading {
+                heading: Km Reading
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column MAINTENANCEREQUESTDATE (
+            type: plainText
+            heading {
+                heading: Date
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= Width:80px>#MAINTENANCEREQUESTDATE#</Div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ORDERFINISHDATE (
+            type: plainText
+            heading {
+                heading: Due Date
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <Div Style= Width:80px>#ORDERFINISHDATE#</Div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Maintenance Report
+        }
+
+        savedReport 357628 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn "'BRAKE SETTING'" (
+                sequence: 8
+            )
+
+            displayColumn "'CLUTCH SETTING'" (
+                sequence: 9
+            )
+
+            displayColumn "'DOOR HANDLE WORK'" (
+                sequence: 11
+            )
+
+            displayColumn "'ENG OIL'" (
+                sequence: 13
+            )
+
+            displayColumn 'GREASING' (
+                sequence: 14
+            )
+
+            displayColumn "'HEADLIGHT WORK'" (
+                sequence: 10
+            )
+
+            displayColumn 'TYRE' (
+                sequence: 12
+            )
+
+            displayColumn 'WELDING' (
+                sequence: 7
+            )
+
+            displayColumn CURRENTLOCATION (
+                sequence: 5
+            )
+
+            displayColumn EQUIPMENTNAME (
+                sequence: 1
+            )
+
+            displayColumn EQUIPMENTSTARTUPDATE (
+                sequence: 2
+            )
+
+            displayColumn KMREADING (
+                sequence: 6
+            )
+
+            displayColumn MAINTENANCEREQUESTDATE (
+                sequence: 3
+            )
+
+            displayColumn ORDERFINISHDATE (
+                sequence: 4
+            )
+
+        )
+
+    )
+
+    region select-criteria (
+        name: Select Criteria
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+                t-Form--standardPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P313_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'MAINTENANCEREQUEST'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P313_EQUIPMENT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vehicle
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      a.EquipmentName as d,
+                      a.EquipmentName as r
+                From  Equipment a, MaintenanceRequest mr
+                Where a.TNo = mr.EquipmentTNo
+                  and a.EquipmentCategoryCode = 'VEHICLE';
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Vehicle No
+        }
+    )
+
+    pageItem P313_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select From Date
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P313_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'MAINTENANCEREQUEST'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P313_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @select-criteria
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select To Date
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @select-criteria
+            slot: regionBody
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

@@ -1,0 +1,1509 @@
+page 241 (
+    name: Freight Contract Register
+    alias: FREIGHT-CONTRACT-REGISTER
+    title: Freight Contract Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .my_grid .a-GV-w-hdr{
+                overflow-x: auto !important;
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region freight-contract-register (
+        name: Freight Contract Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region freight-contract-register-report (
+        name: Freight Contract Register Report
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                ROWNUM AS Sno,
+                a.Tno,
+                a.CompanyName,
+                a.FreightRateListNo,
+                a.FreightRateListDate,
+                a.DoctypeName,
+                a.LocationName,
+                a.PartyName,
+                a.ItemName,
+                a.EffectiveDateFrom,
+                a.ValidTillDate,
+                round(a.ItemRate,2) as ItemRate,
+                a.WorkOrderNo,
+                a.WorkOrderDate,
+                round(a.ToleranceValue,2) as ToleranceValue,
+                a.ToleranceMethodCode,
+                a.SourceLocationName,
+                a.DestinationLocationName,
+                a.RouteName,
+                a.FreightBasisName,
+                round(a.FreightRate,2) as FreihghtRate,
+                -- Case
+                --         When ROW_NUMBER()
+                --          Over(Partition By a.TNo Order By a.TNo) = 1 Then
+                --          round(a.Quantity,3)
+                --         Else
+                --          Null
+                --       End Quantity,
+                a.Quantity,
+                --Case
+                --         When ROW_NUMBER()
+                --          Over(Partition By a.TNo Order By a.TNo) = 1 Then
+                --          round(a.SourceDestinationQty,3)
+                --         Else
+                --          Null
+                --       End SourceDestinationQty,
+                a.SourceDestinationQty,
+                --Case
+                --         When ROW_NUMBER()
+                --          Over(Partition By a.TNo Order By a.TNo) = 1 Then
+                --          round(to_number(a.AllocatedQuantity),3)
+                --         Else
+                --          Null
+                --       End AllocatedQty,
+                to_number(a.AllocatedQuantity) as AllocatedQty,
+                --Case
+                --         When ROW_NUMBER()
+                --          Over(Partition By a.TNo Order By a.TNo) = 1 Then
+                --          round(a.BalanceQuantity,3)
+                --         Else
+                --          Null
+                --       End BalanceQuantity,
+                a.BalanceQuantity,
+                a.leadhours, 
+                a.DistanceInKm,
+                a.Creator From 
+                (Select
+                a.Tno,
+                co.CompanyName,
+                a.FreightRateListNo,
+                a.FreightRateListDate,
+                dc.DoctypeName,
+                lo.LocationName,
+                pa.PartyName,
+                i.ItemName,
+                a.EffectiveDateFrom,
+                a.ValidTillDate,
+                a.ItemRate,
+                a.WorkOrderNo,
+                a.WorkOrderDate,
+                a.ToleranceValue,
+                a.ToleranceMethodCode,
+                c.SourceLocationName,
+                d.DestinationLocationName,
+                r.RouteName,
+                fb.FreightBasisName,
+                b.FreightRate,
+                nvl(a.Quantity1,0) as Quantity,
+                nvl(b.Quantity1,0) as SourceDestinationQty,
+                nvl(decode(a.Quantity1, null, null, GetFRLAllocatedQuantity(a.Tno)), GetFRLAllocatedQuantitySD(a.Tno, b.SourceLocationTno, b.DestinationLocationTno)) as AllocatedQuantity,
+                nvl(a.Quantity1 - decode(a.Quantity1, null, null, GetFRLAllocatedQuantity(a.Tno)), b.Quantity1 - GetFRLAllocatedQuantitySD(a.Tno, b.SourceLocationTno, b.DestinationLocationTno)) as BalanceQuantity,
+                (b.leaddays * 24) as leadhours, 
+                b.DistanceInKm,
+                a.Creator
+                From FreightRateList a, FreightRateListDetail b, SourceLocation c, DestinationLocation d, Location lo,Doctype dc,
+                Company co, Party pa, Item i, FreightBasis fb, Route r
+                Where a.Tno = b.Tno(+)
+                and b.SourceLocationTno = c.Tno(+)
+                and b.DestinationLocationTno = d.Tno(+)
+                and a.LocationCode = lo.LocationCode(+)
+                and a.DoctypeCode = dc.DoctypeCode(+)
+                and a.CompanyCode = co.CompanyCode(+)
+                and a.PartyCode = pa.PartyCode(+)
+                and a.ItemCode = i.Itemcode(+)
+                and b.FreightBasisCode = fb.FreightBasisCode(+)
+                and b.RouteCode = r.RouteCode(+)
+                and a.FreightRateListDate between :P241_FROMDATE and :P241_TODATE
+                and (:P241_COMPANY is Null Or Instr (':' || :P241_COMPANY || ':' , ':' || co.CompanyCode|| ':') > 0)
+                and (:P241_PARTYNAME is Null Or Instr (':' || :P241_PARTYNAME || ':' , ':' || pa.PartyCode|| ':') > 0)
+                and (:P241_DOCTYPE is Null Or Instr (':' || :P241_DOCTYPE || ':' , ':' || dc.DoctypeCode|| ':') > 0)
+                and (:P241_LOCATION is Null Or Instr (':' || :P241_LOCATION || ':' , ':' || lo.LocationCode|| ':') > 0)
+                order by a.freightratelistNO asc) a
+                ;
+                
+                
+                ```
+        }
+        layout {
+            sequence: 90
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+            cssClasses: my_grid
+        }
+        advanced {
+            htmlDomId: -
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        //rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 23263747935682123
+        }
+
+        savedReport 268228 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SNO
+                layout {
+                    width: 95
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @TNO
+                layout {
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYNAME
+                layout {
+                    width: 177
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @FREIGHTRATELISTNO
+                layout {
+                    width: 167
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @FREIGHTRATELISTDATE
+                layout {
+                    width: 148
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @DOCTYPENAME
+                layout {
+                    width: 105
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @LOCATIONNAME
+                layout {
+                    width: 159
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    width: 210
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @ITEMNAME
+                layout {
+                    width: 60
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @EFFECTIVEDATEFROM
+                layout {
+                    width: 158
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @VALIDTILLDATE
+                layout {
+                    width: 109
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @ITEMRATE
+                layout {
+                    width: 77
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @WORKORDERNO
+                layout {
+                    width: 207
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @WORKORDERDATE
+                layout {
+                    width: 138
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @TOLERANCEVALUE
+                layout {
+                    width: 110
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @TOLERANCEMETHODCODE
+                layout {
+                    width: 115
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @SOURCELOCATIONNAME
+                layout {
+                    width: 169
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @DESTINATIONLOCATIONNAME
+                layout {
+                    width: 218
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @ROUTENAME
+                layout {
+                    width: 78
+                    sequence: 19
+                }
+            )
+
+            displayColumn (
+                column: @FREIGHTBASISNAME
+                layout {
+                    width: 94
+                    sequence: 20
+                }
+            )
+
+            displayColumn (
+                column: @QUANTITY
+                layout {
+                    width: 79
+                    sequence: 23
+                }
+            )
+
+            displayColumn (
+                column: @SOURCEDESTINATIONQTY
+                layout {
+                    width: 147
+                    sequence: 22
+                }
+            )
+
+            displayColumn (
+                column: @ALLOCATEDQTY
+                layout {
+                    width: 128
+                    sequence: 24
+                }
+            )
+
+            displayColumn (
+                column: @BALANCEQUANTITY
+                layout {
+                    width: 158
+                    sequence: 25
+                }
+            )
+
+            displayColumn (
+                column: @LEADHOURS
+                layout {
+                    width: 81
+                    sequence: 26
+                }
+            )
+
+            displayColumn (
+                column: @DISTANCEINKM
+                layout {
+                    width: 137
+                    sequence: 27
+                }
+            )
+
+            displayColumn (
+                column: @CREATOR
+                layout {
+                    width: 127
+                    sequence: 28
+                }
+            )
+
+            displayColumn (
+                column: @FREIHGHTRATE
+                layout {
+                    width: 96
+                    sequence: 21
+                }
+            )
+
+            sort (
+                column: @SNO
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            aggregate sum (
+                column: @ALLOCATEDQTY
+                showGrandTotal: true
+            )
+
+            aggregate sum-2 (
+                column: @QUANTITY
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @SOURCEDESTINATIONQTY
+            )
+
+            aggregate sum-4 (
+                column: @BALANCEQUANTITY
+                showGrandTotal: true
+            )
+
+        )
+
+        column ALLOCATEDQTY (
+            type: numberField
+            heading {
+                heading: Allocated Qty
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ALLOCATEDQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column BALANCEQUANTITY (
+            type: numberField
+            heading {
+                heading: Balance Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: BALANCEQUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column COMPANYNAME (
+            type: textarea
+            heading {
+                heading: Company Name
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: COMPANYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column CREATOR (
+            type: textField
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 270
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: CREATOR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column DESTINATIONLOCATIONNAME (
+            type: textarea
+            heading {
+                heading: Destination Location
+            }
+            layout {
+                sequence: 170
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DESTINATIONLOCATIONNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column DISTANCEINKM (
+            type: numberField
+            heading {
+                heading: Distance In KM
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DISTANCEINKM
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DOCTYPENAME (
+            type: textarea
+            heading {
+                heading: Doctype
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DOCTYPENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column EFFECTIVEDATEFROM (
+            type: datePicker
+            heading {
+                heading: Effective Date From
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: EFFECTIVEDATEFROM
+                dataType: date
+            }
+        )
+
+        column FREIGHTBASISNAME (
+            type: textarea
+            heading {
+                heading: Freight Basis
+            }
+            layout {
+                sequence: 190
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: FREIGHTBASISNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column FREIGHTRATELISTDATE (
+            type: datePicker
+            heading {
+                heading: Freight Contract Date
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: FREIGHTRATELISTDATE
+                dataType: date
+            }
+        )
+
+        column FREIGHTRATELISTNO (
+            type: textarea
+            heading {
+                heading: Freight  Contract No
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: FREIGHTRATELISTNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column FREIHGHTRATE (
+            type: numberField
+            heading {
+                heading: Freihght Rate
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: FREIHGHTRATE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ITEMNAME (
+            type: textarea
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 80
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: ITEMNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column ITEMRATE (
+            type: numberField
+            heading {
+                heading: Item Rate
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ITEMRATE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column LEADHOURS (
+            type: numberField
+            heading {
+                heading: Lead Hours
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: LEADHOURS
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column LOCATIONNAME (
+            type: textarea
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 60
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: LOCATIONNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYNAME (
+            type: textarea
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 70
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column QUANTITY (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: QUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ROUTENAME (
+            type: textarea
+            heading {
+                heading: Route
+            }
+            layout {
+                sequence: 180
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: ROUTENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SOURCEDESTINATIONQTY (
+            type: numberField
+            heading {
+                heading: Source / Destination Qty
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SOURCEDESTINATIONQTY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SOURCELOCATIONNAME (
+            type: textarea
+            heading {
+                heading: Source Location
+            }
+            layout {
+                sequence: 160
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SOURCELOCATIONNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column TNO (
+            type: hidden
+            layout {
+                sequence: 10
+            }
+            source {
+                databaseColumn: TNO
+                dataType: number
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column TOLERANCEMETHODCODE (
+            type: textField
+            heading {
+                heading: Tolerance Method Code
+            }
+            layout {
+                sequence: 150
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: TOLERANCEMETHODCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TOLERANCEVALUE (
+            type: numberField
+            heading {
+                heading: Tolerance Value
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+                virtualKeyboard: text
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TOLERANCEVALUE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALIDTILLDATE (
+            type: datePicker
+            heading {
+                heading: Valid Till Date
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: VALIDTILLDATE
+                dataType: date
+            }
+        )
+
+        column WORKORDERDATE (
+            type: datePicker
+            heading {
+                heading: Work Order Date
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: WORKORDERDATE
+                dataType: date
+            }
+        )
+
+        column WORKORDERNO (
+            type: textarea
+            heading {
+                heading: Work Order No
+            }
+            layout {
+                sequence: 120
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: WORKORDERNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Freight Contract Register Report
+        }
+    )
+
+    pageItem P241_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.CompanyName d,
+                a.CompanyCode r
+                From Company a
+                Where exists(
+                   Select
+                      aa.CompanyCode
+                   From FreightRateList aa
+                   Where aa.companyCode = a.companyCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @freight-contract-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+                t-Form-fieldContainer--large
+                t-Form-fieldContainer--preTextBlock
+            ]
+            width: 30
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P241_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            dialogWidth: 710
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                a.DoctypeName d,
+                a.DoctypeCode r
+                From Doctype a
+                Where exists(
+                   Select
+                      aa.Tno
+                   From FreightRateList aa
+                   Where aa.DoctypeCode = a.DoctypeCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @freight-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+                t-Form-fieldContainer--large
+                t-Form-fieldContainer--preTextBlock
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P241_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @freight-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P241_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.LocationName d,
+                a.LocationCode r
+                From Location a
+                Where exists(
+                   Select
+                      aa.LocationCode
+                   From FreightRateList aa
+                   Where aa.LocationCode = a.LocationCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @freight-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+                t-Form-fieldContainer--large
+                t-Form-fieldContainer--preTextBlock
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P241_PARTYNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: "Party "
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                a.PartyName d,
+                a.PartyCode r
+                From Party a
+                Where exists(
+                   Select
+                      aa.Tno
+                   From FreightRateList aa
+                   Where aa.PartyCode = a.PartyCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @freight-contract-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+                t-Form-fieldContainer--large
+                t-Form-fieldContainer--preTextBlock
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P241_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @freight-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 80
+            region: @freight-contract-register
+            slot: regionBody
+            column: 12
+            columnCssClasses: 1
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

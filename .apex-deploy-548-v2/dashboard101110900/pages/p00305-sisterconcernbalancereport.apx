@@ -1,0 +1,465 @@
+page 305 (
+    name: Sister Concern Balance Report
+    alias: SISTERCONCERNBALANCEREPORT
+    title: Sister Concern Balance Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select
+                p.partyname as AccountName,
+                --(round(nvl(ab.creditamount,0),2)) as CreditAmount,
+                --(round(nvl(ab.debitamount,0),2)) as DebitAmount,
+                abs(GetAccountOPENING(ab.AccountCode,TO_DATE(:P305_FROMDATE,'DD-MM-YY'),null, ab.companycode))|| ' Dr' AS Opening,
+                abs(getaccountCREDITdurinG(ab.accountcode,ab.COMPANYCODE,:P305_FROMDATE,:P305_TODATE)) AS CREDIT,
+                'cr',
+                abs(getaccountdebitdurinG(ab.accountcode,ab.COMPANYCODE,:P305_FROMDATE,:P305_TODATE)) AS DEBIT,
+                'Dr',
+                abs(GetAccountOPENING(ab.ACCOUNTCODE,TO_DATE(:P305_TODATE,'DD-MM-YY')- 1,null,ab.Companycode))|| ' Cr' AS Closing,
+                ab.balanceamount,
+                c.companyname as Company,
+                c1.companyname as CompanyGroup
+                from 
+                Party p,
+                voucher b,
+                accountbalance ab,
+                company c,
+                company c1
+                where
+                p.partycode = ab.accountcode(+)
+                 and c.companycode = ab.companycode(+)
+                and p.companygroupcode = c1.companycode(+)
+                and c1.companyname is not null
+                and b.voucherdate between :P305_FROMDATE AND :P305_TODATE
+                and (:P305_ACCOUNT IS NULL OR instr(':'||:P305_ACCOUNT||':',':'||P.partycode||':') > 0)
+                --and (:P305_COMPANY IS NULL OR instr(':'||:P305_COMPANY||':',':'||c.companycode||':') > 0)
+                
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 26241700560557112
+        }
+
+        column 'CR' (
+            type: link
+            heading {
+                heading: &#x27;cr&#x27;
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            link {
+                target: {
+                    page: 307
+                    items: {
+                        P307_FROMDATE: &P305_FROMDATE
+                        P307_TODATE: &P305_TODATE
+                        P307_PARTYCODE: #ACCOUNTCODE#
+                    }
+                }
+                linkText: #'CR'#
+                linkAttributes: class="t-Button t-Button--simple t-Button--hot t-Button--stretch"
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column 'DR' (
+            type: link
+            heading {
+                heading: &#x27;dr&#x27;
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            link {
+                target: {
+                    page: 308
+                    items: {
+                        P308_FROMDATE: &P305_FROMDATE
+                        P308_TODATE: &P305_TODATE
+                        P308_PARTYCODE: #ACCOUNTCODE#
+                    }
+                }
+                linkText: #'DR'#
+                linkAttributes: class="t-Button t-Button--simple t-Button--hot t-Button--stretch"
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: Account Name
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column BALANCEAMOUNT (
+            type: plainText
+            heading {
+                heading: Balance Amount
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column CLOSING (
+            type: plainText
+            heading {
+                heading: Closing
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column COMPANYGROUP (
+            type: hidden
+            heading {
+                heading: Company Group
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column CREDIT (
+            type: plainText
+            heading {
+                heading: Credit
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column DEBIT (
+            type: plainText
+            heading {
+                heading: Debit
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column OPENING (
+            type: plainText
+            heading {
+                heading: Opening
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+
+        savedReport 267529 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn 'CR' (
+                sequence: 5
+            )
+
+            displayColumn 'DR' (
+                sequence: 7
+            )
+
+            displayColumn ACCOUNTNAME (
+                sequence: 1
+            )
+
+            displayColumn BALANCEAMOUNT (
+                sequence: 3
+            )
+
+            displayColumn CLOSING (
+                sequence: 9
+            )
+
+            displayColumn COMPANY (
+                sequence: 2
+            )
+
+            displayColumn CREDIT (
+                sequence: 4
+            )
+
+            displayColumn DEBIT (
+                sequence: 6
+            )
+
+            displayColumn OPENING (
+                sequence: 8
+            )
+
+        )
+
+    )
+
+    region sister-concern-balance (
+        name: Sister Concern Balance
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P305_ACCOUNT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select distinct
+                a.partyname d,
+                a.partycode r
+                from party a
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @sister-concern-balance
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P305_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @sister-concern-balance
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 25
+        }
+    )
+
+    pageItem P305_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @sister-concern-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 40
+            region: @sister-concern-balance
+            slot: regionBody
+            startNewRow: false
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+
