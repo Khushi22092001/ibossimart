@@ -1,0 +1,2272 @@
+page 411 (
+    name: Order vs Dispatch
+    alias: ORDER-VS-DISPATCH
+    title: Order vs Dispatch
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+                
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P411_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/OrderVsDispatch.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P411_FROMDATE').val());
+              var toDate = new Date($('#P411_TODATE').val());
+              var companycode ;
+             
+              if($('#P411_COMPANY').val() ==="" || $('#P411_COMPANY').val() ===null)
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+              } else{
+                  companycode = $('#P411_COMPANY').val();
+              }  
+            
+                 var reportParams = 
+                 '&P_COMPANY='+ companycode +  
+                  '&P_LOCATION=' + $('#P411_LOCATION').val() + 
+                  '&P_FROMDATE=' +$('#P411_FROMDATE').val() + 
+                  '&P_TODATE=' +$('#P411_TODATE').val() + 
+                   '&P_TRADETYPE=' +$('#P411_TRADETYPE').val() +
+                   '&P_PARTY=' +$('#P411_PARTY').val() +
+                   '&GLOBAL_COMPANYCODE=' +'&GLOBAL_COMPANYCODE.';
+                
+                     var reportURL = bireporturl+ reportName +
+                           '?id='+ username +
+                           '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+               window.open(reportURL, '_blank');
+             
+            }
+            
+            
+            
+            
+            
+            
+            
+            ```
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+        inline:
+            ```css
+            .t-TreeNav--styleA .a-TreeView-node--topLevel ul,
+            .t-TreeNav--styleB .a-TreeView-node--topLevel ul {
+              --a-treeview-node-padding-y: 0.40rem !important;
+              --a-treeview-node-font-size: 1.00rem !important; 
+            }
+            
+            #S_ORDER_VS_SALE th{
+                TEXT-TRANSFORM: uppercase;
+                LETTER-SPACING: 0.75PX;
+            }
+            
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region order-vs-dispatch (
+        name: Order vs Dispatch
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent15
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region order-vs-dispatch-report (
+        name: Order vs Dispatch Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                WITH dispatch_route_orders AS (
+                    -- 1. FAST INDEXED TRACKING
+                    SELECT DISTINCT da.referencetno AS salesordertno
+                      FROM despatchadvice da
+                     WHERE da.referencetno IS NOT NULL
+                     UNION
+                    SELECT DISTINCT c.salesordertno
+                      FROM ccinvoice c
+                     WHERE c.despatchadvicetno IS NOT NULL 
+                       AND c.salesordertno IS NOT NULL
+                ),
+                so_details AS (
+                    -- 2. Pre-aggregate Sales Order Lines
+                    SELECT sod.tno,
+                           SUM(NVL(sod.quantity2, sod.quantity1)) AS poquantity,
+                           COUNT(sod.sno) AS noofsku
+                      FROM salesorderdetail sod
+                     INNER JOIN dispatch_route_orders dro ON sod.tno = dro.salesordertno
+                     GROUP BY sod.tno
+                ),
+                invoice_summary AS (
+                    -- 3. Pre-aggregate Invoices with DISTINCT logic to stop repetitions
+                    SELECT ci.salesordertno,
+                           LISTAGG(DISTINCT ci.ccinvoicedate, ', ') WITHIN GROUP (ORDER BY ci.ccinvoicedate) AS invoicedate,
+                           LISTAGG(DISTINCT ci.ccinvoiceno, ', ') WITHIN GROUP (ORDER BY ci.ccinvoiceno) AS invoiceno,
+                           LISTAGG(DISTINCT ci.vehicleno, ', ') WITHIN GROUP (ORDER BY ci.vehicleno) AS vehicleno,
+                           SUM(NVL(cid.quantity2, cid.quantity1)) AS invoiceqty,
+                           SUM(cid.totalamount) AS invoiceamount
+                      FROM ccinvoice ci
+                     INNER JOIN dispatch_route_orders dro ON ci.salesordertno = dro.salesordertno
+                      LEFT JOIN ccinvoicedetail cid       ON ci.tno = cid.tno
+                     WHERE ci.despatchadvicetno IS NOT NULL
+                     GROUP BY ci.salesordertno
+                ),
+                despatch_summary AS (
+                    -- 4. Aggregate Despatch & Material Out network with DISTINCT logic
+                    SELECT da.referencetno AS salesordertno,
+                           -- DISTINCT added here to clear duplicate dispatch data and driver names
+                           LISTAGG(DISTINCT mo.materialoutno, ', ') WITHIN GROUP (ORDER BY mo.materialoutno) AS materialoutno,
+                           LISTAGG(DISTINCT mo.materialoutdate, ', ') WITHIN GROUP (ORDER BY mo.materialoutdate) AS materialoutdate,
+                           UPPER(LISTAGG(DISTINCT mo.drivername, ', ') WITHIN GROUP (ORDER BY mo.drivername)) AS drivername,
+                           LISTAGG(DISTINCT mo.drivermobileno, ', ') WITHIN GROUP (ORDER BY mo.drivermobileno) AS drivermobileno,
+                           LISTAGG(DISTINCT da.despatchadviceno, ', ') WITHIN GROUP (ORDER BY da.despatchadviceno) AS despatchadviceno,
+                           LISTAGG(DISTINCT da.despatchadvicedate, ', ') WITHIN GROUP (ORDER BY da.despatchadvicedate) AS despatchadvicedate
+                      FROM despatchadvice da
+                     INNER JOIN dispatch_route_orders dro ON da.referencetno = dro.salesordertno
+                     INNER JOIN materialout mo            ON da.tno = mo.referencetno
+                     GROUP BY da.referencetno
+                )
+                --,sales_grn_summary AS (
+                --    -- 5. Aggregate Sales GRN with DISTINCT logic
+                --    SELECT ci.salesordertno,
+                --           -- DISTINCT added here to clear duplicate GRN data
+                --           LISTAGG(DISTINCT sg.salesgrndate, ', ') WITHIN GROUP (ORDER BY sg.salesgrndate) AS salesgrndate,
+                --           LISTAGG(DISTINCT sg.salesgrnno, ', ') WITHIN GROUP (ORDER BY sg.salesgrnno) AS salesgrnno,
+                --           SUM(NVL(sgd.quantity2, sgd.quantity1)) AS reachedqty
+                --      FROM ccinvoice ci
+                --     INNER JOIN dispatch_route_orders dro ON ci.salesordertno = dro.salesordertno
+                --     INNER JOIN salesgrn sg               ON ci.tno = sg.ccinvoicetno
+                --      LEFT JOIN salesgrndetail sgd        ON sg.tno = sgd.tno
+                --     WHERE ci.despatchadvicetno IS NOT NULL
+                --     GROUP BY ci.salesordertno
+                --)
+                -- MAIN SELECT QUERY
+                SELECT ROW_NUMBER() OVER(ORDER BY a.tno) AS serialno,
+                       l.locationname,
+                       p.partyname,
+                       a.salesorderdate,
+                       a.salesorderno,
+                       a.partypono,
+                       a.partypodate,
+                       a.validityuptodate,
+                       (a.partypodate - a.validityuptodate) AS overduedays,
+                       
+                       NVL(sod.poquantity, 0) AS poquantity,
+                       NVL(sod.noofsku, 0) AS noofsku,
+                       
+                       CASE WHEN a.tno IS NOT NULL THEN 'NO' ELSE 'YES' END AS pocorrection,
+                       
+                       RTRIM(inv.invoicedate, ', ') AS invoicedate,
+                       RTRIM(inv.invoiceno, ', ') AS invoiceno,
+                       RTRIM(inv.vehicleno, ', ') AS vehicleno,
+                       NVL(inv.invoiceqty, 0) AS invoiceqty,
+                       NVL(inv.invoiceamount, 0) AS invoiceamount,
+                       
+                       RTRIM(dsp.materialoutno, ', ') AS materialoutno,
+                       RTRIM(dsp.materialoutdate, ', ') AS materialoutdate,
+                       RTRIM(dsp.drivername, ', ') AS drivername,
+                       RTRIM(dsp.drivermobileno, ', ') AS drivermobileno,
+                       RTRIM(dsp.despatchadviceno, ', ') AS despatchadviceno,
+                       RTRIM(dsp.despatchadvicedate, ', ') AS despatchadvicedate
+                       
+                --       la.loadingadviceno, 
+                --       la.loadingadvicedate,
+                --       
+                --       RTRIM(grn.salesgrndate, ', ') AS salesgrndate,
+                --       RTRIM(grn.salesgrnno, ', ') AS salesgrnno,
+                --       NVL(grn.reachedqty, 0) AS reachedqty        
+                  FROM salesorder a
+                  
+                  INNER JOIN dispatch_route_orders dro ON a.tno = dro.salesordertno
+                  
+                  LEFT JOIN party p            ON a.partycode = p.partycode
+                  LEFT JOIN party cg           ON a.consigneecode = cg.partycode
+                  LEFT JOIN location l         ON a.locationcode = l.locationcode
+                  LEFT JOIN city fc            ON a.fromcitycode = fc.citycode
+                  LEFT JOIN city tc            ON a.tocitycode = tc.citycode 
+                --  LEFT JOIN loadingadvice la   ON a.tno = la.salesordertno
+                  
+                  LEFT JOIN so_details sod     ON a.tno = sod.tno
+                  LEFT JOIN invoice_summary inv ON a.tno = inv.salesordertno
+                  LEFT JOIN despatch_summary dsp ON a.tno = dsp.salesordertno
+                --  LEFT JOIN sales_grn_summary grn ON a.tno = grn.salesordertno
+                  
+                 WHERE a.salesorderdate BETWEEN :P411_FROMDATE AND :P411_TODATE
+                   AND (:P411_COMPANY IS NULL OR INSTR(':' || :P411_COMPANY || ':', ':' || a.companycode || ':') > 0) 
+                   AND (:P411_LOCATION IS NULL OR INSTR(':' || :P411_LOCATION || ':', ':' || a.locationcode || ':') > 0) 
+                   AND (:P411_PARTY IS NULL OR INSTR(':' || :P411_PARTY || ':', ':' || a.partycode || ':') > 0);
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        serverSideCondition {
+            type: never
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            subscription: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 34489720359942377
+        }
+
+        column DESPATCHADVICEDATE (
+            type: plainText
+            heading {
+                heading: DESPATCH ADVICE DATE
+            }
+            layout {
+                sequence: 260
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#DESPATCHADVICEDATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column DESPATCHADVICENO (
+            type: plainText
+            heading {
+                heading: DESPATCH ADVICE NO
+            }
+            layout {
+                sequence: 250
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#DESPATCHADVICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column DRIVERMOBILENO (
+            type: plainText
+            heading {
+                heading: DRIVER MOBILE NO
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DRIVERMOBILENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column DRIVERNAME (
+            type: plainText
+            heading {
+                heading: DRIVER NAME
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#DRIVERNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column INVOICEAMOUNT (
+            type: plainText
+            heading {
+                heading: INVOICE AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#INVOICEAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: INVOICE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#INVOICEDATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: INVOICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#INVOICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column INVOICEQTY (
+            type: plainText
+            heading {
+                heading: INVOICE QTY
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#INVOICEQTY#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:140px">#LOCATIONNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column MATERIALOUTDATE (
+            type: plainText
+            heading {
+                heading: MATERIAL OUT DATE
+            }
+            layout {
+                sequence: 240
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#MATERIALOUTDATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column MATERIALOUTNO (
+            type: plainText
+            heading {
+                heading: MATERIAL OUT NO
+            }
+            layout {
+                sequence: 230
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#MATERIALOUTNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column NOOFSKU (
+            type: plainText
+            heading {
+                heading: NO OF SKU
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#NOOFSKU#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column OVERDUEDAYS (
+            type: plainText
+            heading {
+                heading: OVERDUE DAYS
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#OVERDUEDAYS#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PARTYPODATE (
+            type: plainText
+            heading {
+                heading: PARTY PO DATE
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PARTYPODATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PARTYPONO (
+            type: plainText
+            heading {
+                heading: PARTY PO NO
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#PARTYPONO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column POCORRECTION (
+            type: plainText
+            heading {
+                heading: PO CORRECTION
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#POCORRECTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column POQUANTITY (
+            type: plainText
+            heading {
+                heading: PO QUANTITY
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#POQUANTITY#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column SALESORDERDATE (
+            type: plainText
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 290
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#SALESORDERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column SALESORDERNO (
+            type: plainText
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 300
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:170px">#SALESORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: end
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column VALIDITYUPTODATE (
+            type: plainText
+            heading {
+                heading: VALIDITY UPTO
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-YYYY
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VALIDITYUPTODATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: VEHICLE NO
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#VEHICLENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Order vs Dispatch Report
+        }
+
+        savedReport 33532 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DESPATCHADVICEDATE (
+                sequence: 12
+            )
+
+            displayColumn DESPATCHADVICENO (
+                sequence: 11
+            )
+
+            displayColumn DRIVERMOBILENO (
+                sequence: 15
+            )
+
+            displayColumn DRIVERNAME (
+                sequence: 14
+            )
+
+            displayColumn INVOICEAMOUNT (
+                sequence: 21
+            )
+
+            displayColumn INVOICEDATE (
+                sequence: 19
+            )
+
+            displayColumn INVOICENO (
+                sequence: 18
+            )
+
+            displayColumn INVOICEQTY (
+                sequence: 20
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn MATERIALOUTDATE (
+                sequence: 17
+            )
+
+            displayColumn MATERIALOUTNO (
+                sequence: 16
+            )
+
+            displayColumn OVERDUEDAYS (
+                sequence: 10
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 3
+            )
+
+            displayColumn PARTYPODATE (
+                sequence: 7
+            )
+
+            displayColumn PARTYPONO (
+                sequence: 6
+            )
+
+            displayColumn POQUANTITY (
+                sequence: 8
+            )
+
+            displayColumn SALESORDERDATE (
+                sequence: 5
+            )
+
+            displayColumn SALESORDERNO (
+                sequence: 4
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn VALIDITYUPTODATE (
+                sequence: 9
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 13
+            )
+
+            sort (
+                column: SALESORDERDATE
+                sort {
+                    direction: desc
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: PARTYPODATE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: POQUANTITY
+            )
+
+            aggregate (
+                column: INVOICEQTY
+            )
+
+            aggregate (
+                column: INVOICEAMOUNT
+            )
+
+            aggregate (
+                column: REACHEDQTY
+            )
+
+        )
+
+    )
+
+    region order-vs-sale (
+        name: Order vs Sale
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                WITH Sum_SO AS (
+                    SELECT 
+                         TNO, 
+                         SUM(NVL(QUANTITY1, 0)) AS TOTAL_SO_QTY,
+                         SUM(NVL(AMOUNT, 0)) AS TOTAL_SO_AMT
+                    FROM SALESORDERDETAIL
+                    GROUP BY TNO
+                ),
+                Sum_DA AS (
+                    SELECT da.REFERENCETNO,
+                           COUNT(DISTINCT da.TNO) AS TOTAL_DESPATCH_ADVICE,
+                           SUM(NVL(dad.QUANTITY1, 0)) AS TOTAL_DESPATCH_QTY,
+                           LISTAGG(DISTINCT '<a href="' || 
+                                   CASE 
+                                       WHEN check_module_view_access('DESPATCHADVICE', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                                           APEX_PAGE.GET_URL(p_page => 161, p_items => 'P161_TNO', p_values => TO_CHAR(da.TNO))
+                                       ELSE
+                                           APEX_PAGE.GET_URL(p_page => 411)
+                                   END || '" class="apex-report-link">' || da.DespatchAdviceNo || '</a>', ', ' 
+                                   ON OVERFLOW TRUNCATE '...' WITH COUNT) WITHIN GROUP (ORDER BY da.DespatchAdviceNo) AS DESPATCH_ADVICE_LIST
+                    FROM DespatchAdvice da
+                    LEFT JOIN DESPATCHADVICEDETAIL dad ON da.TNO = dad.TNO
+                    GROUP BY da.REFERENCETNO
+                ),
+                Sum_LA AS (
+                    SELECT la.SALESORDERTNO,
+                           COUNT(DISTINCT la.TNO) AS TOTAL_LOADING_ADVICE,
+                           SUM(NVL(lad.QUANTITY1, 0)) AS TOTAL_LOADING_QTY,
+                           LISTAGG(DISTINCT '<a href="' || 
+                                   CASE 
+                                       WHEN check_module_view_access('LOADINGADVICE', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                                           APEX_PAGE.GET_URL(p_page => 155, p_items => 'P155_TNO', p_values => TO_CHAR(la.TNO))
+                                       ELSE
+                                           APEX_PAGE.GET_URL(p_page => 411)
+                                   END || '" class="apex-report-link">' || la.LoadingAdviceNo || '</a>', ', '
+                                   ON OVERFLOW TRUNCATE '...' WITH COUNT) WITHIN GROUP (ORDER BY la.LoadingAdviceNo) AS LOADING_ADVICE_LIST
+                    FROM LoadingAdvice la
+                    LEFT JOIN LOADINGADVICEDETAIL lad ON la.TNO = lad.TNO
+                    GROUP BY la.SALESORDERTNO
+                ),
+                Sum_CI_DA_Path AS (
+                    SELECT da.REFERENCETNO AS SALESORDER_TNO,
+                           COUNT(DISTINCT ci.TNO) AS TOTAL_INVOICES,
+                           SUM(NVL(cid.QUANTITY1, 0)) AS TOTAL_INVOICE_QUANTITY,
+                           SUM(NVL(cid.TOTALAMOUNT, 0)) AS TOTAL_INVOICE_AMOUNT, 
+                           LISTAGG(DISTINCT '<a href="' || 
+                                   CASE 
+                                       WHEN check_module_view_access('CCINVOICE', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                                           APEX_PAGE.GET_URL(p_page => 175, p_items => 'P175_TNO', p_values => TO_CHAR(ci.TNO))
+                                       ELSE
+                                           APEX_PAGE.GET_URL(p_page => 411)
+                                   END || '" class="apex-report-link">' || ci.CCINVOICENO || '</a>', ', '
+                                   ON OVERFLOW TRUNCATE '...' WITH COUNT) WITHIN GROUP (ORDER BY ci.CCINVOICENO) AS INVOICE_LIST
+                    FROM CCINVOICE ci
+                    JOIN DespatchAdvice da ON ci.DESPATCHADVICETNO = da.TNO
+                    LEFT JOIN CCINVOICEDETAIL cid ON ci.TNO = cid.TNO
+                    GROUP BY da.REFERENCETNO
+                ),
+                Sum_CI_LA_Path AS (
+                    SELECT la.SALESORDERTNO AS SALESORDER_TNO,
+                           COUNT(DISTINCT ci.TNO) AS TOTAL_INVOICES,
+                           SUM(NVL(cid.QUANTITY1, 0)) AS TOTAL_INVOICE_QUANTITY,
+                           SUM(NVL(cid.TOTALAMOUNT, 0)) AS TOTAL_INVOICE_AMOUNT, 
+                           LISTAGG(DISTINCT '<a href="' || 
+                                   CASE 
+                                       WHEN check_module_view_access('CCINVOICE', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                                           APEX_PAGE.GET_URL(p_page => 175, p_items => 'P175_TNO', p_values => TO_CHAR(ci.TNO))
+                                       ELSE
+                                           APEX_PAGE.GET_URL(p_page => 411)
+                                   END || '" class="apex-report-link">' || ci.CCINVOICENO || '</a>', ', '
+                                   ON OVERFLOW TRUNCATE '...' WITH COUNT) WITHIN GROUP (ORDER BY ci.CCINVOICENO) AS INVOICE_LIST
+                    FROM CCINVOICE ci
+                    JOIN LoadingAdvice la ON ci.LoadingAdviceTNo = la.TNO
+                    LEFT JOIN CCINVOICEDETAIL cid ON ci.TNO = cid.TNO
+                    GROUP BY la.SALESORDERTNO
+                ),
+                Invoice_Chain_Map AS (
+                    SELECT 
+                        im.TNO AS INVOICE_TNO,
+                        COALESCE(da.REFERENCETNO, la.SALESORDERTNO) AS SALESORDER_TNO
+                    FROM INVOICE im
+                    JOIN CCINVOICE ci ON im.MODULETNO = ci.TNO AND im.MODULECODE = 'CCINVOICE'
+                    LEFT JOIN DespatchAdvice da ON ci.DESPATCHADVICETNO = da.TNO
+                    LEFT JOIN LoadingAdvice la ON ci.LoadingAdviceTNo = la.TNO
+                ),
+                Sum_Receipts AS (
+                    SELECT 
+                        m.SALESORDER_TNO,
+                        COUNT(DISTINCT r.TNO) AS TOTAL_RECEIPTS,
+                        SUM(NVL(rd.AMOUNT, 0)) AS TOTAL_PAYMENT_RECEIVED,
+                        LISTAGG(DISTINCT '<a href="' || 
+                               CASE 
+                                   WHEN check_module_view_access('BILLRECEIPT', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                                       APEX_PAGE.GET_URL(p_page => 191, p_items => 'P191_TNO', p_values => TO_CHAR(r.TNO))
+                                   ELSE
+                                       APEX_PAGE.GET_URL(p_page => 411)
+                               END || '" class="apex-report-link">' || r.DFREIGHTBILLRECEIPTNO || '</a>', ', '
+                               ON OVERFLOW TRUNCATE '...' WITH COUNT) WITHIN GROUP (ORDER BY r.DFREIGHTBILLRECEIPTNO) AS RECEIPT_NO_LIST
+                    FROM dfreightbillreceiptdetail rd
+                    JOIN dfreightbillreceipt r ON rd.TNO = r.TNO
+                    JOIN Invoice_Chain_Map m ON rd.MODULETNO = m.INVOICE_TNO AND rd.MODULECODE = 'INVOICE'
+                    GROUP BY m.SALESORDER_TNO
+                ),
+                Report_Base AS (
+                    SELECT 
+                         so.TNO AS SALESORDER_TNO,
+                         so.SalesOrderNo,
+                         so.SalesOrderDate,
+                         P.PARTYNAME,
+                         NVL(sso.TOTAL_SO_QTY, 0) AS TOTAL_SO_QTY,
+                         NVL(sso.TOTAL_SO_AMT, 0) AS TOTAL_SO_AMT,
+                         NVL(sda.TOTAL_DESPATCH_ADVICE, 0) AS TOTAL_DESPATCH_ADVICE,
+                         NVL(sda.TOTAL_DESPATCH_QTY, 0) AS TOTAL_DESPATCH_QTY,
+                         sda.DESPATCH_ADVICE_LIST,
+                         NVL(sla.TOTAL_LOADING_ADVICE, 0) AS TOTAL_LOADING_ADVICE,
+                         NVL(sla.TOTAL_LOADING_QTY, 0) AS TOTAL_LOADING_QTY,
+                         sla.LOADING_ADVICE_LIST,
+                         NVL(cid_da.TOTAL_INVOICES, 0) + NVL(cid_la.TOTAL_INVOICES, 0) AS TOTAL_INVOICES,
+                         NVL(cid_da.TOTAL_INVOICE_QUANTITY, 0) + NVL(cid_la.TOTAL_INVOICE_QUANTITY, 0) AS TOTAL_INVOICE_QUANTITY,
+                         NVL(cid_da.TOTAL_INVOICE_AMOUNT, 0) + NVL(cid_la.TOTAL_INVOICE_AMOUNT, 0) AS TOTAL_INVOICE_AMOUNT,
+                         NVL(sso.TOTAL_SO_QTY, 0) - (NVL(cid_da.TOTAL_INVOICE_QUANTITY, 0) + NVL(cid_la.TOTAL_INVOICE_QUANTITY, 0)) AS BALANCE_QTY,
+                         CASE 
+                            WHEN cid_da.INVOICE_LIST IS NOT NULL AND cid_la.INVOICE_LIST IS NOT NULL 
+                            THEN SUBSTR(cid_da.INVOICE_LIST || ', ' || cid_la.INVOICE_LIST, 1, 3900) || '...'
+                            ELSE COALESCE(cid_da.INVOICE_LIST, cid_la.INVOICE_LIST)
+                         END AS INVOICE_LIST,
+                         NVL(rcpt.TOTAL_RECEIPTS, 0) AS TOTAL_RECEIPTS,
+                         NVL(rcpt.TOTAL_PAYMENT_RECEIVED, 0) AS TOTAL_PAYMENT_RECEIVED,
+                         rcpt.RECEIPT_NO_LIST AS DFREIGHTBILLRECEIPTNO_LIST,
+                         sda.REFERENCETNO AS DA_REF_CHECK,
+                         sla.SALESORDERTNO AS LA_REF_CHECK
+                    FROM SalesOrder so
+                    LEFT JOIN PARTY P ON P.PARTYCODE = SO.PARTYCODE
+                    LEFT JOIN Sum_SO sso ON so.TNO = sso.TNO
+                    LEFT JOIN Sum_DA sda ON so.TNO = sda.REFERENCETNO  
+                    LEFT JOIN Sum_LA sla ON so.TNO = sla.SALESORDERTNO  
+                    LEFT JOIN Sum_CI_DA_Path cid_da ON so.TNO = cid_da.SALESORDER_TNO
+                    LEFT JOIN Sum_CI_LA_Path cid_la ON so.TNO = cid_la.SALESORDER_TNO
+                    LEFT JOIN Sum_Receipts rcpt ON so.TNO = rcpt.SALESORDER_TNO
+                    WHERE SO.salesorderdate BETWEEN :P411_FROMDATE AND :P411_TODATE
+                       AND (:P411_COMPANY IS NULL OR INSTR(':' || :P411_COMPANY || ':', ':' || SO.companycode || ':') > 0) 
+                       AND (:P411_LOCATION IS NULL OR INSTR(':' || :P411_LOCATION || ':', ':' || SO.locationcode || ':') > 0) 
+                       AND (:P411_PARTY IS NULL OR INSTR(':' || :P411_PARTY || ':', ':' || SO.partycode || ':') > 0)
+                ),
+                Status_Calculations AS (
+                    SELECT 
+                        rb.*,
+                        (TOTAL_INVOICE_AMOUNT - TOTAL_PAYMENT_RECEIVED) AS FINAL_BALANCE_AMOUNT_AGAINST_INV,
+                        (TOTAL_SO_AMT - TOTAL_PAYMENT_RECEIVED) AS FINAL_BALANCE_AMOUNT_AGAINST_SO,
+                        
+                        CASE 
+                            WHEN DA_REF_CHECK IS NULL AND LA_REF_CHECK IS NULL THEN 'Fresh / Pending'
+                            WHEN BALANCE_QTY <= 0 THEN 'Fully Invoiced'
+                            ELSE 'Partially Processed'
+                        END AS DISPATCH_STATUS,
+                
+                        CASE 
+                            WHEN TOTAL_PAYMENT_RECEIVED <= 0 THEN 'Not Paid'
+                            WHEN (TOTAL_SO_AMT - TOTAL_PAYMENT_RECEIVED) <= 0 THEN 'Fully Paid'
+                            WHEN TOTAL_PAYMENT_RECEIVED > TOTAL_INVOICE_AMOUNT THEN 'Over Paid'
+                            ELSE 'Partially Paid'
+                        END AS PAYMENT_STATUS
+                    FROM Report_Base rb -- <--- FIXED: Explicit Anchor added here
+                )
+                SELECT 
+                    SALESORDER_TNO, SalesOrderNo, SalesOrderDate, PARTYNAME,
+                    TOTAL_SO_QTY, TOTAL_SO_AMT, TOTAL_DESPATCH_ADVICE, TOTAL_DESPATCH_QTY,
+                    DESPATCH_ADVICE_LIST, TOTAL_LOADING_ADVICE, TOTAL_LOADING_QTY, LOADING_ADVICE_LIST,
+                    TOTAL_INVOICES, TOTAL_INVOICE_QUANTITY, TOTAL_INVOICE_AMOUNT, BALANCE_QTY, INVOICE_LIST,
+                    TOTAL_RECEIPTS, TOTAL_PAYMENT_RECEIVED, DFREIGHTBILLRECEIPTNO_LIST,
+                    FINAL_BALANCE_AMOUNT_AGAINST_INV, FINAL_BALANCE_AMOUNT_AGAINST_SO,
+                    DISPATCH_STATUS,
+                    
+                    DECODE(DISPATCH_STATUS, 'Fresh / Pending', '#FEE2E2', 'Partially Processed', '#FEF3C7', 'Fully Invoiced', '#D1FAE5') AS DISPATCH_BG,
+                    DECODE(DISPATCH_STATUS, 'Fresh / Pending', '#991B1B', 'Partially Processed', '#92400E', 'Fully Invoiced', '#065F46') AS DISPATCH_FG,
+                    
+                    PAYMENT_STATUS,
+                    
+                    DECODE(PAYMENT_STATUS, 'Not Paid', '#FEE2E2', 'Partially Paid', '#FEF3C7', 'Fully Paid', '#D1FAE5', 'Over Paid', '#E0F2FE') AS PAYMENT_BG,
+                    DECODE(PAYMENT_STATUS, 'Not Paid', '#991B1B', 'Partially Paid', '#92400E', 'Fully Paid', '#065F46', 'Over Paid', '#0369A1') AS PAYMENT_FG
+                FROM Status_Calculations
+                ORDER BY SalesOrderDate DESC, SalesOrderNo;
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: S_ORDER_VS_SALE
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 171
+                items: {
+                    P171_TNO: #SALESORDER_TNO#
+                }
+                clearCache: 171
+            }
+            linkIcon: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        advanced {
+            savedReportMappingIdentifier: 42196970113955634
+        }
+
+        column BALANCE_QTY (
+            type: plainText
+            heading {
+                heading: Balance Qty
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column DESPATCH_ADVICE_LIST (
+            type: plainText
+            heading {
+                heading: Despatch Advice List
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 175px">#DESPATCH_ADVICE_LIST#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column DFREIGHTBILLRECEIPTNO_LIST (
+            type: plainText
+            heading {
+                heading: Receipt No's
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 150px">#DFREIGHTBILLRECEIPTNO_LIST#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column DISPATCH_BG (
+            type: hidden
+            heading {
+                heading: Dispatch Bg
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column DISPATCH_FG (
+            type: hidden
+            heading {
+                heading: Dispatch Fg
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column DISPATCH_STATUS (
+            type: plainText
+            heading {
+                heading: Dispatch Status
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <span class="t-Badge t-Badge--medium t-Badge--pill" 
+                          style="font-weight: 600; width: 140px; display: inline-block; text-align: center; padding: 5px 12px;
+                                 background-color: #DISPATCH_BG#;
+                                 color: #DISPATCH_FG#;">
+                        #DISPATCH_STATUS#
+                    </span>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column FINAL_BALANCE_AMOUNT_AGAINST_INV (
+            type: plainText
+            heading {
+                heading: Amount Due
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99G99G99G99G990D00
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:flex; align-items:center; width: 150px; font-family: 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1e293b;">
+                        <span style="padding: 2px 6px; background-color: #e2e8f0; color: #475569; border-radius: 4px; font-weight: bold; margin-right: 6px;">₹</span>
+                        <span style="font-weight: 600;">#FINAL_BALANCE_AMOUNT_AGAINST_INV#</span>
+                    </div>
+                    
+                    ```
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column FINAL_BALANCE_AMOUNT_AGAINST_SO (
+            type: plainText
+            heading {
+                heading: Order Amount Due
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99G99G99G99G990D00
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:flex; align-items:center; width: 150px; font-family: 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1e293b;">
+                        <span style="padding: 2px 6px; background-color: #e2e8f0; color: #475569; border-radius: 4px; font-weight: bold; margin-right: 6px;">₹</span>
+                        <span style="font-weight: 600;">#FINAL_BALANCE_AMOUNT_AGAINST_SO#</span>
+                    </div>
+                    
+                    ```
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column INVOICE_LIST (
+            type: plainText
+            heading {
+                heading: Invoice No's
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 120px">#INVOICE_LIST#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column LOADING_ADVICE_LIST (
+            type: plainText
+            heading {
+                heading: Loading Advice List
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 175px">#LOADING_ADVICE_LIST#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party name
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 250px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PAYMENT_BG (
+            type: hidden
+            heading {
+                heading: Payment Bg
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column PAYMENT_FG (
+            type: hidden
+            heading {
+                heading: Payment Fg
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column PAYMENT_STATUS (
+            type: plainText
+            heading {
+                heading: Payment Status
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <span class="t-Badge t-Badge--medium t-Badge--pill" 
+                          style="font-weight: 600; width: 120px; display: inline-block; text-align: center; padding: 5px 12px;
+                                 background-color: #PAYMENT_BG#;
+                                 color: #PAYMENT_FG#;">
+                        #PAYMENT_STATUS#
+                    </span>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column SALESORDERDATE (
+            type: plainText
+            heading {
+                heading: Sales order date
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 90px">#SALESORDERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column SALESORDERNO (
+            type: plainText
+            heading {
+                heading: Sales order no
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width: 120px">#SALESORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SALESORDER_TNO (
+            type: hidden
+            heading {
+                heading: Salesorder Tno
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTAL_DESPATCH_ADVICE (
+            type: plainText
+            heading {
+                heading: Total Despatch Advice
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column TOTAL_DESPATCH_QTY (
+            type: plainText
+            heading {
+                heading: Total Despatch Qty
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column TOTAL_INVOICES (
+            type: plainText
+            heading {
+                heading: Total Invoices
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column TOTAL_INVOICE_AMOUNT (
+            type: plainText
+            heading {
+                heading: Total Invoice Amount
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99G99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column TOTAL_INVOICE_QUANTITY (
+            type: plainText
+            heading {
+                heading: Total Invoice Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column TOTAL_LOADING_ADVICE (
+            type: plainText
+            heading {
+                heading: Total Loading Advice
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column TOTAL_LOADING_QTY (
+            type: plainText
+            heading {
+                heading: Total Loading Qty
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column TOTAL_PAYMENT_RECEIVED (
+            type: plainText
+            heading {
+                heading: Total Payment Received
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99G99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column TOTAL_RECEIPTS (
+            type: plainText
+            heading {
+                heading: Total Receipts
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column TOTAL_SO_AMT (
+            type: plainText
+            heading {
+                heading: Total So Amt
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99G99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column TOTAL_SO_QTY (
+            type: plainText
+            heading {
+                heading: Total So Qty
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 422543 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BALANCE_QTY (
+                sequence: 16
+            )
+
+            displayColumn DESPATCH_ADVICE_LIST (
+                sequence: 8
+            )
+
+            displayColumn DFREIGHTBILLRECEIPTNO_LIST (
+                sequence: 20
+            )
+
+            displayColumn DISPATCH_STATUS (
+                sequence: 17
+            )
+
+            displayColumn FINAL_BALANCE_AMOUNT_AGAINST_INV (
+                sequence: 21
+            )
+
+            displayColumn FINAL_BALANCE_AMOUNT_AGAINST_SO (
+                sequence: 23
+            )
+
+            displayColumn INVOICE_LIST (
+                sequence: 14
+            )
+
+            displayColumn LOADING_ADVICE_LIST (
+                sequence: 11
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 3
+            )
+
+            displayColumn PAYMENT_STATUS (
+                sequence: 22
+            )
+
+            displayColumn SALESORDERDATE (
+                sequence: 2
+            )
+
+            displayColumn SALESORDERNO (
+                sequence: 1
+            )
+
+            displayColumn TOTAL_DESPATCH_ADVICE (
+                sequence: 6
+            )
+
+            displayColumn TOTAL_DESPATCH_QTY (
+                sequence: 7
+            )
+
+            displayColumn TOTAL_INVOICES (
+                sequence: 12
+            )
+
+            displayColumn TOTAL_INVOICE_AMOUNT (
+                sequence: 15
+            )
+
+            displayColumn TOTAL_INVOICE_QUANTITY (
+                sequence: 13
+            )
+
+            displayColumn TOTAL_LOADING_ADVICE (
+                sequence: 9
+            )
+
+            displayColumn TOTAL_LOADING_QTY (
+                sequence: 10
+            )
+
+            displayColumn TOTAL_PAYMENT_RECEIVED (
+                sequence: 19
+            )
+
+            displayColumn TOTAL_RECEIPTS (
+                sequence: 18
+            )
+
+            displayColumn TOTAL_SO_AMT (
+                sequence: 5
+            )
+
+            displayColumn TOTAL_SO_QTY (
+                sequence: 4
+            )
+
+            aggregate (
+                column: TOTAL_SO_QTY
+            )
+
+            aggregate (
+                column: TOTAL_SO_AMT
+            )
+
+            aggregate (
+                column: TOTAL_DESPATCH_ADVICE
+            )
+
+            aggregate (
+                column: TOTAL_DESPATCH_QTY
+            )
+
+            aggregate (
+                column: TOTAL_LOADING_ADVICE
+            )
+
+            aggregate (
+                column: TOTAL_LOADING_QTY
+            )
+
+            aggregate (
+                column: TOTAL_INVOICES
+            )
+
+            aggregate (
+                column: TOTAL_INVOICE_QUANTITY
+            )
+
+            aggregate (
+                column: BALANCE_QTY
+            )
+
+            aggregate (
+                column: TOTAL_RECEIPTS
+            )
+
+            aggregate (
+                column: TOTAL_PAYMENT_RECEIVED
+            )
+
+            aggregate (
+                column: FINAL_BALANCE_AMOUNT
+            )
+
+            aggregate (
+                column: TOTAL_INVOICE_AMOUNT
+            )
+
+            aggregate (
+                column: FINAL_BALANCE_AMOUNT_AGAINST_INV
+            )
+
+            aggregate (
+                column: FINAL_BALANCE_AMOUNT_AGAINST_SO
+            )
+
+        )
+
+    )
+
+    pageItem P411_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @order-vs-dispatch
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P411_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'CCINVOICE'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P411_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate-7)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P411_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'CCINVOICE'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Location name
+        }
+    )
+
+    pageItem P411_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                GetPartyName(PartyCode) d,
+                PartyCode r
+                From SalesOrder 
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Party Name
+        }
+    )
+
+    pageItem P411_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @order-vs-dispatch
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: To Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P411_TRADETYPE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @order-vs-dispatch
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: MT
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @order-vs-dispatch-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @order-vs-dispatch
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction hide-nav (
+        name: hide nav
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 30
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    /*javascript:window.open('http://117.217.121.130:9502/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/PBS/REPORTS/Order vs Dispatch Report.xdo&nQUser=consumer&nQPassword=Info123$&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1","_paramsP_COMPANY":"&P411_COMPANY.","_paramsP_LOCATION":"&P411_LOCATION.","_paramsP_FROMDATE":"&P411_FROMDATE.","_paramsP_TODATE":"&P411_TODATE.","_paramsP_TRADETYPE":"&P411_TRADETYPE.","_paramsP_PARTY":"&P411_PARTY."}');
+                      */
+                      generatePDF();                                                                                 
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

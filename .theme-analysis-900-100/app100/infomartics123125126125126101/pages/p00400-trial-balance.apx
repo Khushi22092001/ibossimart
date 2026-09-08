@@ -1,0 +1,3065 @@
+page 400 (
+    name: Trial Balance
+    alias: TRIAL-BALANCE
+    title: Trial Balance
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P400_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/TrialBalance.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P400_FROMDATE').val());
+              var toDate = new Date($('#P400_TODATE').val());
+              var companycode ,global_companycode;
+            
+            var reportParams = 
+                  '&P_FROMDATE='+ $('#P400_FROMDATE').val()+
+                  '&P_TODATE=' + $('#P400_TODATE').val() +
+                  '&P_LOCATIONCODE=' +$('#P400_LOCATIONCODE').val() +  
+                  '&P_AccountCode=' +$('#P400_ACCOUNTCODE').val() +  
+                  '&P_AccountLevel=' +$('#P400_ACCOUNTLEVEL').val() +  
+                  '&P_WITHINDENT=' +$('#P400_WITHINDENT').val() +  
+                  '&P_LedgerOnly=' +$('#P400_LEDGERONLY').val() +  
+                  '&P_IncludeChild=' +$('#P400_INCLUDECHILD').val() +  
+                  '&P_IncludeZeroTransaction=' +$('#P400_INCLUDEZEROTRANSACTION').val() +  
+                  '&P_Exclude0Closing=' +$('#P400_EXCLUDE0CLOSING').val()   
+                  
+                  ;
+             
+            //alert($v('P400_PARTY'));
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P400_BIREPORTURL').val()
+              var reportName =  'TrialBalance.xdo';
+              var outputFormat = 'pdf';
+            
+            var reportParams = 
+                     '"_paramsP_FROMDATE":"' +$('#P400_FROMDATE').val() + '",' + 
+                     '"_paramsP_TODATE":"' +$('#P400_TODATE').val() + '",' + 
+                     '"_paramsP_WITHINDENT":"' + $('#P400_WITHINDENT_1').val() + '",' + 
+                     '"_paramsP_LedgerOnly":"' + $('#P400_LEDGERONLY_1').val() + '",' + 
+            	     '"_paramsP_LOCATIONCODE":"' + $('#P400_LOCATIONCODE').val() + '",' + 
+            	     '"_paramsP_AccountCode":"' + $('#P400_ACCOUNTCODE').val() + '",' + 
+                     '"_paramsP_IncludeChild":"' + $('#P400_INCLUDECHILD_1').val() + '",' +
+                     '"_paramsP_IncludeZeroTransaction":"' + $('#P400_INCLUDEZEROTRANSACTION_1').val() + '",' + 
+                     '"_paramsP_AccountLevel":"' + $('#P400_ACCOUNTLEVEL').val() + '",' + 
+                     '"_paramsP_Exclude0Closing":"' + $('#P400_EXCLUDE0CLOSING_1').val()  
+                     ;
+                 
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    security {
+        authentication: public
+    }
+    sessionManagement {
+        rejoinSessions: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region new (
+        name: New
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                a.partycode,
+                a.partyname,
+                getTrialBalancePosition(a.PartyCode) AS ccurrentposition,
+                a.partytypecode,
+                c.AccountLevel,
+                to_number(decode(c.openingamount, 0, null, round(C.OPENINGAMOUNT,2)) ) as openingamount,
+                to_number(round(C.CLOSINGAMOUNT,2)) as closingamount,
+                to_number(decode(c.OpeningDebitAmount, 0, null, round(c.OpeningDebitAmount,2)) ) as OpeningDebitAmount,
+                to_number(decode(c.OpeningCreditAmount, 0, null, round(c.OpeningCreditAmount,2)) ) as OpeningCreditAmount,
+                to_number(round(decode(C.DEBITAMOUNT, 0, null, c.DebitAmount),2) ) AS debitamount,
+                to_number(round(decode(C.CREDITAMOUNT, 0 , null, round(c.CreditAmount,2)),2) ) AS CreditAmount,
+                to_number(decode(C.PDEBITAMOUNT, 0, null, round(c.PDebitAmount,2)) ) AS pdebitamount,
+                to_number(decode(C.PCREDITAMOUNT, 0 , null, round(c.PCreditAmount,2)) ) AS pcreditamount,
+                to_number(decode(c.ClosingDebitAmount, 0, null, round(c.ClosingDebitAmount,2)) ) AS debitclosing,
+                to_number(decode(c.ClosingCreditAmount, 0, null, round(c.ClosingCreditAmount,2))) AS creditclosing,
+                CASE WHEN NVL(:P400_WITHINDENT,'NO')='YES' then
+                	    rpad('-',15 * (C.AccountLevel - (nvl( (TO_NUMBER(:P400_AccountLevel,99)),1)) ),'-')  || A.PARTYNAME
+                	else
+                		A.PARTYNAME		
+                end ACCOUNTNAMEDISPLAY ,
+                
+                CASE WHEN C.AccountLevel  = nvl(:P400_AccountLevel,1) or NVL(:P400_LedgerOnly, 'NO') = 'YES'  then
+                       c.OpeningDebitAmount  
+                     ELSE
+                        0
+                END  DebitOpeningC,    
+                CASE WHEN C.AccountLevel  = nvl(:P400_AccountLevel,1) or NVL(:P400_LedgerOnly, 'NO') = 'YES'  then
+                       c.OpeningCreditAmount 
+                     ELSE
+                        0
+                END  CreditOpeningC,
+                CASE WHEN C.AccountLevel  = nvl(:P400_AccountLevel,1) or NVL(:P400_LedgerOnly, 'NO') = 'YES'  then
+                       c.DebitAmount  
+                     ELSE
+                        0
+                END  DebitAmountC,    
+                CASE WHEN C.AccountLevel  = nvl(:P400_AccountLevel,1) or NVL(:P400_LedgerOnly, 'NO') = 'YES'  then
+                       c.CreditAmount 
+                     ELSE
+                        0
+                END  CreditAmountC,
+                CASE WHEN C.AccountLevel  = nvl(:P400_AccountLevel,1) or NVL(:P400_LedgerOnly, 'NO') = 'YES'  then
+                       c.ClosingDebitAmount  
+                     ELSE
+                        0
+                END  DebitClosingC,    
+                CASE WHEN C.AccountLevel  = nvl(:P400_AccountLevel,1) or NVL(:P400_LedgerOnly, 'NO') = 'YES'  then
+                       c.ClosingCreditAmount 
+                     ELSE
+                        0
+                END  CreditClosingC
+                
+                
+                
+                FROM 
+                Party a, ApexTrialBalanceRevisedGroup c
+                WHERE C.CREATOR = V('APP_USER')
+                AND a.PartyCode = c.AccountCode
+                and (
+                     exists (
+                           select
+                                aa.ChildCode
+                           from MyAccountIncludeRevised aa
+                           where aa.CompanyCode = :P400_CompanyCode
+                               and aa.FromDate = TO_DATE(:P400_FROMDATE,'DD-MM-RRRR')
+                               and aa.ToDate = TO_DATE(:P400_TODATE,'DD-MM-RRRR')
+                               and (:P400_LOCATIONCODE is null or instr(':'||:P400_LocationCode||':',':'||aa.LocationCode||':') > 0 )
+                               --and nvl(aa.LocationCode, 'NULL') = nvl(:P400_LocationCode, 'NULL')
+                              -- and aa.AccountCode = :P400_AccountCode
+                               and instr(':'||:P400_AccountCode_1||':',':'||aa.AccountCode||':') > 0
+                               and aa.ChildCode = a.PartyCode
+                     )
+                     or
+                     :P400_AccountCode is null
+                )
+                
+                and ( 
+                     nvl(:P400_LedgerOnly,'NO') = 'YES'          
+                     or
+                     c.AccountLevel <= nvl(:P400_ACCOUNTLEVEL,1)
+                )
+                
+                /*and ( 
+                     nvl(:P400_LedgerOnly,'NO') = 'NO' 
+                     OR
+                     a.PartyTypeCode != 'ACCOUNTGROUP'
+                )
+                */
+                and (
+                     nvl(:P400_IncludeZeroTransaction ,'NO') = 'YES'
+                     or ( 
+                         nvl(c.OpeningAmount,0) != 0
+                         or
+                         nvl(c.DebitAmount,0) != 0
+                         or
+                         nvl(c.CreditAmount,0) != 0
+                         or
+                         nvl(c.PDebitAmount,0) != 0
+                         or
+                         nvl(c.PCreditAmount,0) != 0
+                     )     
+                )
+                and (
+                     nvl(:P400_Exclude0Closing ,'NO') = 'NO'
+                     or (
+                         ROUND(nvl(c.OpeningAmount,0) - nvl(c.DebitAmount,0) + nvl(c.CreditAmount,0)   - nvl(c.PDebitAmount,0) + nvl(c.PCreditAmount,0), 2) != 0
+                     )     
+                )
+                
+                and c.FromDate = TO_DATE(:P400_FROMDATE,'DD-MM-RRRR')
+                and c.ToDate = TO_DATE(:P400_TODATE,'DD-MM-RRRR')
+                and c.IncludeChild = nvl(:P400_IncludeChild , 'NO')
+                and c.CompanyCode = :P400_CompanyCode
+                and nvl(c.LocationCode, 'null') = nvl(:P400_Locationcode, 'null') 
+                
+                ORDER BY c.TrialBalancePosition, a.PartyName ;
+                
+                ```
+            pageItemsToSubmit: [
+                P400_FROMDATE
+                P400_TODATE
+                P400_DETAILLEVEL
+                P400_FINANCIALYEARCODE
+                P400_COMPANYCODE
+                P400_PRINTDRCR
+                P400_LOCATIONCODE
+                P400_LEDGERONLY
+                P400_INCLUDECHILD
+                P400_INCLUDEZEROTRANSACTION
+                P400_EXCLUDE0CLOSING
+                P400_ACCOUNTLEVEL
+                P400_WITHINDENT
+                P400_ACCOUNTCODE
+                P400_ACCOUNTCODE_1
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        componentAppearance {
+            showNullValuesAs: -
+        }
+        pagination {
+            type: rowRangesXToY
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        advanced {
+            savedReportMappingIdentifier: 782262658556100625
+        }
+
+        column ACCOUNTLEVEL (
+            type: plainText
+            heading {
+                heading: Accountlevel
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ACCOUNTNAMEDISPLAY (
+            type: link
+            heading {
+                heading: ACCOUNT NAME DISPLAY
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            link {
+                target: {
+                    page: 401
+                    items: {
+                        P401_FROMDATE: &P400_FROMDATE.
+                        P401_TODATE: &P400_TODATE.
+                        P401_ACCOUNTCODE: #PARTYCODE#
+                        P401_ACCOUNTLEVEL: #ACCOUNTLEVEL#
+                        P401_LEDGERONLY: &P400_LEDGERONLY.
+                        P401_LOCATIONCODE: &P400_LOCATIONCODE.
+                        P401_WITHINDENT: YES
+                    }
+                    clearCache: 401
+                    action: resetPagination
+                }
+                linkText: #ACCOUNTNAMEDISPLAY#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column CCURRENTPOSITION (
+            type: plainText
+            heading {
+                heading: Ccurrentposition
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column CLOSINGAMOUNT (
+            type: plainText
+            heading {
+                heading: Closingamount
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CREDITAMOUNT (
+            type: plainText
+            heading {
+                heading: CREDIT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CREDITAMOUNTC (
+            type: plainText
+            heading {
+                heading: Creditamountc
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column CREDITCLOSING (
+            type: plainText
+            heading {
+                heading: CREDIT CLOSING
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column CREDITCLOSINGC (
+            type: plainText
+            heading {
+                heading: Creditclosingc
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column CREDITOPENINGC (
+            type: plainText
+            heading {
+                heading: Creditopeningc
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CREDITOPENINGC#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column DEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: DEBIT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DEBITAMOUNTC (
+            type: plainText
+            heading {
+                heading: Debitamountc
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DEBITAMOUNTC#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column DEBITCLOSING (
+            type: plainText
+            heading {
+                heading: DEBIT CLOSING
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column DEBITCLOSINGC (
+            type: plainText
+            heading {
+                heading: Debitclosingc
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column DEBITOPENINGC (
+            type: plainText
+            heading {
+                heading: Debitopeningc
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DEBITOPENINGC#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column OPENINGAMOUNT (
+            type: plainText
+            heading {
+                heading: Openingamount
+                alignment: end
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column OPENINGCREDITAMOUNT (
+            type: plainText
+            heading {
+                heading: OPENING CREDIT AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column OPENINGDEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: OPENING DEBIT AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column PARTYNAME (
+            type: hidden
+            heading {
+                heading: ACCOUNT NAME
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column PARTYTYPECODE (
+            type: plainText
+            heading {
+                heading: Partytypecode
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PCREDITAMOUNT (
+            type: plainText
+            heading {
+                heading: Pcreditamount
+                alignment: end
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column PDEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: Pdebitamount
+                alignment: end
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: New
+        }
+
+        savedReport 133057 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCOUNTNAMEDISPLAY (
+                sequence: 1
+            )
+
+            displayColumn CREDITAMOUNT (
+                sequence: 5
+            )
+
+            displayColumn CREDITCLOSING (
+                sequence: 7
+            )
+
+            displayColumn DEBITAMOUNT (
+                sequence: 4
+            )
+
+            displayColumn DEBITCLOSING (
+                sequence: 6
+            )
+
+            displayColumn OPENINGCREDITAMOUNT (
+                sequence: 3
+            )
+
+            displayColumn OPENINGDEBITAMOUNT (
+                sequence: 2
+            )
+
+            aggregate (
+                column: OPENINGDEBITAMOUNT
+            )
+
+            aggregate (
+                column: OPENINGCREDITAMOUNT
+            )
+
+            aggregate (
+                column: DEBITAMOUNT
+            )
+
+            aggregate (
+                column: CREDITAMOUNT
+            )
+
+            aggregate (
+                column: DEBITCLOSING
+            )
+
+            aggregate (
+                column: CREDITCLOSING
+            )
+
+        )
+
+    )
+
+    region passfailbuttons (
+        name: PassFailButtons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: afterNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noBorder
+            ]
+        }
+        accessibility {
+            landmarkType: region
+        }
+    )
+
+    region trial-balance (
+        name: "Trial Balance "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: fullWidthContent
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-useLocalStorage
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    pageItem P400_ACCOUNTCODE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 3
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      p.PartyName d,
+                      p.PartyCode r
+                From  Party p
+                where exists ( select 1 from partycompany aa where aa.tno= p.tno and aa.companycode = :global_companycode)
+                Order By 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Account List
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT 1 FROM PARTY WHERE 1 != 1
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P400_ACCOUNTCODE_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 120
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_ACCOUNTLEVEL (
+        type: textField
+        label {
+            label: Detail Level
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 220
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P400_CALLEDFROMPAGE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: 103
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P400_COMPANYCODE (
+        type: hidden
+        layout {
+            sequence: 190
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_DETAILLEVEL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 170
+            region: @trial-balance
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_DIVISIONWISE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: YES
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_EXCLUDE0CLOSING (
+        type: checkbox
+        label {
+            label: Exclude Zero Closing
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 180
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_EXCLUDE0CLOSING_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 110
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_FINANCIALYEARCODE (
+        type: hidden
+        layout {
+            sequence: 200
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARCODE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_FORMSTATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P400_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-YYYY
+            width: 35
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARBEGIN
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_INCLUDECHILD (
+        type: checkbox
+        label {
+            label: Include Child
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 120
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 4
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_INCLUDECHILD_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_INCLUDEZEROTRANSACTION (
+        type: checkbox
+        label {
+            label: Include ZeroTransaction
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 130
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_INCLUDEZEROTRANSACTION_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 100
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_LEDGERONLY (
+        type: checkbox
+        label {
+            label: Ledger Only
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 90
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_LEDGERONLY_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_LOCATIONCODE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d, LocationCode r From Location Where ISDIVISION = 'YES'
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT 1 FROM PARTY WHERE 1 != 1
+        }
+    )
+
+    pageItem P400_MODULEFLOW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P400_NARRATION (
+        type: hidden
+        layout {
+            sequence: 100
+            region: @trial-balance
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_NEW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 140
+            region: @trial-balance
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_ONTHETABLE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P400_PASSFAILREMARK (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @passfailbuttons
+            slot: regionBody
+        }
+    )
+
+    pageItem P400_PRINTDRCR (
+        type: hidden
+        layout {
+            sequence: 110
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: STATE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_REPORTTITLE (
+        type: hidden
+        layout {
+            sequence: 150
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: Account Ledger
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 210
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: STATUS
+        }
+    )
+
+    pageItem P400_STATUSRIGHT (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select B.STATUSPRIVILEGE
+                  From module a, moduleprivilege b, bossuser c
+                 Where a.modulecode = b.modulecode
+                   And b.bossusercode = c.bossusercode
+                   And c.loginname = :GLOBAL_LOGINNAME
+                   And A.ENTRYPAGENO = :APP_PAGE_ID
+                   AND B.COMPANYCODE = :GLOBAL_COMPANYCODE
+                ```
+        }
+    )
+
+    pageItem P400_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-RRRR
+            width: 35
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT TRUNC(SYSDATE) FROM DUAL;
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_WITHINDENT (
+        type: checkbox
+        label {
+            label: With Indent
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 80
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P400_WITHINDENT_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button create (
+        buttonName: Create
+        label: Create
+        layout {
+            sequence: 230
+            region: @trial-balance
+            slot: regionBody
+            column: 1
+            columnSpan: 4
+            columnCssClasses: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button fail (
+        buttonName: Fail
+        label: Fail
+        layout {
+            sequence: 30
+            slot: PREVIOUS
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--danger
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-down
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button flow (
+        buttonName: Flow
+        label: FLow
+        layout {
+            sequence: 40
+            slot: PREVIOUS
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-workflow
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 162
+                items: {
+                    P162_TNO: &P400_TNO.
+                }
+                clearCache: 162
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button pass (
+        buttonName: Pass
+        label: Pass
+        layout {
+            sequence: 10
+            region: @passfailbuttons
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-up
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 230
+            region: @trial-balance
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button post (
+        buttonName: Post
+        label: Post
+        layout {
+            sequence: 60
+            slot: PREVIOUS
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-location-arrow fa
+        }
+        behavior {
+            action: definedByDynamicAction
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Are you want to post this transaction?
+            style: warning
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button print (
+        buttonName: Print
+        label: Print
+        layout {
+            sequence: 220
+            slot: PREVIOUS
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--primary
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-print
+        }
+        behavior {
+            action: definedByDynamicAction
+            executeValidations: false
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 240
+            region: @trial-balance
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            columnCssClasses: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refreshopenig (
+        buttonName: RefreshOpenig
+        label: Refresh Opening From P. Year
+        layout {
+            sequence: 250
+            region: @trial-balance
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            columnCssClasses: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--warning
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            action: definedByDynamicAction
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: !!  Really Want to Refresh Opening !!!
+            style: warning
+        }
+    )
+
+    button show (
+        buttonName: show
+        label: Show
+        layout {
+            sequence: 210
+            slot: PREVIOUS
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button status (
+        buttonName: Status
+        label: &P84_STATUS.
+        layout {
+            sequence: 50
+            slot: PREVIOUS
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--warning
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-comments-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 164
+                clearCache: 164
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        advanced {
+            htmlDomId: STATUS
+        }
+    )
+
+    dynamicAction documentstatus (
+        name: DocumentStatus
+        execution {
+            sequence: 50
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @status
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item=value
+                item: P400_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item!=value
+                item: P400_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: SetDocumentStatusCode(GetModuleCodeForPageNo(:APP_PAGE_ID),:P400_TNO,:P400_STATUS);
+                itemsToSubmit: [
+                    P400_TNO
+                    P400_STATUS
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $('#STATUS span').text('');
+                    $('#STATUS').text($v('P400_STATUS'));
+                    
+                    
+                    ```
+            }
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @passfailbuttons
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P164_DOCUMENTSTATUSCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_STATUS
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction enable-disable-buttons-based-on-module-flow (
+        name: Enable Disable Buttons Based On Module Flow
+        execution {
+            sequence: 60
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @pass
+            }
+            execution {
+                sequence: 20
+            }
+            clientSideCondition {
+                type: item=value
+                item: P400_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @fail
+            }
+            execution {
+                sequence: 30
+            }
+            clientSideCondition {
+                type: item=value
+                item: P400_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 40
+            }
+            clientSideCondition {
+                type: item=value
+                item: P400_MODULEFLOW
+                value: YES
+            }
+        )
+
+        action native-disable-4 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @flow
+            }
+            execution {
+                sequence: 50
+            }
+            clientSideCondition {
+                type: item=value
+                item: P400_MODULEFLOW
+                value: YES
+            }
+        )
+
+    )
+
+    dynamicAction fail (
+        name: Fail
+        execution {
+            sequence: 40
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @fail
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    		cursor cPassFail is
+                    				select
+                    						a.TNo,
+                    						a.TokenNo										
+                    				from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    				where a.ModuleFlowTNo = b.TNo
+                    						and b.TNo = c.TNo
+                    						and a.BossUserCode = c.BossUserCode
+                    						and c.BossUserCode = d.BossUserCode
+                    						and a.ModuleTNo = ':P'||to_char(:APP_PAGE_ID)||'_TNo'
+                    						and d.LoginName = User
+                    						and a.isPass is null
+                    						and a.IsFail is null
+                    						and a.IsForwarded is null
+                    						and a.IsRebounded is null																				
+                    		;
+                    		vPassFail cPassFail%rowtype;
+                        
+                        tTokenNo NUMBER;
+                        TMP VARCHAR2(100) := :P60_TNO;
+                    begin
+                    		open cPassFail;
+                    		fetch cPassFail into vPassFail;
+                    		if cPassFail%FOUND then
+                    				tTokenNo := vPassFail.TokenNo;
+                    				close cPassFail;
+                    
+                               	
+                    				update PassFail a
+                    				set a.IsFail = 'YES',
+                    						a.remark = ':P'||to_char(:APP_PAGE_ID)||'_PASSFAILREMARK'
+                    				where a.TNo = vPassFail.TNo;
+                    				
+                    				SendBackPassFail(tTokenNo , TMP );
+                    		    		
+                    				
+                    				commit;
+                    		else
+                    				close cPassFail;
+                    		end if;
+                    
+                    	
+                    end;
+                    ```
+                itemsToSubmit: [
+                    P400_TNO
+                    P400_COMPANYCODE
+                    P400_PURCHASEORDERNO
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @passfailbuttons
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P400_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 130
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New_1
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @show
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P400_LEDGERONLY FROM DUAL;
+                itemsToSubmit: P400_LEDGERONLY
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_LEDGERONLY
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction new-10 (
+        name: New_9
+        execution {
+            sequence: 170
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refreshopenig
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: RefreshOpening(:global_FinancialYearCode, :global_CompanyCode);
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New
+        execution {
+            sequence: 70
+        }
+        when {
+            selectionType: items
+            items: P400_WITHINDENT
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P400_WITHINDENT
+                itemsToSubmit: P400_WITHINDENT
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_WITHINDENT_1
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-3 (
+        name: New_2
+        execution {
+            sequence: 80
+        }
+        when {
+            selectionType: items
+            items: P400_ACCOUNTLEVEL
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-4 (
+        name: New_3
+        execution {
+            sequence: 90
+        }
+        when {
+            selectionType: items
+            items: P400_LEDGERONLY
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P400_LEDGERONLY
+                itemsToSubmit: P400_LEDGERONLY
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_LEDGERONLY_1
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-5 (
+        name: New_4
+        execution {
+            sequence: 100
+        }
+        when {
+            selectionType: items
+            items: P400_INCLUDEZEROTRANSACTION
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P400_INCLUDEZEROTRANSACTION
+                itemsToSubmit: P400_INCLUDEZEROTRANSACTION
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_INCLUDEZEROTRANSACTION_1
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-6 (
+        name: New_5
+        execution {
+            sequence: 110
+        }
+        when {
+            selectionType: items
+            items: P400_EXCLUDE0CLOSING
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P400_EXCLUDE0CLOSING
+                itemsToSubmit: P400_EXCLUDE0CLOSING
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_EXCLUDE0CLOSING_1
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-7 (
+        name: New_6
+        execution {
+            sequence: 120
+        }
+        when {
+            selectionType: items
+            items: P400_INCLUDECHILD
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P400_INCLUDECHILD
+                itemsToSubmit: P400_INCLUDECHILD
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_INCLUDECHILD_1
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-8 (
+        name: New_7
+        execution {
+            sequence: 150
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P400_ACCOUNTCODE
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P400_ACCOUNTCODE
+                itemsToSubmit: [
+                    P400_FROMDATE
+                    P400_TODATE
+                    P400_DETAILLEVEL
+                    P400_FINANCIALYEARCODE
+                    P400_COMPANYCODE
+                    P400_PRINTDRCR
+                    P400_LOCATIONCODE
+                    P400_LEDGERONLY
+                    P400_INCLUDECHILD
+                    P400_INCLUDEZEROTRANSACTION
+                    P400_EXCLUDE0CLOSING
+                    P400_ACCOUNTLEVEL
+                    P400_WITHINDENT
+                    P400_ACCOUNTCODE
+                    P400_ACCOUNTCODE_1
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_ACCOUNTCODE_1
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-9 (
+        name: New_8
+        execution {
+            sequence: 160
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction pass (
+        name: Pass
+        execution {
+            sequence: 30
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @pass
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                      tModuleCode  Varchar2(30);
+                      TMP          vARCHAR2(100) ;--:= :P80_PICKUPREQUESTNO;
+                    cursor cPassFail is
+                    		select
+                    				a.TNo
+                    		from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    		where a.ModuleFlowTNo = b.TNo
+                    				and b.TNo = c.TNo
+                    				and a.BossUserCode = c.BossUserCode
+                    				and c.BossUserCode = d.BossUserCode
+                    				and a.ModuleTNo = ':P'||:APP_PAGE_ID||'_TNo'
+                    				and d.LoginName = User
+                    				and a.isPass is null
+                    				and a.IsFail is null
+                    				and a.IsForwarded is null
+                    				and a.IsRebounded is null										
+                    ;
+                    vPassFail cPassFail%rowtype;
+                    BEGIN
+                    
+                        select
+                        	d.ModuleCode, ':P'||:APP_PAGE_ID||'_'||labelcolumnname 
+                                    into tModuleCode,tmp
+                        from Location a, ModuleLocationDetail b , ModuleLocation c, Module d 
+                        where a.LocationCode = b.LocationCode
+                        	and b.tno = c.tno
+                        	and c.ModuleCode = d.ModuleCode --'DELIVERYCHALLANRETURN'
+                        	and c.CompanyCode = :global_CompanyCode
+                            and d.EntryPageNo = :APP_PAGE_ID
+                            ;
+                    
+                    			
+                    	open cPassFail;
+                    	fetch cPassFail into vPassFail;
+                    	if cPassFail%FOUND then
+                    			
+                    		
+                    			update PassFail a
+                    			set a.IsPass = 'YES',
+                    				a.remark = ':P'||:APP_PAGE_ID||'_PASSFAILREMARK'
+                    			where a.TNo = vPassFail.TNo;
+                    			
+                    			close cPassFail;
+                    			
+                    			
+                    			SendPassFailForward(tModuleCode, ':P'||:APP_PAGE_ID||'_TNo' , TMP, :global_CompanyCode );
+                    
+                        end if;
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P400_TNO
+                    P400_COMPANYCODE
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @passfailbuttons
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P400_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P400_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-check-box-values (
+        name: set check box values
+        execution {
+            sequence: 140
+        }
+        when {
+            event: ready
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: select :P400_WINTHINDENT,:P400_LEDGERONLY,:P400_INCLUDECHILD,:P400_INCLUDEZEROTRANSACTION,:P400_EXCLUDE0CLOSING FROM DUAL
+                itemsToSubmit: [
+                    P400_WINTHINDENT
+                    P400_LEDGERONLY
+                    P400_INCLUDECHILD
+                    P400_INCLUDEZEROTRANSACTION
+                    P400_EXCLUDE0CLOSING
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P400_WINTHINDENT_1
+                    P400_LEDGERONLY_1
+                    P400_INCLUDECHILD_1
+                    P400_INCLUDEZEROTRANSACTION_1
+                    P400_EXCLUDE0CLOSING_1
+                ]
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process create (
+        name: create
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                		declare
+                            	tFromDate Date := to_date(:P400_FromDate,'DD-MM-RRRR');
+                				tToDate Date := to_date(:P400_ToDate,'DD-MM-RRRR');
+                				tStartDate Date := GetFinancialYearBegin(:P400_FinancialYearCode);
+                				tDetailLevel number := :P400_DetailLevel;
+                                tFinancialyearcode  varchar2(30) ;
+                				tLedgerOnly Varchar2(30) := :P400_LedgerOnly;
+                				tIncludeChild Varchar2(30) := :P400_IncludeChild;		
+                				tLocationCode Varchar2(30) := :P400_LocationCode;
+                				tLocationName Varchar2(2000) := :P400_LocationName;
+                				tDivisionWise Varchar2(3) := :P400_DivisionWise;
+                		begin 
+                                Select aa.financialyearcode,aa.financialyearbegin 
+                                into tFinancialyearcode,tStartDate
+                                From financialyear aa
+                                Where to_date(:p400_fromdate,'DD-MM-RRRR') Between aa.financialyearbegin And aa.financialyearend ;
+                 
+                                
+                                DELETE FROM MyAccountIncludeRevised 
+                                WHERE CREATOR = '&APP_USER.' ;
+                                
+                                DELETE FROM MyAccountIncludeRevised 
+                                WHERE CREATOR = 'APEX_PUBLIC_USER' ;
+                                           
+                                
+                                CreateMyAccountIncludeRevised(:P400_CompanyCode, tLocationCode, tFromDate, tToDate);
+                                --RefreshMyAccountIncludeForAll;
+                  
+                                 UPDATE MyAccountIncludeRevised 
+                                  SET CREATOR = '&APP_USER.'
+                                WHERE CREATOR = 'APEX_PUBLIC_USER' ;
+                   
+                                
+                                /*----------------------------
+                				-- EXECUTE REFRESH OPENING ON INSTRUCTION FROM TIWARI SIR DATE 30 APR 2018
+                				*/
+                               RefreshOpening(nvl(:P400_FinancialYearCode,tFinancialyearcode), :P400_CompanyCode);			
+                				
+                				/*----------------------------*/
+                				
+                				delete 
+                						from TrialBalanceRevised a 
+                						where a.CompanyCode = :P400_CompanyCode
+                								and nvl(a.LocationCode, 'null') = nvl(tLocationCode, 'null')
+                								and a.FromDate = tFromDate
+                								and a.ToDate = tToDate
+                								--and a.Creator = '&APP_USER.'
+                				;
+                				
+                				
+                				insert into TrialBalanceRevised(
+                						LocationCode,
+                						CompanyCode,
+                						Accountcode,
+                						FromDate,
+                						ToDate,
+                						OpeningAmount,
+                						DebitAmount,
+                						CreditAmount,
+                						PDebitAmount,
+                						PCreditAmount,
+                						IncludeChild
+                				) 
+                					select
+                							tLocationCode,
+                							:P400_companycode,
+                							a.PartyCode,
+                							tFromDate,
+                							tToDate,
+                							b.OpeningAmount,
+                							b.DebitAmount,
+                							b.CreditAmount,
+                							b.PDebitAmount,
+                							b.PCreditAmount,
+                							nvl(tIncludeChild, 'NO')
+                					from Party a, (
+                							select
+                								a11.AccountCode,
+                								sum(a11.OpeningAmount) as OpeningAmount,
+                								sum(a11.DebitAmount) as DebitAmount,
+                								sum(a11.CreditAmount) as CreditAmount,
+                								sum(a11.PDebitAmount) as PDebitAmount,
+                								sum(a11.PCreditAmount) as PCreditAmount	
+                							from (
+                								select
+                									nvl(tLocationCode, a1.LocationCode) as LocationCode,
+                									a1.AccountCode,
+                									a1.OpeningAmount as OpeningAmount,
+                									null DebitAmount,
+                									null as CreditAmount,
+                									null as PDebitAmount,
+                									null as PCreditAmount
+                								from Opening a1
+                								where a1.CompanyCode = :P400_CompanyCode
+                									and a1.OpeningDate = tStartDate
+                									-- date 02-jna-2020
+                									 and a1.LocationCode = nvl(tLocationCode, a1.LocationCode)
+                								
+                									----------------------------------- --*/
+                								
+                								union all
+                								select
+                									nvl(tLocationCode, a1.LocationCode) as LocationCode,
+                									a1.AccountCode,
+                									a1.Amount as OpeningAmount,
+                									null DebitAmount,
+                									null as CreditAmount,
+                									null as PDebitAmount,
+                									null as PCreditAmount
+                								from VoucherDetail a1, Voucher a2
+                								where a2.CompanyCode = :P400_CompanyCode
+                                                  and a1.tno = a2.tno
+                								  and a1.VoucherDate between tStartDate and (tFromDate-1)
+                								  and a1.LocationCode = nvl(tLocationCode, a1.LocationCode)
+                								
+                								/*	----------------------------------- --
+                								--
+                                                  */  
+                								union all
+                								select
+                									nvl(tLocationCode, a1.LocationCode) as LocationCode,
+                									a1.AccountCode,
+                									null as OpeningAmount,
+                									-1 *a1.Amount DebitAmount,
+                									null as CreditAmount,
+                									null as PDebitAmount,
+                									null as PCreditAmount
+                								from VoucherDetail a1, Voucher a2
+                								where a1.Amount < 0
+                                                  and a1.tno = a2.tno
+                								  and a2.CompanyCode = :P400_CompanyCode
+                								  and a1.VoucherDate between tFromDate and tToDate				
+                								  and a1.LocationCode = nvl(tLocationCode, a1.LocationCode)
+                								
+                								/*	----------------------------------- --
+                								--
+                                                 */
+                								union all
+                								select
+                									nvl(tLocationCode, a1.LocationCode) as LocationCode,
+                									a1.AccountCode,
+                									null as OpeningAmount,
+                									null as DebitAmount,
+                									a1.Amount as CreditAmount,
+                									null as PDebitAmount,
+                									null as PCreditAmount
+                								from VoucherDetail a1, Voucher a2
+                								where a1.Amount > 0
+                                                  and a1.tno = a2.tno
+                								  and a2.CompanyCode = :P400_CompanyCode
+                								  and a1.VoucherDate between tFromDate and tToDate
+                								 and a1.LocationCode = nvl(tLocationCode, a1.LocationCode)
+                								
+                								/*	----------------------------------- --
+                								--
+                                                */
+                															
+                							) a11
+                							group by
+                                           a11.AccountCode						
+                					) b
+                					where a.PartyTypeCode != 'ACCOUNTGROUP'
+                							and a.PartyCode = b.AccountCode
+                				;
+                				
+                						
+                				update TrialBalanceRevised a
+                						set a.ClosingAmount = nvl(a.OpeningAmount,0) - nvl(a.Debitamount,0) +  nvl(a.CreditAmount,0) - nvl(a.PDebitamount,0) +  nvl(a.PCreditAmount,0),
+                                        CREATOR = '&APP_USER.'
+                				where a.CompanyCode = :P400_CompanyCode
+                						and a.FromDate = tFromDate
+                						and a.ToDate = tToDate
+                						and nvl(a.IncludeChild,'NO') = nvl(tIncludeChild, 'NO' )
+                				;
+                				
+                				commit;
+                				/*CreateMyAccountIncludeRevised(:P400_CompanyCode, tLocationCode, tFromDate, tToDate);*/
+                				commit;
+                /*				
+                				:P400_FromDate := tFromDate;
+                				:P400_ToDate := tToDate;
+                				:P400_LedgerOnly := tLedgerOnly;
+                				:P400_IncludeChild := tIncludeChild;
+                				:P400_DetailLevel := tDetailLevel;
+                				
+                				:P400_LocationCode := tLocationCode;
+                				:P400_LocationName := tLocationName;
+                				:P400_DivisionWise := tDivisionWise;
+                				
+                				go_block('masterblock');
+                				
+                				execute_query(no_validate);
+                				
+                				clear_message;
+                */				
+                		end;  
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 18256614274164472
+        }
+    )
+
+    process getonthetable (
+        name: GetOnTheTable
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                tmp  number;
+                tmp1 number;
+                begin
+                 -------- Checking Module Flow Prepared Or Not 
+                   select count(*) into tmp1 from moduleflow where modulecode = getModuleCodeForPageNo(:APP_PAGE_ID) and getdocumentstatuscode('MODULEFLOW',TNO)='ACTIVE';
+                   if nvl(tmp1,0) > 0 then
+                       :P400_MODULEFLOW := 'YES';
+                   else
+                       :P400_MODULEFLOW := 'NO';
+                   end if;
+                  
+                  ----- Checking On The Table 
+                   select count(*) into tmp from onthetable_apex where moduletno = :P71_TNO and loginname = :GLOBAL_LOGINNAME;
+                   if nvl(tmp,0) > 0 then
+                      :P400_ONTHETABLE := 'YES' ;
+                   else
+                       :P400_ONTHETABLE := 'NO';
+                   end if;
+                end;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 18257035404164472
+        }
+    )
+
+    process loading-event (
+        name: loading event
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                /*if :p400_accountcode is not null then
+                   :p400_detaillevel := NVL(:P400_DETAILLEVEL,1) + 1 ;
+                END IF;
+                */ 
+                null;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeRegions
+            runProcess: oncePerSessionOrWhenReset
+        }
+        advanced {
+            executionMappingIdentifier: 18256261880164471
+        }
+    )
+
+    process send-pass-fail (
+        name: "Send Pass Fail "
+        type: executeCode
+        source {
+            plsqlCode: sendpassfailforward(getModuleCodeForPageNo(:APP_PAGE_ID) , :P400_TNO, :P400_PURCHASEBILLNO||' :', :GLOBAL_COMPANYCODE);
+        }
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 18257476591164472
+        }
+        serverSideCondition {
+            whenButtonPressed: @create
+        }
+    )
+
+)
+

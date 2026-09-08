@@ -1,0 +1,1079 @@
+page 201 (
+    name: BOM List
+    alias: BOM-LIST
+    title: BOM List
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region bom-list (
+        name: BOM List
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select A.TNO,
+                        Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          GetCompanyName(A.COMPANYCODE)
+                         Else
+                          Null
+                       End companyname,
+                        Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          GetLocationName(A.LOCATIONCODE)
+                         Else
+                          Null
+                       End locationname,
+                        Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.BOMCODE
+                         Else
+                          Null
+                       End BOMCODE,
+                        Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.BOMNAME
+                         Else
+                          Null
+                       End BOMNAME,
+                        Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          C.BOMTYPENAME
+                         Else
+                          Null
+                       End BOMTYPENAME,
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.BOMTYPECODE
+                         Else
+                          Null
+                       End BOMTYPECODE,
+                
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          GetItemName(A.ITEMCODE)
+                         Else
+                          Null
+                       End itemname,
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          GetItemSpecificationName(A.itemcode , A.ITEMSPECIFICATIONCODE)
+                         Else
+                          Null
+                       End specificationname,
+                      Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.EFFECTIVEDATE
+                         Else
+                          Null
+                       End EFFECTIVEDATE,
+                      Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.REMARK
+                         Else
+                          Null
+                       End REMARK,
+                     Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.CREATOR
+                         Else
+                          Null
+                       End CREATOR,
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By A.TNO Order By A.TNO) = 1 Then
+                          A.CREATIONTIME
+                         Else
+                          Null
+                       End CREATIONTIME,
+                    --   A.BOMTYPECODE,
+                    --   C.BOMTYPENAME,
+                 
+                     --  GetItemName(A.ITEMCODE) itemname,
+                     --  GetItemSpecificationName(A.itemcode , A.ITEMSPECIFICATIONCODE) specificationname,
+                      
+                     --  A.EFFECTIVEDATE,
+                      -- A.REMARK,
+                      -- A.CREATOR,
+                     --  A.CREATIONTIME,
+                       GETITEMNAME(B.ITEMCODE) AS DETAILITEM,
+                       GETITEMSPECIFICATIONNAME(B.ITEMCODE,B.ITEMSPECIFICATIONCODE) AS DETAILITEMSPECIFICATION,
+                       B.VALUEPERCENT,
+                       B.QUANTITY1,
+                       B.QUANTITY2
+                  from BOM A, BOMDETAIL B, BOMTYPE C 
+                  WHERE A.TNO = B.TNO
+                  AND A.BOMTYPECODE = C.BOMTYPECODE(+)
+                  and ((:P201_FROMDATE is null and :P201_TODATE is null ) or (a.effectiveDate between :P201_FROMDATE and :P201_TODATE))
+                  and (:P201_BOMTYPE is null or (instr(':'||:P201_BOMTYPE||':',':'||a.BOMTypeCode||':') > 0))
+                  and (:P201_LOCATION is null or (instr(':'||:P201_LOCATION||':',':'||a.LocationCode||':') > 0))
+                  and (:P201_COMPANY is null or (instr(':'||:P201_COMPANY||':',':'||a.CompanyCode||':') > 0))
+                   and ( :P201_ITEM IS NULL OR instr(':'||:P201_ITEM||':',':'||a.ItemCode||':') > 0 ) 
+                  and ( :P201_ITEMSPECIFICATION IS NULL OR instr(':'||:P201_ITEMSPECIFICATION||':',':'||a.ItemSpecificationCode||':') > 0 ) 
+                
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 202
+                items: {
+                    P202_TNO: \#TNO#\
+                }
+                action: resetPagination
+            }
+            linkIcon: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 4554802537970138
+        }
+
+        column BOMCODE (
+            type: plainText
+            heading {
+                heading: BOM Code
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column BOMNAME (
+            type: plainText
+            heading {
+                heading: BOM Name
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column BOMTYPECODE (
+            type: plainText
+            heading {
+                heading: BOM Type
+            }
+            layout {
+                sequence: 121
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column BOMTYPENAME (
+            type: plainText
+            heading {
+                heading: BOM Type
+            }
+            layout {
+                sequence: 71
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#BOMTYPENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 51
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: Creation Time
+            }
+            layout {
+                sequence: 19
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DETAILITEM (
+            type: plainText
+            heading {
+                heading: Detail Item
+            }
+            layout {
+                sequence: 81
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column DETAILITEMSPECIFICATION (
+            type: plainText
+            heading {
+                heading: Detail Item Specification
+            }
+            layout {
+                sequence: 91
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column EFFECTIVEDATE (
+            type: plainText
+            heading {
+                heading: Effective Date
+            }
+            layout {
+                sequence: 17
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 31
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 61
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Primary Qty
+                alignment: end
+            }
+            layout {
+                sequence: 101
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: Primary Qty
+                alignment: end
+            }
+            layout {
+                sequence: 111
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: Remark
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column SPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 41
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 0
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VALUEPERCENT (
+            type: plainText
+            heading {
+                heading: Value Percent
+                alignment: end
+            }
+            layout {
+                sequence: 21
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: BOM List
+        }
+
+        savedReport 45677 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn BOMCODE (
+                sequence: 3
+            )
+
+            displayColumn BOMNAME (
+                sequence: 4
+            )
+
+            displayColumn BOMTYPECODE (
+                sequence: 5
+            )
+
+            displayColumn COMPANYNAME (
+                sequence: 1
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 16
+            )
+
+            displayColumn CREATOR (
+                sequence: 15
+            )
+
+            displayColumn DETAILITEM (
+                sequence: 9
+            )
+
+            displayColumn DETAILITEMSPECIFICATION (
+                sequence: 10
+            )
+
+            displayColumn EFFECTIVEDATE (
+                sequence: 8
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 6
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 11
+            )
+
+            displayColumn QUANTITY2 (
+                sequence: 12
+            )
+
+            displayColumn REMARK (
+                sequence: 14
+            )
+
+            displayColumn SPECIFICATIONNAME (
+                sequence: 7
+            )
+
+            displayColumn VALUEPERCENT (
+                sequence: 13
+            )
+
+        )
+
+    )
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent15
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P201_BOMTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: BOM Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select BOMTypename D,BomTypecode R from BOMType order by 1
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P201_COMPANY
+            itemsToSubmit: [
+                P201_LOCATION
+                P201_BOMTYPE
+            ]
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter DocType Name
+        }
+    )
+
+    pageItem P201_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = getmodulecodeforpageno(:APP_PAGE_ID)
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Company Name
+        }
+    )
+
+    pageItem P201_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(sysdate-7)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P201_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      e.ItemName||' ( '||e.ItemCode||' )' as d,
+                      e.ItemCode r
+                From Item e, ItemSpecification ee
+                Where e.TNo = ee.TNo
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @filter
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 79
+            valuePlaceholder: Material List
+        }
+    )
+
+    pageItem P201_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      ee.ItemSpecificationName as d,
+                      ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee
+                Where e.TNo = ee.TNo
+                  and e.ItemCode = :P201_ITEM
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P201_ITEM
+            itemsToSubmit: P201_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 130
+            region: @filter
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 79
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P201_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = GETMODULECODEFORPAGENO(:APP_PAGE_ID)
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                 /* and a.CompanyCode = :P201_COMPANY */
+                 and instr(':'||:P201_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P201_COMPANY
+            itemsToSubmit: P201_LOCATION
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+    )
+
+    pageItem P201_TODATE (
+        type: datePickerJquery
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: To Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Add New
+        layout {
+            sequence: 20
+            region: @bom-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--iconLeft
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 202
+                clearCache: 202
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button home (
+        buttonName: Home
+        label: Home
+        layout {
+            sequence: 10
+            region: @bom-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: #DEFAULT#
+            icon: fa-window-close-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1
+                clearCache: 1
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 150
+            region: @filter
+            slot: regionBody
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+                    //$("#t_Body_nav").hide();
+                    //$(this).treeView("collapse", n$)
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

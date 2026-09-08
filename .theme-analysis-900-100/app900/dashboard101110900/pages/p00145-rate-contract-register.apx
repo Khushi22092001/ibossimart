@@ -1,0 +1,1785 @@
+page 145 (
+    name: Rate Contract Register
+    alias: RATE-CONTRACT-REGISTER
+    title: Rate Contract Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/Rate Contract Register.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P15_FROMDATE').val());
+              var toDate = new Date($('#P15_TODATE').val());
+            
+            var reportParams = 
+                  '&P145_COMPANY=' +$('#P145_COMPANY').val() + 
+                  '&P145_LOCATION=' +$('#P145_LOCATION').val() +  
+                  '&P145_FROMDATE='+ $('#P145_FROMDATE').val() +  
+                  '&P145_TODATE=' + $('#P145_TODATE').val() +  
+                  '&P145_PARTY=' +$('#P145_PARTY').val() + 
+                  '&P145_GROUP=' +$('#P145_GROUP').val() + 
+                  '&P145_ITEM=' +$('#P145_ITEM').val() + 
+                  '&P145_ITEMSPECIFICATION=' +$('#P145_ITEMSPECIFICATION').val() + 
+                  '&P145_RATECONTRACT=' +$('#P145_RATECONTRACT').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            .width{width: 250px; overflow: auto !important;}
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region rate-contract-register (
+        name: Rate Contract Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region rate-contract-report (
+        name: Rate Contract Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                       row_number() over(order by xxx.Tno) SerialNo,
+                       xxx.TNo,
+                       xxx.SNo,
+                       xxx.LocationName,
+                       xxx.RateContractNo,
+                       xxx.RateContractDate,
+                       xxx.ValidDays,
+                       xxx.VendorName,
+                       xxx.ExpiryDate,
+                       xxx.MaterialGroup,
+                       xxx.ItemCode,
+                       xxx.MaterialDetail,
+                       xxx.UOM,
+                       xxx.Quantity1,
+                       xxx.UOM2,
+                       xxx.Quantity2,
+                       xxx.Rate,
+                       xxx.RateUOM,
+                       xxx.Amount,
+                       CGST,
+                       SGST,
+                       IGST,
+                       TCS,
+                       xxx.FooterAmount,
+                       (xxx.FooterAmount - (CGST + SGST + IGST + TCS)) As OtherAmount,
+                       xxx.TotalAmount,
+                       xxx.Creator,
+                       xxx.CreationTime
+                  From (Select xx.TNo,
+                               xx.SNo,
+                               xx.LocationName,
+                               xx.RateContractNo,
+                               xx.RateContractDate,
+                               xx.ValidDays,
+                               xx.VendorName,
+                               xx.ExpiryDate,
+                               xx.MaterialGroup,
+                               xx.ItemCode,
+                               xx.MaterialDetail,
+                               xx.UOM,
+                               xx.Quantity1,
+                               xx.UOM2,
+                               xx.Quantity2,
+                               xx.Rate,
+                               xx.RateUOM,
+                               xx.Amount,
+                               Sum(xx.CGST) CGST,
+                               Sum(xx.SGST) SGST,
+                               Sum(xx.IGST) IGST,
+                               Sum(xx.TCS) TCS,
+                               xx.FooterAmount,
+                               xx.TotalAmount,
+                               xx.Creator,
+                               xx.CreationTime
+                          From (Select a.TNo,
+                                       b.SNo,
+                                       l.Locationname,
+                                       a.RateContractNo,
+                                       a.RateContractDate,
+                                       Round((a.ExpiryDate - a.RateContractDate), 0) As ValidDays,
+                                       v.partyname As VendorName,
+                                       a.ExpiryDate,
+                                       e.ParentCode || ' ~ ' || GetItemName(e.ParentCode) As MaterialGroup,
+                                       e.ItemCode,
+                                       e.ItemName,
+                                       ee.ItemSpecificationname,
+                                       e.ItemName || ' ~ ' || ee.ItemSpecificationname As MaterialDetail,
+                                       e.MeasuringUnitCode1 As UOM,
+                                       b.Quantity1,
+                                       e.MeasuringUnitCode2 As UOM2,
+                                       b.Quantity2,
+                                       b.Rate,
+                                       b.RateMeasuringUnitCode As RateUOM,
+                                       b.Amount,
+                                       Nvl(Decode(c.FooterHeadCode, '.CGST.', c.FooterValue),
+                                           0) As CGST,
+                                       Nvl(Decode(c.FooterHeadCode, '.SGST.', c.FooterValue),
+                                           0) As SGST,
+                                       Nvl(Decode(c.FooterHeadCode, '.IGST.', c.FooterValue),
+                                           0) As IGST,
+                                       Nvl(Decode(c.FooterHeadCode, '.TCS.', c.FooterValue),
+                                           0) As TCS,
+                                       b.FooterAmount,
+                                       b.TotalAmount,
+                                       bue.EmployeeName || ' ( ' || a.Creator || ' )' As Creator,
+                                       a.CreationTime,
+                                       'Details' As Property,
+                                       'RateContract' As Module
+                                  From RateContract             a,
+                                       RateContractDetail       b,
+                                       RateContractDetailFooter c,
+                                       Location                 l,
+                                       Party                    v,
+                                       Item                     e,
+                                       ItemSpecification        ee,
+                                       BossUser                 bu,
+                                       Employee                 bue
+                                 Where a.TNo = b.TNo
+                                   And b.TNo = c.TNo(+)
+                                   And b.SNo = c.SNo(+)
+                                   And a.Locationcode = l.LocationCode(+)
+                                   And a.partyCode = v.PartyCode(+)
+                                   And b.ItemCode = e.ItemCode(+)
+                                   And b.ItemSpecificationCode = ee.ItemSpecificationCode(+)
+                                   And a.Creator = bu.LoginName(+)
+                                   And bu.EmployeeCode = bue.EmployeeCode(+)
+                                   and a.RateContractDate between :P145_FROMDATE and :P145_TODATE
+                                     -- 22-APR-2025
+                                   and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                                and instr(':'||:P145_COMPANY||':',':'||a.CompanyCode||':') > 0
+                                and instr(':'||:P145_LOCATION||':',':'||a.LocationCode||':') > 0
+                                and ( :P145_PARTY IS NULL OR instr(':'||:P145_PARTY||':',':'||a.PartyCode||':') > 0 ) 
+                                and ( :P145_ITEM IS NULL OR instr(':'||:P145_ITEM||':',':'||e.ItemCode||':') > 0 ) 
+                                and ( :P145_ITEMSPECIFICATION IS NULL OR instr(':'||:P145_ITEMSPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                               -- and ( :P145_GROUP IS NULL OR instr(':'||:P145_GROUP||':',':'||e.ParentCode||':') > 0 )
+                                and a.TNo like nvl(:P145_RateContract,'%')
+                                and ( :P145_GROUP IS NULL
+                                        or
+                                        exists (select 1 from (Select ITEMCODE,
+                                                parentcode,
+                                                RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                                Level,
+                                                CONNECT_BY_ROOT itemcode As root_id,
+                                                '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                                CONNECT_BY_ISLEAF As leaf
+                                            From item a
+                                            Start With parentcode in ( select itemcode from item xx where
+                                                                        instr(':'||:P145_GROUP||':',':'||xx.ItemCode||':') > 0)
+                                                                        
+                                            Connect By parentcode = Prior itemcode
+                                            Order Siblings By itemcode) x where x.itemcode = e.itemcode
+                                            )
+                                    )
+                                ) xx
+                         Group By xx.TNo,
+                                  xx.SNo,
+                                  xx.LocationName,
+                                  xx.RateContractNo,
+                                  xx.RateContractDate,
+                                  xx.ValidDays,
+                                  xx.VendorName,
+                                  xx.ExpiryDate,
+                                  xx.MaterialGroup,
+                                  xx.ItemCode,
+                                  xx.MaterialDetail,
+                                  xx.UOM,
+                                  xx.Quantity1,
+                                  xx.UOM2,
+                                  xx.Quantity2,
+                                  xx.Rate,
+                                  xx.RateUOM,
+                                  xx.Amount,
+                                  xx.FooterAmount,
+                                  xx.TotalAmount,
+                                  xx.Creator,
+                                  xx.CreationTime) xxx
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 58918654057565970
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column CGST (
+            type: plainText
+            heading {
+                heading: CGST
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:200px">#CREATIONTIME#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:250px">#CREATOR#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column EXPIRYDATE (
+            type: plainText
+            heading {
+                heading: EXPIRY DATE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#EXPIRYDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column FOOTERAMOUNT (
+            type: plainText
+            heading {
+                heading: FOOTER AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column IGST (
+            type: plainText
+            heading {
+                heading: IGST
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column MATERIALDETAIL (
+            type: plainText
+            heading {
+                heading: MATERIAL DETAIL
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:250px">#MATERIALDETAIL#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column MATERIALGROUP (
+            type: plainText
+            heading {
+                heading: MATERIAL GROUP
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:200px">#MATERIALGROUP#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column OTHERAMOUNT (
+            type: plainText
+            heading {
+                heading: OTHER AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:50px">#QUANTITY1#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:50px">#QUANTITY2#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: RATE
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column RATECONTRACTDATE (
+            type: plainText
+            heading {
+                heading: RATECONTRACT DATE
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column RATECONTRACTNO (
+            type: plainText
+            heading {
+                heading: RATE CONTRACT NO
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#RATECONTRACTNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column RATEUOM (
+            type: plainText
+            heading {
+                heading: UOM (RATE)
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:50px">#RATEUOM#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column SGST (
+            type: plainText
+            heading {
+                heading: SGST
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column SNO (
+            type: plainText
+            heading {
+                heading: Sno
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column TCS (
+            type: plainText
+            heading {
+                heading: TCS
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: P UOM
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:50px">#UOM#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column UOM2 (
+            type: plainText
+            heading {
+                heading: S UOM
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:50px">#UOM2#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column VALIDDAYS (
+            type: plainText
+            heading {
+                heading: VALID DAYS
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:50px">#VALIDDAYS#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column VENDORNAME (
+            type: plainText
+            heading {
+                heading: VENDOR NAME
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div style="display:block; width:300px">#VENDORNAME#</div>
+                    
+                    ```
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Quotation Report
+        }
+
+        savedReport 105449 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 16
+            )
+
+            displayColumn CGST (
+                sequence: 17
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 24
+            )
+
+            displayColumn CREATOR (
+                sequence: 23
+            )
+
+            displayColumn EXPIRYDATE (
+                sequence: 4
+            )
+
+            displayColumn IGST (
+                sequence: 19
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 8
+            )
+
+            displayColumn MATERIALDETAIL (
+                sequence: 9
+            )
+
+            displayColumn MATERIALGROUP (
+                sequence: 7
+            )
+
+            displayColumn OTHERAMOUNT (
+                sequence: 21
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 11
+            )
+
+            displayColumn QUANTITY2 (
+                sequence: 13
+            )
+
+            displayColumn RATE (
+                sequence: 14
+            )
+
+            displayColumn RATECONTRACTDATE (
+                sequence: 3
+            )
+
+            displayColumn RATECONTRACTNO (
+                sequence: 2
+            )
+
+            displayColumn RATEUOM (
+                sequence: 15
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SGST (
+                sequence: 18
+            )
+
+            displayColumn TCS (
+                sequence: 20
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 22
+            )
+
+            displayColumn UOM (
+                sequence: 10
+            )
+
+            displayColumn UOM2 (
+                sequence: 12
+            )
+
+            displayColumn VALIDDAYS (
+                sequence: 6
+            )
+
+            displayColumn VENDORNAME (
+                sequence: 5
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: RATECONTRACTDATE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            sort (
+                column: VENDORNAME
+                sort {
+                    sequence: 3
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: CGST
+            )
+
+            aggregate (
+                column: SGST
+            )
+
+            aggregate (
+                column: IGST
+            )
+
+            aggregate (
+                column: TCS
+            )
+
+            aggregate (
+                column: OTHERAMOUNT
+            )
+
+            aggregate (
+                column: FOOTERAMOUNT
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+        )
+
+    )
+
+    pageItem P145_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'QUOTATION'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P145_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P145_GROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select Upper(a.ItemName || ' ( ' || a.ItemCode || ' )') As d,
+                       a.ItemCode As r
+                  From Item a
+                 Where a.ItemType = 'GROUP'
+                 order by 2
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Material Group
+        }
+        validation {
+            maxLength: 30
+        }
+    )
+
+    pageItem P145_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select    Distinct
+                          e.ItemName||' ( '||e.ItemCode||' )' as d,
+                          e.ItemCode r
+                From QuotationDetail a, Item e
+                Where a.ItemCode = e.ItemCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material List
+        }
+    )
+
+    pageItem P145_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                          ee.ItemSpecificationName as d,
+                          ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P145_ITEM
+                 and e.TNo = ee.TNo
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P145_ITEM
+            itemsToSubmit: P145_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 80
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P145_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'QUOTATION'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+            maxLength: 30
+        }
+    )
+
+    pageItem P145_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                	Distinct
+                	p.PartyName d,
+                	p.PartyCode r
+                From RateContract a, Party p
+                Where a.PartyCode = p.PartyCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Vendor List
+        }
+        validation {
+            maxLength: 30
+        }
+    )
+
+    pageItem P145_RATECONTRACT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: R C No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      a.RateContractNo d,
+                      a.TNo r
+                From  RateContract a
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Enquiry No
+        }
+        validation {
+            maxLength: 30
+        }
+    )
+
+    pageItem P145_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @rate-contract-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button custom (
+        buttonName: CUSTOM
+        label: Custom
+        layout {
+            sequence: 10
+            region: @rate-contract-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--iconLeft
+            ]
+            icon: fa-file-excel-o
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: http://15.207.2.208:9704/xmlpserver/PRA/quotation.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&P145_FROMDATE=&P145_FROMDATE.&P145_TODATE=&P145_TODATE.&P145_LOCATION=&P145_LOCATION.&P145_BREAKUPAS=&P145_BREAKUPAS.&P145_BREAKUP=&P145_BREAKUP.&P145_QUOTATIONNO=&P145_QUOTATIONNO.&P145_GROUP=&P145_GROUP.&P145_ITEM=&P145_ITEM.&P145_ITEMSPECIFICATION=&P145_ITEMSPECIFICATION.&P145_PARTY=&P145_PARTY.
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: 1
+            value: 1
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 20
+            region: @rate-contract-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconLeft
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @rate-contract-register
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    javascript:window.open('http://117.217.121.130:9502/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/PBS/REPORTS/Rate Contract Register.xdo&nQUser=consumer&nQPassword=Info123$&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1","_paramsP_COMPANY":"&P145_COMPANY.","_paramsP_LOCATION":"&P145_LOCATION.","_paramsP_FROMDATE":"&P145_FROMDATE.","_paramsP_TODATE":"&P145_TODATE.","_paramsP_PARTY":"&P145_PARTY.","_paramsP_GROUP":"&P145_GROUP.","_paramsP_ITEMSPECIFICATION":"&P145_ITEMSPECIFICATION.","_paramsP_RATECONTRACT":"&P145_RATECONTRACT.","_paramsP_ITEM":"&P145_ITEM."}');
+                                                                                                       
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process quotation-no (
+        name: Quotation No
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                  if :P145_QUOTATIONNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P145_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P145_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 11972542930181152
+        }
+    )
+
+)
+

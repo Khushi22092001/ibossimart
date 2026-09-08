@@ -1,0 +1,801 @@
+page 375 (
+    name: Pending Dispatch Quantity Register
+    alias: PENDING-DISPATCH-QUANTITY-REGISTER
+    title: Pending Dispatch Quantity Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region pending-dispatch-quantity-register (
+        name: Pending Dispatch Quantity Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                WITH SO_DISP_REDUCE AS (
+                    SELECT 
+                        DAD.ITEMCODE,
+                        DAD.ITEMSPECIFICATIONCODE,
+                        DA.REFERENCETNO,
+                        SUM(DAD.QUANTITY1) AS TOTAL_DISP_QTY
+                    FROM DESPATCHADVICEDETAIL DAD
+                    JOIN DESPATCHADVICE DA ON DAD.TNO = DA.TNO
+                    GROUP BY DAD.ITEMCODE, DAD.ITEMSPECIFICATIONCODE, DA.REFERENCETNO
+                )
+                ,SO_ORD_REDUCE AS (
+                    SELECT
+                        SOD.ITEMCODE,
+                        SOD.ITEMSPECIFICATIONCODE,
+                        SOD.TNO AS SALESORDERTNO,
+                        SUM(SOD.QUANTITY1) AS TOTAL_ORD_QTY
+                    FROM SALESORDERDETAIL SOD
+                    GROUP BY SOD.ITEMCODE, SOD.ITEMSPECIFICATIONCODE, SOD.TNO
+                )
+                ,PRIV_CHECK AS (
+                    SELECT a.TNo
+                    FROM DespatchAdvice a
+                    WHERE getcompanyprivilege( a.COMPANYCODE,  GETMODULECODEFORPAGENO(:APP_PAGE_ID), :GLOBAL_LOGINNAME) = 'YES'
+                      AND getlocationprivilege(a.locationcode, GETMODULECODEFORPAGENO(:APP_PAGE_ID), a.companycode, :global_loginname) = 'YES'
+                      AND getdoctypeprivilege( a.doctypecode,  GETMODULECODEFORPAGENO(:APP_PAGE_ID), a.companycode, :global_loginname) = 'YES'
+                )
+                SELECT
+                    a.TNo,
+                    l.LocationName,
+                    dt.DocTypeName,
+                    a.DespatchAdviceNo,
+                    a.DespatchAdviceDate,
+                    iut.SalesOrderNo                                                AS ReferenceNo,
+                    iut.SalesOrderDate                                              AS ReferenceDate,
+                    'Sales Order'                                                   AS Reference,
+                    p.PartyName,
+                    t.PartyName                                                     AS Transporter,
+                    emp.EmployeeName||' ( '||emp.EmployeeID||' )'                  AS Employee,
+                    a.Drivername,
+                    a.VehicleNo,
+                    b.ItemCode,
+                    ei.Itemname||' ~ '||ee.itemSpecificationName                    AS Item,
+                    ei.MeasuringUnitCode1,
+                    b.Quantity1,
+                    nvl(pt.PackingTypeName, ei.MeasuringUnitCode2)                  AS MeasuringUnitCode2,
+                    b.Quantity2,
+                    nvl(Decode(mo.ReferenceTNo, a.TNo, 'PREPARED'), 'PENDING')     AS MSTATUS,
+                    mo.MaterialOutNo,
+                    mo.MaterialOutDate,
+                    nvl(Decode(w.ReferenceTNo,  a.TNo, 'PREPARED'), 'PENDING')     AS WSTATUS,
+                    w.WeighmentNo,
+                    w.WeighmentDate,
+                    bue.EmployeeName||' ( '||a.Creator||' )'                       AS Creator,
+                    a.CreationTime,
+                    SOR.TOTAL_ORD_QTY                                               AS SO_ORDERED_QTY,
+                    DR.TOTAL_DISP_QTY                                               AS TOTAL_DISPATCHED_QTY,
+                    GREATEST(
+                        COALESCE(SOR.TOTAL_ORD_QTY,  0)
+                      - COALESCE(DR.TOTAL_DISP_QTY, 0),
+                    0)                                                              AS PENDING_DISPATCH_QTY,
+                    '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||9993||':'||:APP_SESSION||'::::'
+                        ||'P9993_TNO,P9993_REPNAME'||':'||A.Tno||','||'DespatchAdvice'||':NO')
+                        ||'"><span aria-label="Action"><span class="fa fa-print" aria-hidden="true" title="Action"></span></span></a>' AS Print
+                
+                FROM DespatchAdvice a
+                
+                JOIN PRIV_CHECK              pc  ON  a.TNo               = pc.TNo   -- privilege filter
+                
+                LEFT JOIN DespatchAdviceDetail  b   ON  a.TNo               = b.TNo
+                LEFT JOIN Location              l   ON  a.Locationcode       = l.LocationCode
+                LEFT JOIN DocType               dt  ON  a.DocTypeCode        = dt.DocTypeCode
+                LEFT JOIN Party                 p   ON  a.PartyCode          = p.PartyCode
+                LEFT JOIN Party                 t   ON  a.TransporterCode    = t.PartyCode
+                LEFT JOIN Employee              emp ON  a.EmployeeCode       = emp.EmployeeCode
+                LEFT JOIN BossUser              bu  ON  a.Creator            = bu.LoginName
+                LEFT JOIN Employee              bue ON  bu.EmployeeCode      = bue.EmployeeCode
+                LEFT JOIN Item                  ei  ON  b.ItemCode           = ei.ItemCode
+                LEFT JOIN ItemSpecification     ee  ON  b.ItemSpecificationCode = ee.ItemSpecificationCode
+                LEFT JOIN SalesOrder            iut ON  a.ReferenceTNo       = iut.TNo
+                LEFT JOIN MaterialOut           mo  ON  a.TNo                = mo.ReferenceTNo
+                LEFT JOIN Weighment             w   ON  a.TNo                = w.ReferenceTNo
+                LEFT JOIN PackingType           pt  ON  b.PackingTypeCode    = pt.PackingTypeCode
+                
+                LEFT JOIN SO_DISP_REDUCE DR
+                    ON  DR.REFERENCETNO           = iut.TNo
+                    AND DR.ITEMCODE               = b.ItemCode
+                    AND DR.ITEMSPECIFICATIONCODE  = b.ItemSpecificationCode
+                
+                LEFT JOIN SO_ORD_REDUCE SOR
+                    ON  SOR.SALESORDERTNO         = iut.TNo
+                    AND SOR.ITEMCODE              = b.ItemCode
+                    AND SOR.ITEMSPECIFICATIONCODE = b.ItemSpecificationCode
+                
+                -- WHERE trunc(a.DespatchAdviceDate) BETWEEN :P160_FROMDATE AND :P160_TODATE
+                --   AND ( :P160_COMPANY           IS NULL OR instr(':'||:P160_COMPANY||':',           ':'||a.CompanyCode||':')           > 0 )
+                --   AND ( :P160_LOCATION          IS NULL OR instr(':'||:P160_LOCATION||':',          ':'||a.LocationCode||':')          > 0 )
+                --   AND ( :P160_DOCTYPE           IS NULL OR instr(':'||:P160_DOCTYPE||':',           ':'||a.DocTypeCode||':')           > 0 )
+                --   AND ( :P160_PARTY             IS NULL OR instr(':'||:P160_PARTY||':',             ':'||a.PartyCode||':')             > 0 )
+                --   AND ( :P160_TRANSPORTER       IS NULL OR instr(':'||:P160_TRANSPORTER||':',       ':'||a.TransporterCode||':')       > 0 )
+                --   AND ( :P160_ITEM              IS NULL OR instr(':'||:P160_ITEM||':',              ':'||b.ItemCode||':')              > 0 )
+                --   AND ( :P160_ITEMSPECIFICATION IS NULL OR instr(':'||:P160_ITEMSPECIFICATION||':', ':'||b.ItemSpecificationCode||':') > 0 )
+                --   AND ( :P160_VEHICLENO         IS NULL OR a.VehicleNo = :P160_VEHICLENO )
+                --   AND nvl(Decode(w.ReferenceTNo,  a.TNo, 'PREPARED'), 'PENDING') LIKE nvl(:P160_WSTATUS, '%')
+                --   AND nvl(Decode(mo.ReferenceTNo, a.TNo, 'PREPARED'), 'PENDING') LIKE nvl(:P160_MSTATUS, '%')
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 39736789757501395
+        }
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: Creationtime
+            }
+            layout {
+                sequence: 27
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 26
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column DESPATCHADVICEDATE (
+            type: plainText
+            heading {
+                heading: Despatchadvicedate
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column DESPATCHADVICENO (
+            type: plainText
+            heading {
+                heading: Despatchadviceno
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doctypename
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DRIVERNAME (
+            type: plainText
+            heading {
+                heading: Drivername
+            }
+            layout {
+                sequence: 12
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column EMPLOYEE (
+            type: plainText
+            heading {
+                heading: Employee
+            }
+            layout {
+                sequence: 11
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column ITEM (
+            type: plainText
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 15
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 14
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Locationname
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column MATERIALOUTDATE (
+            type: plainText
+            heading {
+                heading: Materialoutdate
+            }
+            layout {
+                sequence: 22
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column MATERIALOUTNO (
+            type: plainText
+            heading {
+                heading: Materialoutno
+            }
+            layout {
+                sequence: 21
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column MEASURINGUNITCODE1 (
+            type: plainText
+            heading {
+                heading: Measuringunitcode1
+            }
+            layout {
+                sequence: 16
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column MEASURINGUNITCODE2 (
+            type: plainText
+            heading {
+                heading: Measuringunitcode2
+            }
+            layout {
+                sequence: 18
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column MSTATUS (
+            type: plainText
+            heading {
+                heading: Mstatus
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Partyname
+            }
+            layout {
+                sequence: 9
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column PENDING_DISPATCH_QTY (
+            type: plainText
+            heading {
+                heading: Pending Dispatch Qty
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column PRINT (
+            type: plainText
+            heading {
+                heading: Print
+            }
+            layout {
+                sequence: 31
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Quantity1
+                alignment: end
+            }
+            layout {
+                sequence: 17
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: Quantity2
+                alignment: end
+            }
+            layout {
+                sequence: 19
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column REFERENCE (
+            type: plainText
+            heading {
+                heading: Reference
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column REFERENCEDATE (
+            type: plainText
+            heading {
+                heading: Referencedate
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column REFERENCENO (
+            type: plainText
+            heading {
+                heading: Referenceno
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column SO_ORDERED_QTY (
+            type: plainText
+            heading {
+                heading: So Ordered Qty
+                alignment: end
+            }
+            layout {
+                sequence: 28
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 1
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTAL_DISPATCHED_QTY (
+            type: plainText
+            heading {
+                heading: Total Dispatched Qty
+                alignment: end
+            }
+            layout {
+                sequence: 29
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column TRANSPORTER (
+            type: plainText
+            heading {
+                heading: Transporter
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: Vehicleno
+            }
+            layout {
+                sequence: 13
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column WEIGHMENTDATE (
+            type: plainText
+            heading {
+                heading: Weighmentdate
+            }
+            layout {
+                sequence: 25
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column WEIGHMENTNO (
+            type: plainText
+            heading {
+                heading: Weighmentno
+            }
+            layout {
+                sequence: 24
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column WSTATUS (
+            type: plainText
+            heading {
+                heading: Wstatus
+            }
+            layout {
+                sequence: 23
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Pending Dispatch Quantity Register
+        }
+
+        savedReport 397499 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CREATIONTIME (
+                sequence: 27
+            )
+
+            displayColumn CREATOR (
+                sequence: 26
+            )
+
+            displayColumn DESPATCHADVICEDATE (
+                sequence: 5
+            )
+
+            displayColumn DESPATCHADVICENO (
+                sequence: 4
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 3
+            )
+
+            displayColumn DRIVERNAME (
+                sequence: 12
+            )
+
+            displayColumn EMPLOYEE (
+                sequence: 11
+            )
+
+            displayColumn ITEM (
+                sequence: 15
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 14
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn MATERIALOUTDATE (
+                sequence: 22
+            )
+
+            displayColumn MATERIALOUTNO (
+                sequence: 21
+            )
+
+            displayColumn MEASURINGUNITCODE1 (
+                sequence: 16
+            )
+
+            displayColumn MEASURINGUNITCODE2 (
+                sequence: 18
+            )
+
+            displayColumn MSTATUS (
+                sequence: 20
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 9
+            )
+
+            displayColumn PENDING_DISPATCH_QTY (
+                sequence: 30
+            )
+
+            displayColumn PRINT (
+                sequence: 31
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 17
+            )
+
+            displayColumn QUANTITY2 (
+                sequence: 19
+            )
+
+            displayColumn REFERENCE (
+                sequence: 8
+            )
+
+            displayColumn REFERENCEDATE (
+                sequence: 7
+            )
+
+            displayColumn REFERENCENO (
+                sequence: 6
+            )
+
+            displayColumn SO_ORDERED_QTY (
+                sequence: 28
+            )
+
+            displayColumn TNO (
+                sequence: 1
+            )
+
+            displayColumn TOTAL_DISPATCHED_QTY (
+                sequence: 29
+            )
+
+            displayColumn TRANSPORTER (
+                sequence: 10
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 13
+            )
+
+            displayColumn WEIGHMENTDATE (
+                sequence: 25
+            )
+
+            displayColumn WEIGHMENTNO (
+                sequence: 24
+            )
+
+            displayColumn WSTATUS (
+                sequence: 23
+            )
+
+        )
+
+    )
+
+)
+

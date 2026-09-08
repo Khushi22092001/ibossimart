@@ -1,0 +1,721 @@
+page 523 (
+    name: Creditors Aging Detail Report
+    alias: CREDITORS-AGING-DETAIL-REPORT
+    title: Creditors Aging Detail Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region creditors-aging-detail-report (
+        name: Creditors Aging Detail Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With t_Allocated as (
+                	select 
+                		aa.DrVoucherTNo as VoucherTNo,
+                		aa.DrVoucherSNo as VoucherSNo,
+                		-1 * sum(aa.Amount) as AllocatedAmount 
+                	from DrCrAllocation aa, Voucher bb, Voucher cc 
+                	where aa.DrVoucherTNo = bb.TNo
+                		and aa.CrVoucherTNo = cc.TNo
+                        and bb.VoucherDate <= :P523_ASONDATE
+                        and cc.VoucherDate <= :P523_ASONDATE
+                	group by 
+                		aa.DrVoucherTNo,
+                		aa.DrVoucherSNo
+                	union all
+                	select 
+                		aa.CrVoucherTNo as VoucherTNo,
+                		aa.CrVoucherSNo as VoucherSNo,
+                		sum(aa.Amount) as AllocatedAmount
+                	from DrCrAllocation aa, Voucher bb, Voucher cc 
+                	where aa.DrVoucherTNo = bb.TNo
+                		and aa.CrVoucherTNo = cc.TNo
+                        and bb.VoucherDate <= :P523_ASONDATE
+                        and cc.VoucherDate <= :P523_ASONDATE
+                	group by 
+                		aa.CrVoucherTNo,
+                		aa.CrVoucherSNo
+                ), t_Bill as (
+                	select 
+                		aa.TNo,
+                		bb.PartyBillNo,
+                		bb.PartyBillDate
+                	from PBPass aa, PurchaseBill bb 
+                	where aa.PurchaseBillTNo = bb.TNo
+                	union all
+                	select 
+                		aa.TNo,
+                		bb.PartyBillNo,
+                		bb.PartyBillDate
+                	from JBPass aa, JobBill bb 
+                	where aa.JobBillTNo = bb.TNo
+                	union all
+                	select 
+                		aa.TNo,
+                		aa.PartyBillNo,
+                		aa.PartyBillDate
+                	from FreightAdvice aa
+                	/*union all
+                	select 
+                		aa.TNo,
+                		aa.PartyBillNo,
+                		aa.PartyBillDate
+                	from CashPurchase aa
+                	union all
+                	select 
+                		aa.TNo,
+                		aa.PartyBillNo,
+                		aa.PartyBillDate
+                	from MiscellaneousExpense aa
+                	union all
+                	select 
+                		aa.TNo,
+                		aa.BillNo AS PartyBillNo,
+                		aa.BillDate as PartyBillDate
+                	from ExternalServicesEntry aa
+                	union all
+                	select 
+                		aa.TNo,
+                		aa.PartyBillNo,
+                		aa.PartyBillDate
+                	from NecessityCompletion aa
+                    */
+                ), t_Balance as (
+                        select 
+                            a.TNo,
+                            a.SNo,
+                            a.VoucherDate,
+                            b.VoucherNo,
+                            b.doctypecode,
+                            a.LocationCode,
+                            d.BillNo as PartyBillNo,
+                            d.BillDate as PartyBillDate,
+                            trunc(sysdate) - nvl(d.BillDate, a.VoucherDate) as BillAge,
+                            a.AccountCode,
+                            a.Amount as VoucherAmount,
+                            c.AllocatedAmount,
+                            a.Amount - nvl(c.AllocatedAmount, 0) as BalanceAmount
+                        from VoucherDetail a, Voucher b, t_Allocated c, AccountOpening d 
+                        where a.TNo = b.TNo
+                            and a.TNO= c.VoucherTNo(+)
+                            and a.SNo = c.VoucherSNo(+)
+                            and a.ModuleTNo = d.TNo(+)
+                            and b.VoucherNo = 'OPENING'
+                            and a.VoucherDate <= :P523_ASONDATE
+                            and (:P523_LOCATION IS NULL OR instr(':'||:P523_LOCATION||':',':'||a.LocationCode||':') > 0)
+                            and ( :P523_PARTY IS NULL OR instr(':'||:P523_PARTY||':',':'||a.AccountCode||':') > 0 )    
+                        union all
+                        select 
+                            a.TNo,
+                            a.SNo,
+                            a.VoucherDate,
+                            b.VoucherNo,
+                            b.doctypecode,
+                            a.LocationCode,
+                            d.PartyBillNo,
+                            d.PartyBillDate,
+                            trunc(sysdate) - nvl(d.PartyBillDate, a.VoucherDate) as BillAge,
+                            a.AccountCode,
+                            a.Amount as VoucherAmount,
+                            c.AllocatedAmount,
+                            a.Amount - nvl(c.AllocatedAmount, 0) as BalanceAmount
+                        from VoucherDetail a, Voucher b, t_Allocated c, t_Bill d 
+                        where a.TNo = b.TNo
+                            and a.TNO= c.VoucherTNo(+)
+                            and a.SNo = c.VoucherSNo(+)
+                            and b.ModuleTNo = d.TNo(+)
+                            and b.VoucherNo != 'OPENING'
+                            and a.VoucherDate <= :P523_ASONDATE
+                            and (:P523_LOCATION IS NULL OR instr(':'||:P523_LOCATION||':',':'||a.LocationCode||':') > 0)
+                            and ( :P523_PARTY IS NULL OR instr(':'||:P523_PARTY||':',':'||a.AccountCode||':') > 0 )  
+                )
+                select 
+                    x.LocationCode,
+                    y.PartyName,
+                    x.VoucherNo,
+                    x.Doctypecode,
+                    x.VoucherDate,
+                    x.PartyBillNo,
+                    x.PartyBillDate,    
+                    case 
+                        when x.BillAge <= 15 then 'Up To 15'
+                        when x.BillAge between 16 and 30 then '16-30'
+                        when x.BillAge between 31 and 45 then '31-45'
+                        when x.BillAge between 46 and 60 then '46-60'
+                        when x.BillAge between 61 and 90 then '61-90'
+                        when x.BillAge between 91 and 120 then '91-120'
+                        when x.BillAge between 121 and 150 then '121-150'
+                        when x.BillAge between 151 and 180 then '151-180'
+                        else 'Above 180' 
+                    end as Age,
+                    x.BalanceAmount,
+                    x.AccountCode
+                from t_Balance x, Party y
+                where x.AccountCode = y.PartyCode
+                    and y.PartyTypeCode IN ('CUSTOMER','SUPPLIER','CONTRACTOR','TRANSPORTER')
+                    and ( :P523_PARTYTYPE IS NULL OR instr(':'||:P523_PARTYTYPE||':',':'||y.PARTYTYPECODE||':') > 0 )
+                    and round(x.BalanceAmount, 3) != 0
+                order by y.PartyName, x.LocationCode, x.VoucherDate, x.VoucherNo    
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 208406737051421518
+        }
+
+        column ACCOUNTCODE (
+            type: hidden
+            heading {
+                heading: Accountcode
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column AGE (
+            type: plainText
+            heading {
+                heading: Age
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column BALANCEAMOUNT (
+            type: plainText
+            heading {
+                heading: Balance Amount
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column DOCTYPECODE (
+            type: plainText
+            heading {
+                heading: Voucher Type
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Locationcode
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column PARTYBILLDATE (
+            type: plainText
+            heading {
+                heading: Partybilldate
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column PARTYBILLNO (
+            type: plainText
+            heading {
+                heading: Partybillno
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Partyname
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Voucherdate
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: Voucherno
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Creditors Aging Report
+        }
+
+        savedReport 131208 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGE (
+                sequence: 8
+            )
+
+            displayColumn BALANCEAMOUNT (
+                sequence: 9
+            )
+
+            displayColumn DOCTYPECODE (
+                sequence: 5
+            )
+
+            displayColumn LOCATIONCODE (
+                sequence: 1
+            )
+
+            displayColumn PARTYBILLDATE (
+                sequence: 7
+            )
+
+            displayColumn PARTYBILLNO (
+                sequence: 6
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 2
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 4
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 3
+            )
+
+            aggregate (
+                column: PENDINGAMT
+            )
+
+            aggregate (
+                column: BALANCEAMOUNT
+            )
+
+        )
+
+    )
+
+    region creditors-aging-detail-report-2 (
+        name: Creditors Aging Detail Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: fullWidthContent
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: Creditors Aging Detail Report
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P523_ASONDATE (
+        type: datePickerJquery
+        label {
+            label: As On Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 20
+            region: @creditors-aging-detail-report-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P523_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PAYMENTADVICE'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @creditors-aging-detail-report-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+    )
+
+    pageItem P523_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 3
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       p.PartyName d,
+                       p.PartyCode r
+                From  Party p 
+                Where P.PARTYTYPECODE IN ('CONTRACTOR','SUPPLIER','CUSTOMER','TRANSPORTER')
+                Order By 1
+                ```
+        }
+        layout {
+            sequence: 60
+            region: @creditors-aging-detail-report-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 75
+            valuePlaceholder: Vendor List
+        }
+    )
+
+    pageItem P523_PARTYTYPE (
+        type: selectList
+        label {
+            label: Party Type
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                DISTINCT PARTYTYPECODE AS NAME,
+                PARTYTYPECODE
+                FROM PARTY where partytypecode in 
+                ('CONTRACTOR','SUPPLIER','TRANSPORTER','CUSTOMER')
+                ORDER BY 1
+                ```
+            nullDisplayValue: -- Select Party Type --
+        }
+        layout {
+            sequence: 50
+            region: @creditors-aging-detail-report-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 70
+            region: @creditors-aging-detail-report-2
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

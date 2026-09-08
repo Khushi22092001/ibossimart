@@ -1,0 +1,774 @@
+page 364 (
+    name: Transactional Summary Report
+    alias: TRANSACTIONAL-SUMMARY-REPORT
+    title: Transactional Summary Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #TSUMMARY tr .a-IRR-aggregate{
+                background-color: #505f6d !important;
+                color: white;
+            }
+            
+            #TSUMMARY tr .a-IRR-header{
+                background-color: #505f6d !important;
+                color: white;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                js-useLocalStorage
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region transactional-summary (
+        name: Transactional Summary
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                    MODULENAME,
+                    PAGENO,
+                    SEQ,
+                
+                    ACTIVE,
+                    CANCELED,
+                    PREPARING,
+                    SHORTCLOSED,
+                    CLOSED,
+                    "NON-ACTIVE",
+                
+                    apex_util.prepare_url(
+                        'f?p=' || :APP_ID || ':' || PAGENO || ':' || :APP_SESSION ||
+                        '::NO::P' || PAGENO || '_FROMDATE,P' || PAGENO || '_TODATE,P'||PAGENO||'_LOCATION:' ||
+                        :P364_FROMDATE || ',' || :P364_TODATE || ',' || :P364_LOCATION
+                    ) AS REDIRECT_URL
+                
+                FROM (
+                    SELECT 
+                        m.MODULENAME,
+                        m.PAGENO,
+                        a.STATUS,
+                        a.TNO,
+                        a.SEQ
+                    FROM IMART_TRANSACTIONS_VW a
+                    LEFT JOIN MODULE m 
+                        ON a.MODULE_NAME = m.MODULECODE
+                    WHERE a.TRANSACTION_DATE BETWEEN :P364_FROMDATE AND :P364_TODATE
+                
+                      AND (:P364_LOCATION IS NULL OR 
+                           INSTR(':'||:P364_LOCATION||':', ':'||a.LocationCode||':') > 0)
+                
+                      AND (:P364_COMPANY IS NULL OR 
+                           INSTR(':'||:P364_COMPANY||':', ':'||a.CompanyCode||':') > 0)
+                
+                      AND (:P364_MODULE IS NULL OR 
+                           INSTR(':'||:P364_MODULE||':', ':'||a.Module_Name||':') > 0)
+                
+                      AND (:P364_MODULEGROUP IS NULL OR 
+                           INSTR(':'||:P364_MODULEGROUP||':', ':'||m.ModuleGroupCode||':') > 0)
+                )
+                PIVOT (
+                    COUNT(TNO)
+                    FOR STATUS IN (
+                        'ACTIVE'        AS ACTIVE,
+                        'CANCELED'      AS CANCELED,
+                        'PREPARING'     AS PREPARING,
+                        'SHORTCLOSED'   AS SHORTCLOSED,
+                        'CLOSED'        AS CLOSED,
+                        NULL            AS "NON-ACTIVE"
+                    )
+                )
+                ORDER BY SEQ;
+                ```
+            pageItemsToSubmit: [
+                P364_COMPANY
+                P364_LOCATION
+                P364_FROMDATE
+                P364_TODATE
+                P364_MODULEGROUP
+                P364_MODULE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: TSUMMARY
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        searchBar {
+            finderDropDown: false
+        }
+        actionsMenu {
+            sort: false
+            chart: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        advanced {
+            savedReportMappingIdentifier: 33803117259697977
+        }
+
+        column ACTIVE (
+            type: plainText
+            heading {
+                heading: Active
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        column CANCELED (
+            type: plainText
+            heading {
+                heading: Canceled
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        column CLOSED (
+            type: plainText
+            heading {
+                heading: Closed
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        column MODULENAME (
+            type: link
+            heading {
+                heading: Transaction Module
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    type: url
+                    url: #REDIRECT_URL#
+                }
+                linkText: #MODULENAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        column NON-ACTIVE (
+            type: plainText
+            heading {
+                heading: Non-Active
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        column PAGENO (
+            type: hidden
+            heading {
+                heading: Pageno
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column PREPARING (
+            type: plainText
+            heading {
+                heading: Preparing
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        column REDIRECT_URL (
+            type: hidden
+            heading {
+                heading: Redirect Url
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SEQ (
+            type: hidden
+            heading {
+                heading: Seq
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column SHORTCLOSED (
+            type: plainText
+            heading {
+                heading: Short-Closed
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+            enableUsersTo {
+                hide: false
+                sort: false
+                filter: false
+                highlight: false
+                controlBreak: false
+                aggregate: false
+                compute: false
+                chart: false
+                groupBy: false
+                pivot: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Transactional Summary
+        }
+
+        savedReport 338072 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACTIVE (
+                sequence: 2
+            )
+
+            displayColumn CANCELED (
+                sequence: 5
+            )
+
+            displayColumn CLOSED (
+                sequence: 7
+            )
+
+            displayColumn MODULENAME (
+                sequence: 1
+            )
+
+            displayColumn NON-ACTIVE (
+                sequence: 3
+            )
+
+            displayColumn PREPARING (
+                sequence: 4
+            )
+
+            displayColumn SHORTCLOSED (
+                sequence: 6
+            )
+
+            aggregate (
+                column: ACTIVE
+            )
+
+            aggregate (
+                column: NON-ACTIVE
+            )
+
+            aggregate (
+                column: PREPARING
+            )
+
+            aggregate (
+                column: CANCELED
+            )
+
+            aggregate (
+                column: SHORTCLOSED
+            )
+
+            aggregate (
+                column: CLOSED
+            )
+
+        )
+
+    )
+
+    pageItem P364_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT COMPANYNAME,COMPANYCODE FROM COMPANY
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+        default {
+            type: item
+            item: GLOBALCOMPANYCODE
+        }
+    )
+
+    pageItem P364_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        settings {
+            minDate: item
+            minItem: P364_GLOBAL_FINANCIALYEARBEGIN
+            maxDate: item
+            maxItem: P364_TODATE
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+            alignment: left
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: trunc(sysdate)
+        }
+    )
+
+    pageItem P364_GLOBAL_FINANCIALYEARBEGIN (
+        type: hidden
+        layout {
+            sequence: 80
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P364_GLOBAL_FINANCIALYEAREND (
+        type: hidden
+        layout {
+            sequence: 90
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P364_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT LOCATIONNAME, LOCATIONCODE FROM LOCATION
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+    )
+
+    pageItem P364_MODULE (
+        type: selectOne
+        label {
+            label: Module
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT Distinct
+                     m.MODULENAME as d,
+                     a.MODULE_NAME as r
+                FROM IMART_TRANSACTIONS_VW a
+                LEFT JOIN MODULE m ON m.MODULECODE = a.MODULE_NAME
+                LEFT JOIN MODULEGROUP mg ON mg.MODULEGROUPCODE = m.MODULEGROUPCODE
+                WHERE  (:P364_MODULEGROUP IS NULL OR instr(':'||:P364_MODULEGROUP||':',':'||m.ModuleGroupCode||':') > 0 )
+                
+                
+                
+                ```
+        }
+        cascadingLov {
+            parentItems: P364_MODULEGROUP
+            itemsToSubmit: P364_MODULE
+            parentRequired: false
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Module Name --
+        }
+    )
+
+    pageItem P364_MODULEGROUP (
+        type: selectOne
+        label {
+            label: Module Group
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                     mg.MODULEGROUPNAME,
+                     mg.MODULEGROUPCODE
+                FROM IMART_TRANSACTIONS_VW a
+                LEFT JOIN MODULE m ON a.MODULE_NAME = m.MODULECODE
+                LEFT JOIN MODULEGROUP mg ON mg.MODULEGROUPCODE = m.MODULEGROUPCODE
+                ```
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Module Group --
+        }
+    )
+
+    pageItem P364_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            maxDate: item
+            maxItem: P364_GLOBAL_FINANCIALYEAREND
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: trunc(sysdate)
+        }
+    )
+
+    dynamicAction refresh-the-report-on-change (
+        name: Refresh the Report on Change
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: [
+                P364_COMPANY
+                P364_LOCATION
+                P364_FROMDATE
+                P364_TODATE
+                P364_MODULEGROUP
+                P364_MODULE
+            ]
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @transactional-summary
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process fetch-global-fin-year-begin-and-end-date (
+        name: Fetch Global Fin Year Begin and End date
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    :P364_GLOBAL_FINANCIALYEARBEGIN  := :GLOBAL_FINANCIALYEARBEGIN;
+                    :P364_GLOBAL_FINANCIALYEAREND  := :GLOBAL_FINANCIALYEAREND;
+                
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 33764580216181722
+        }
+    )
+
+)
+

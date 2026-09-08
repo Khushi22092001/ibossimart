@@ -1,0 +1,1099 @@
+page 734 (
+    name: Sales Order 360
+    alias: SALES-ORDER-360
+    title: Sales Order 360
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: Read-only Sales Order 360. Traces one order from confirmation through dispatch, gate, weighment, CC invoice and IRN with standalone date, company, location and panel filters.
+    }
+
+    region command-header (
+        name: Sales Order 360
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-so360-hero"><div class="ds-so360-row"><span class="ds-so360-icon"><span class="fa fa-file-text-o"></span></span><span>'
+                    ||'<span class="ds-so360-eye">Commercial &middot; Order-to-Cash</span><br><span class="ds-so360-title">Sales Order 360</span>'
+                    ||'<div class="ds-so360-sub">One order, every item and every downstream handoff &mdash; dispatch, gate, weighment, invoice and IRN.</div></span></div>'
+                    ||'<span class="ds-so360-chip"><span class="fa fa-calendar"></span>'||apex_escape.html(:P734_FROMDATE)||' &ndash; '||apex_escape.html(:P734_TODATE)||'</span>'
+                    ||Case When :P734_SOTNO Is Not Null Then '<span class="ds-so360-chip"><b>'||apex_escape.html((Select Max(SalesOrderNo) From SalesOrder Where TNo=:P734_SOTNO))||'</b></span>' Else '' End
+                    ||'</div>' Head
+                From dual
+                ```
+            pageItemsToSubmit: [
+                P734_FROMDATE
+                P734_TODATE
+                P734_SOTNO
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-slc-headregion
+                ds-360-headregion
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 6
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+            ]
+            cssClasses: ds-filter-panel
+        }
+    )
+
+    region kpis (
+        name: Order Position
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With O As (
+                  Select so.TNo,so.SalesOrderAmount,
+                         (Select Sum(d.Quantity1) From SalesOrderDetail d Where d.TNo=so.TNo) OrderQty,
+                         (Select Sum(d.Quantity1) From DespatchAdvice da Join DespatchAdviceDetail d On d.TNo=da.TNo Where da.SalesOrderTNo=so.TNo Or Exists (Select 1 From DespatchAdviceDetail dx Where dx.TNo=da.TNo And dx.ReferenceTNo=so.TNo)) DispatchQty,
+                         (Select Sum(d.Quantity1) From CCInvoice ci Join CCInvoiceDetail d On d.TNo=ci.TNo Where ci.SalesOrderTNo=so.TNo Or d.ReferenceTNo=so.TNo) InvoiceQty,
+                         (Select Count(*) From DespatchAdvice da Where da.SalesOrderTNo=so.TNo Or Exists (Select 1 From DespatchAdviceDetail dx Where dx.TNo=da.TNo And dx.ReferenceTNo=so.TNo)) Dispatches,
+                         (Select Count(*) From CCInvoice ci Where ci.SalesOrderTNo=so.TNo) Invoices
+                    From SalesOrder so
+                   Where so.TNo=:P734_SOTNO
+                     And so.SalesOrderDate Between to_date(:P734_FROMDATE,'DD-MM-RRRR') And to_date(:P734_TODATE,'DD-MM-RRRR')
+                     And (:P734_COMPANY Is Null Or so.CompanyCode=:P734_COMPANY)
+                     And (:P734_LOCATION Is Null Or so.LocationCode=:P734_LOCATION)
+                     And (:P734_PANEL Is Null Or so.Panel=:P734_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or so.Panel=(Select GetUserPanelAB_apex() From dual)))
+                Select Case x.Seq
+                  When 1 Then '<div class="ds-kpi ds-kpi--value"><span class="ds-kpi-ic"><span class="fa fa-inr"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Order Value</span><span class="ds-kpi-n">&#8377; '||to_char(Nvl(o.SalesOrderAmount,0)/1e7,'FM999G990D00')||' Cr</span><span class="ds-kpi-sub">Booked value</span></span></div>'
+                  When 2 Then '<div class="ds-kpi ds-kpi--bill"><span class="ds-kpi-ic"><span class="fa fa-cubes"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Ordered Quantity</span><span class="ds-kpi-n">'||to_char(Nvl(o.OrderQty,0),'FM999G999G990D000')||'</span><span class="ds-kpi-sub">Across all order lines</span></span></div>'
+                  When 3 Then '<div class="ds-kpi ds-kpi--ok"><span class="ds-kpi-ic"><span class="fa fa-truck"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Dispatched Quantity</span><span class="ds-kpi-n">'||to_char(Nvl(o.DispatchQty,0),'FM999G999G990D000')||'</span><span class="ds-kpi-sub">'||to_char(Nvl(o.Dispatches,0))||' dispatch advices</span></span></div>'
+                  Else '<div class="ds-kpi ds-kpi--risk"><span class="ds-kpi-ic"><span class="fa fa-hourglass-half"></span></span><span class="ds-kpi-body"><span class="ds-kpi-t">Balance Quantity</span><span class="ds-kpi-n">'||to_char(Greatest(Nvl(o.OrderQty,0)-Nvl(o.InvoiceQty,0),0),'FM999G999G990D000')||'</span><span class="ds-kpi-sub">'||to_char(Nvl(o.Invoices,0))||' CC invoices</span></span></div>' End Card
+                From O o Cross Join (Select Level Seq From dual Connect By Level<=4) x
+                Order By x.Seq
+                ```
+            pageItemsToSubmit: [
+                P734_SOTNO
+                P734_FROMDATE
+                P734_TODATE
+                P734_COMPANY
+                P734_LOCATION
+                P734_PANEL
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-kpiwrap--4up
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: Select a Sales Order and apply the filters.
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region lifecycle (
+        name: Dispatch, Gate, Weighment &amp; Invoice Trace
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select da.DespatchAdviceNo,da.DespatchAdviceDate,
+                       Case When da.VehicleNo Is Not Null Then '<a href="'||apex_page.get_url(p_page=>732,p_clear_cache=>'732',p_items=>'P732_VEHICLE',p_values=>da.VehicleNo)||'">'||apex_escape.html(da.VehicleNo)||'</a>' End Vehicle,
+                       mo.GateInTime,mo.GateOutTime,w.WeighmentNo,w.FirstWeight,w.SecondWeight,Nvl(w.NetWeight,Abs(w.SecondWeight-w.FirstWeight)) NetWeight,
+                       ci.CCInvoiceNo,ci.CCInvoiceDate,ci.CCInvoiceAmount,
+                       Case When e.IRN Is Not Null Then 'IRN generated' When ci.TNo Is Not Null Then 'IRN pending' End EInvoiceStatus
+                  From SalesOrder so
+                  Left Join DespatchAdvice da On da.SalesOrderTNo=so.TNo Or Exists (Select 1 From DespatchAdviceDetail dx Where dx.TNo=da.TNo And dx.ReferenceTNo=so.TNo)
+                  Left Join MaterialOut mo On mo.ReferenceTNo=da.TNo
+                  Left Join Weighment w On w.ReferenceTNo=da.TNo
+                  Left Join CCInvoice ci On ci.SalesOrderTNo=so.TNo And (ci.DespatchAdviceTNo=da.TNo Or da.TNo Is Null)
+                  Left Join EInvoice e On e.CCInvoiceTNo=ci.TNo
+                 Where so.TNo=:P734_SOTNO
+                   And so.SalesOrderDate Between to_date(:P734_FROMDATE,'DD-MM-RRRR') And to_date(:P734_TODATE,'DD-MM-RRRR')
+                   And (:P734_COMPANY Is Null Or so.CompanyCode=:P734_COMPANY)
+                   And (:P734_LOCATION Is Null Or so.LocationCode=:P734_LOCATION)
+                   And (:P734_PANEL Is Null Or so.Panel=:P734_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or so.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Order By da.DespatchAdviceDate,ci.CCInvoiceDate
+                ```
+            pageItemsToSubmit: [
+                P734_SOTNO
+                P734_FROMDATE
+                P734_TODATE
+                P734_COMPANY
+                P734_LOCATION
+                P734_PANEL
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p734Lifecycle
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No downstream documents found for this order.
+        }
+        advanced {
+            savedReportMappingIdentifier: 52088162295084043
+        }
+
+        column CCINVOICEAMOUNT (
+            type: plainText
+            heading {
+                heading: Invoice Amount
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column CCINVOICEDATE (
+            type: plainText
+            heading {
+                heading: Invoice Date
+            }
+            layout {
+                sequence: 110
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CCINVOICENO (
+            type: plainText
+            heading {
+                heading: CC Invoice
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DESPATCHADVICEDATE (
+            type: plainText
+            heading {
+                heading: Dispatch Date
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DESPATCHADVICENO (
+            type: plainText
+            heading {
+                heading: Dispatch Advice
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column EINVOICESTATUS (
+            type: plainText
+            heading {
+                heading: E-Invoice
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column FIRSTWEIGHT (
+            type: plainText
+            heading {
+                heading: First Weight
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column GATEINTIME (
+            type: plainText
+            heading {
+                heading: Gate In
+            }
+            layout {
+                sequence: 40
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column GATEOUTTIME (
+            type: plainText
+            heading {
+                heading: Gate Out
+            }
+            layout {
+                sequence: 50
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column NETWEIGHT (
+            type: plainText
+            heading {
+                heading: Net Weight
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column SECONDWEIGHT (
+            type: plainText
+            heading {
+                heading: Second Weight
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column VEHICLE (
+            type: plainText
+            heading {
+                heading: Vehicle
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column WEIGHMENTNO (
+            type: plainText
+            heading {
+                heading: Weighment
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region order-lines (
+        name: Sales Order Item Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Dsp As (
+                  Select d.ReferenceTNo,d.ItemCode,d.ItemSpecificationCode,Sum(d.Quantity1) Qty
+                    From DespatchAdviceDetail d
+                   Group By d.ReferenceTNo,d.ItemCode,d.ItemSpecificationCode),
+                Inv As (
+                  Select d.ReferenceTNo,d.ItemCode,d.ItemSpecificationCode,Sum(d.Quantity1) Qty
+                    From CCInvoiceDetail d
+                   Group By d.ReferenceTNo,d.ItemCode,d.ItemSpecificationCode)
+                Select so.SalesOrderNo,so.SalesOrderDate,GetPartyName(so.PartyCode) Customer,
+                       d.ItemCode,i.ItemName,isp.ItemSpecificationName,i.MeasuringUnitCode1 UOM,
+                       d.Quantity1 OrderQty,Nvl(ds.Qty,0) DispatchQty,Nvl(iv.Qty,0) InvoiceQty,
+                       Greatest(Nvl(d.Quantity1,0)-Nvl(iv.Qty,0),0) BalanceQty,
+                       d.Rate,d.Amount,d.TotalAmount
+                  From SalesOrder so Join SalesOrderDetail d On d.TNo=so.TNo
+                  Left Join Item i On i.ItemCode=d.ItemCode
+                  Left Join ItemSpecification isp On isp.ItemSpecificationCode=d.ItemSpecificationCode
+                  Left Join Dsp ds On ds.ReferenceTNo=so.TNo And ds.ItemCode=d.ItemCode And ds.ItemSpecificationCode=d.ItemSpecificationCode
+                  Left Join Inv iv On iv.ReferenceTNo=so.TNo And iv.ItemCode=d.ItemCode And iv.ItemSpecificationCode=d.ItemSpecificationCode
+                 Where so.TNo=:P734_SOTNO
+                   And so.SalesOrderDate Between to_date(:P734_FROMDATE,'DD-MM-RRRR') And to_date(:P734_TODATE,'DD-MM-RRRR')
+                   And (:P734_COMPANY Is Null Or so.CompanyCode=:P734_COMPANY)
+                   And (:P734_LOCATION Is Null Or so.LocationCode=:P734_LOCATION)
+                   And (:P734_PANEL Is Null Or so.Panel=:P734_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or so.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Order By d.SNo
+                ```
+            pageItemsToSubmit: [
+                P734_SOTNO
+                P734_FROMDATE
+                P734_TODATE
+                P734_COMPANY
+                P734_LOCATION
+                P734_PANEL
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p734OrderLines
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No order lines match the selected scope.
+        }
+        advanced {
+            savedReportMappingIdentifier: 52086591392084043
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column BALANCEQTY (
+            type: plainText
+            heading {
+                heading: Balance
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CUSTOMER (
+            type: plainText
+            heading {
+                heading: Customer
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DISPATCHQTY (
+            type: plainText
+            heading {
+                heading: Dispatched
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column INVOICEQTY (
+            type: plainText
+            heading {
+                heading: Invoiced
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: Item Code
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ORDERQTY (
+            type: plainText
+            heading {
+                heading: Ordered
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: Rate
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column SALESORDERDATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column SALESORDERNO (
+            type: plainText
+            heading {
+                heading: Sales Order
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: Total Amount
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: UOM
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    region page-style (
+        name: Sales Order 360 Theme
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <style>
+                body:has(.ds-slc-headregion){--slc-primary:#0F766E;--slc-secondary:#0891B2;--slc-deep:#134E4A;--ds-dash-gold:#0F766E;--ds-dash-gold-bg:#E5F3F1;--ds-dash-ink:#0B3B36;--ds-dash-ink2:#2E5A55;}
+                body:has(.ds-slc-headregion) .ds-kpi--value{--ds-kpi-accent:#0F766E;--ds-kpi-accent-bg:#E5F3F1;}
+                body:has(.ds-slc-headregion) .ds-kpi--bill{--ds-kpi-accent:#0891B2;--ds-kpi-accent-bg:#E2F4F8;}
+                body:has(.ds-slc-headregion) .ds-kpi--risk{--ds-kpi-accent:#B45309;--ds-kpi-accent-bg:#FBF0E2;}
+                body:has(.ds-slc-headregion) .ds-kpi--ok{--ds-kpi-accent:#15803D;--ds-kpi-accent-bg:#E6F4EA;}
+                .ds-so360-hero{padding:22px 24px;border:1px solid #A7D9D3;border-radius:16px;background:linear-gradient(120deg,#D3EEEA,#E9F7F5);box-shadow:0 12px 34px rgba(15,118,110,.12);}
+                .ds-so360-row{display:flex;align-items:flex-start;gap:15px}.ds-so360-icon{display:grid;place-items:center;width:50px;height:50px;border-radius:13px;color:#fff;background:linear-gradient(135deg,#0D9488,#0F766E);font-size:20px}
+                .ds-so360-eye{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#0F766E}.ds-so360-title{font-size:25px;font-weight:700;color:#0B3B36}.ds-so360-sub{margin-top:5px;color:#2E5A55;line-height:1.5}
+                .ds-so360-chip{display:inline-flex;gap:6px;margin-top:14px;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.72);color:#2E5A55}
+                html.page-734 .t-Body-title{display:none!important}
+                </style>
+                ```
+        }
+        layout {
+            sequence: 1
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P734_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select CompanyName d,CompanyCode r From Company Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P734_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(add_months(trunc(sysdate,'MM'),-2),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P734_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d,LocationCode r From Location Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 7
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P734_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnSpan: 1
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P734_SOTNO (
+        type: popupLov
+        label {
+            label: Sales Order
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select so.SalesOrderNo||' - '||GetPartyName(so.PartyCode)||' - '||to_char(so.SalesOrderDate,'DD-Mon-RRRR') d,so.TNo r
+                  From SalesOrder so
+                 Where so.SalesOrderDate Between to_date(:P734_FROMDATE,'DD-MM-RRRR') And to_date(:P734_TODATE,'DD-MM-RRRR')
+                   And (:P734_COMPANY Is Null Or so.CompanyCode=:P734_COMPANY)
+                   And (:P734_LOCATION Is Null Or so.LocationCode=:P734_LOCATION)
+                   And (:P734_PANEL Is Null Or so.Panel=:P734_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or so.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Order By so.SalesOrderDate Desc,so.SalesOrderNo Desc
+                ```
+            nullDisplayValue: - Select Sales Order -
+        }
+        cascadingLov {
+            parentItems: [
+                P734_FROMDATE
+                P734_TODATE
+                P734_COMPANY
+                P734_LOCATION
+                P734_PANEL
+            ]
+            itemsToSubmit: [
+                P734_FROMDATE
+                P734_TODATE
+                P734_COMPANY
+                P734_LOCATION
+                P734_PANEL
+            ]
+        }
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 5
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P734_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply-filters (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 6
+            columnSpan: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-search
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button reset-filters (
+        buttonName: RESETFILTERS
+        label: Reset
+        layout {
+            sequence: 80
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 7
+            columnSpan: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-undo
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 734
+                clearCache: 734
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

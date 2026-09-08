@@ -1,0 +1,392 @@
+page 365 (
+    name: Enhance Interactive Grid with Treegrid
+    alias: ENHANCE-INTERACTIVE-GRID-WITH-TREEGRID
+    title: Enhance Interactive Grid with Treegrid
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        authentication: public
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region interactive-grid-employees (
+        name: Interactive Grid - Employees
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select modulecode as MODULECODE, 
+                       modulename as MODULENAME, 
+                       parentcode as PARENTCODE, 
+                       prior modulename as MODULE, 
+                       level,
+                       case when parentcode is null
+                              then 'fa-robot'
+                            when parentcode = '7839'
+                              then 'fa-users'
+                            else 'fa-user'
+                       end as icon
+                  From (Select A.MODULECODE, A.MODULENAME, B.MODULEGROUPCODE As PARENTCODE, a.isactive
+                          From Module A, MODULEGROUP B
+                         Where A.MODULEGROUPCODE = B.MODULEGROUPCODE
+                        Union All
+                        Select B.MODULEGROUPCODE, B.MODULEGROUPNAME, Null, null 
+                          From MODULEGROUP B) X
+                 Start With parentcode Is Null
+                Connect By NOCYCLE parentcode  = Prior MODULECODE
+                
+                /*
+                select partycode as empno, 
+                       partyname as ename, 
+                       parentcode as mgr, 
+                       prior partyname as emp, 
+                       level,
+                       case when parentcode is null
+                              then 'fa-robot'
+                            when parentcode = '7839'
+                              then 'fa-users'
+                            else 'fa-user'
+                       end as icon
+                from party
+                connect by prior partycode = parentcode
+                start with parentcode is null;
+                */
+                 
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: TREEGRID_IG
+        }
+        edit {
+            enabled: true
+            allowedOperations: update
+        }
+        performance {
+            lazyLoading: true
+        }
+        componentAppearance {
+            showNullValuesAs: -
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchField
+                actionsMenu
+            ]
+        }
+        enableUsersTo {
+            flashback: false
+            defineChartView: false
+            download: false
+        }
+        heading {
+            fixedTo: none
+        }
+        advanced {
+            savedReportMappingIdentifier: 41974406712116605181
+        }
+
+        savedReport 29449718 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @MODULECODE
+                layout {
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @MODULENAME
+                layout {
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @PARENTCODE
+                layout {
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @MODULE
+                layout {
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @ICON
+                layout {
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    frozen: true
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @LEVEL
+                layout {
+                    sequence: 6
+                }
+            )
+
+            highlight highlight-level (
+                name: Highlight level 2
+                condition {
+                    column: @LEVEL
+                    value: 2
+                }
+                colors {
+                    background: #c74634
+                }
+                execution {
+                    sequence: 5
+                }
+            )
+
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column ICON (
+            type: hidden
+            layout {
+                sequence: 140
+            }
+            source {
+                databaseColumn: ICON
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column LEVEL (
+            type: numberField
+            heading {
+                heading: Level
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                databaseColumn: LEVEL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column MODULE (
+            type: textField
+            heading {
+                heading: Module
+            }
+            layout {
+                sequence: 120
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: MODULE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column MODULECODE (
+            type: textField
+            heading {
+                heading: Modulecode
+            }
+            layout {
+                sequence: 90
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: MODULECODE
+                dataType: varchar2
+                primaryKey: true
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column MODULENAME (
+            type: htmlExpression
+            heading {
+                heading: Modulename
+            }
+            settings {
+                htmlExpression: <span class="fa &ICON."> &MODULENAME.</span>
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                databaseColumn: MODULENAME
+                dataType: varchar2
+            }
+        )
+
+        column PARENTCODE (
+            type: textField
+            heading {
+                heading: Parentcode
+            }
+            layout {
+                sequence: 110
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARENTCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+    )
+
+    dynamicAction initialize-treegrid-on-ig (
+        name: Initialize treegrid on IG
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-com-enhanceigwithtreegrid-plugin (
+            action: plugin/enhanceInteractiveGridWithTreegrid
+            settings {
+                idColumn: MODULECODE
+                parentIdColumn: PARENTCODE
+                expandCollapse: expand
+                displayOnColumn: MODULENAME
+                levelColumn: LEVEL
+            }
+            affectedElements {
+                selectionType: region
+                region: @interactive-grid-employees
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction pagination-changed (
+        name: Pagination changed
+        execution {
+            sequence: 20
+        }
+        when {
+            event: region/interactiveGrid/gridpagechange
+            selectionType: region
+            region: @interactive-grid-employees
+        }
+
+        action plugin-com-enhanceigwithtreegrid-plugin (
+            action: plugin/enhanceInteractiveGridWithTreegrid
+            settings {
+                idColumn: MODULECODE
+                parentIdColumn: PARENTCODE
+                expandCollapse: expand
+                displayOnColumn: MODULENAME
+                levelColumn: LEVEL
+            }
+            affectedElements {
+                selectionType: region
+                region: @interactive-grid-employees
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

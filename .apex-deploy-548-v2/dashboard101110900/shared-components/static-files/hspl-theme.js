@@ -196,6 +196,13 @@
 
   function ensurePageTitle() {
     var host = doc.querySelector(".t-Body-title");
+    var formPageIds = [24, 25, 32, 181, 183, 240, 297, 350, 480, 546, 548];
+    var pageClass = (doc.documentElement.className || "").match(/(?:^|\s)page-(\d+)(?:\s|$)/);
+    if (pageClass && formPageIds.indexOf(parseInt(pageClass[1], 10)) !== -1) {
+      doc.documentElement.classList.add("hspl-form-page");
+      if (host) host.style.setProperty("display", "none", "important");
+      return;
+    }
     if (!host || host.children.length) return;
     var t = (doc.title || "").split(/\s+[|–-]\s+/)[0].trim();
     if (!t) return;

@@ -1,0 +1,758 @@
+page 464 (
+    name: MInes Wise Daily Summary Report
+    alias: MINES-WISE-DAILY-SUMMARY-REPORT
+    title: MInes Wise Daily Summary Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .my_grid .a-GV-w-hdr{
+                overflow-x: auto !important;
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region mines-wise-daily-summary (
+        name: Mines Wise Daily Summary
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region mines-wise-daily-summary-report (
+        name: Mines Wise Daily Summary Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                   b.LocationName,
+                   row_number() over(order by a.LocationCode) SerialNo,
+                   'LR' as Module,
+                   c.SourceLocationName,
+                   a.LocationCode,
+                   a.CompanyCode,
+                   c.SourceLocationCode,
+                   d.DestinationLocationCode,
+                   d.DestinationLocationName,
+                   Count(a.VehicleNo) as NoOfTruck,
+                   Sum(a.Quantity1) as Qty,
+                   round(nvl(Sum(a.Quantity1),1) / nvl(Count(a.VehicleNo),1),3) as AvgQty
+                From LR a, Location b, SourceLocation c, DestinationLocation d
+                Where a.LocationCode = b.LocationCode(+)
+                  and a.SourceLocationTno = c.Tno(+)
+                  and a.DestinationLocationTno = d.Tno(+)
+                  and a.VehicleGroupCode = 'SELF'
+                  and (:P464_COMPANY is Null Or Instr (':' || :P464_COMPANY || ':' , ':' || a.CompanyCode || ':') > 0)
+                  and a.LRDATE Between :P464_FROMDATE and :P464_TODATE 
+                  and (:P464_LOCATION is Null Or Instr (':' || :P464_LOCATION || ':' , ':' || b.LocationCode || ':') > 0)
+                  And  (:P464_SOURCE is Null Or Instr (':' || :P464_SOURCE || ':' , ':' ||c.SourceLocationCode|| ':') > 0)
+                  And  (:P464_DESTINATION is Null Or Instr (':' || :P464_DESTINATION || ':' , ':' ||a.DestinationLocationTno|| ':') > 0) 
+                Group By b.LocationName,
+                         c.SourceLocationName,
+                         d.DestinationLocationName,
+                         a.LocationCode,
+                         a.CompanyCode,
+                         c.SourceLocationCode,
+                         d.DestinationLocationCode
+                
+                UNION ALL
+                
+                Select
+                   b.LocationName,
+                   row_number() over(order by a.LocationCode) SerialNo,
+                   'Internal Transfer' as Module,
+                   c.SourceLocationName,
+                   a.LocationCode,
+                   a.CompanyCode,
+                   c.SourceLocationCode,
+                   d.DestinationLocationCode,
+                   d.DestinationLocationName,
+                   Count(a.VehicleNo) as NoOfTruck,
+                   Sum(a.LoadingQuantity1) as Qty,
+                   round(nvl(Sum(a.LoadingQuantity1),1) / nvl(Count(a.VehicleNo),1),3) as AvgQty
+                From InternalTransfer a, Location b, SourceLocation c, DestinationLocation d
+                Where a.LocationCode = b.LocationCode(+)
+                  and a.SourceLocationTno = c.Tno(+)
+                  and a.DestinationLocationTno = d.Tno(+)
+                  and a.VehicleGroupCode = 'SELF'
+                  and (:P464_COMPANY is Null Or Instr (':' || :P464_COMPANY || ':' , ':' || a.CompanyCode || ':') > 0)
+                  and a.InternalTransferDate Between :P464_FROMDATE and :P464_TODATE 
+                  and (:P464_LOCATION is Null Or Instr (':' || :P464_LOCATION || ':' , ':' || b.LocationCode || ':') > 0)
+                  And (:P464_SOURCE is Null Or Instr (':' || :P464_SOURCE || ':' , ':' ||c.SourceLocationCode|| ':') > 0)
+                  And (:P464_DESTINATION is Null Or Instr (':' || :P464_DESTINATION || ':' , ':' ||a.DestinationLocationTno|| ':') > 0) 
+                Group By b.LocationName,
+                         c.SourceLocationName,
+                         d.DestinationLocationName,
+                         a.LocationCode,
+                         a.CompanyCode,
+                         c.SourceLocationCode,
+                         d.DestinationLocationCode;
+                
+                
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+            cssClasses: my_grid
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 23167521216050123
+        }
+
+        column AVGQTY (
+            type: plainText
+            heading {
+                heading: Average Qty
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DESTINATIONLOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Destinationlocationcode
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column DESTINATIONLOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Destination Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Locationcode
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column MODULE (
+            type: plainText
+            heading {
+                heading: Module
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column NOOFTRUCK (
+            type: link
+            heading {
+                heading: No Of Truck
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            link {
+                target: {
+                    page: 466
+                    items: {
+                        P466_FROMDATE: &P464_FROMDATE.
+                        P466_TODATE: &P464_TODATE.
+                        P466_COMPANY: #COMPANYCODE#
+                        P466_LOCATION: #LOCATIONCODE#
+                        P466_SOURCE: #SOURCELOCATIONCODE#
+                        P466_DESTINATION: #DESTINATIONLOCATIONCODE#
+                    }
+                    clearCache: 466
+                }
+                linkText: #NOOFTRUCK#
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column QTY (
+            type: plainText
+            heading {
+                heading: Qty
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column SOURCELOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Sourcelocationcode
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SOURCELOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Source Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Mines Wise Daily Summary Report
+        }
+
+        savedReport 292133 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AVGQTY (
+                sequence: 8
+            )
+
+            displayColumn DESTINATIONLOCATIONNAME (
+                sequence: 4
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn MODULE (
+                sequence: 5
+            )
+
+            displayColumn NOOFTRUCK (
+                sequence: 6
+            )
+
+            displayColumn QTY (
+                sequence: 7
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SOURCELOCATIONNAME (
+                sequence: 3
+            )
+
+            aggregate (
+                column: NOOFTRUCK
+            )
+
+            aggregate (
+                column: QTY
+            )
+
+        )
+
+    )
+
+    pageItem P464_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.CompanyName d,
+                a.CompanyCode r
+                From Company a
+                Where exists(
+                   Select
+                      aa.Tno
+                   From LR aa
+                   Where aa.companyCode = a.companyCode
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @mines-wise-daily-summary
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P464_DESTINATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Destination
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.DestinationLocationName d,
+                a.Tno r
+                From DestinationLocation a
+                Where exists(
+                   Select
+                      aa.DestinationLocationTno
+                   From LR aa
+                   Where a.Tno = aa.DestinationLocationTno
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @mines-wise-daily-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P464_FROMDATE (
+        type: datePicker
+        label {
+            label: From LR Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @mines-wise-daily-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P464_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                Distinct
+                b.LocationName d,
+                b.locationCode r
+                From LR a, Location b
+                Where a.LocationCode = b.LocationCode(+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @mines-wise-daily-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P464_SOURCE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Source
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                distinct
+                a.SourceLocationName d,
+                a.SourceLocationCode r
+                From SourceLocation a
+                Where exists(
+                   Select
+                      aa.SourceLocationTno
+                   From LR aa
+                   Where a.Tno = aa.SourceLocationTno(+)
+                )
+                Order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @mines-wise-daily-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P464_TODATE (
+        type: datePickerJquery
+        label {
+            label: To LR Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @mines-wise-daily-summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 60
+            region: @mines-wise-daily-summary
+            slot: bottom
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

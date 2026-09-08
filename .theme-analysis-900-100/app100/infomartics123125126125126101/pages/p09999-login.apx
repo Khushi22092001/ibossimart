@@ -1,0 +1,513 @@
+page 9999 (
+    name: Login Page
+    alias: LOGIN
+    title: InfoMartics - Log In
+    appearance {
+        pageTemplate: @/login
+        templateOptions: #DEFAULT#
+    }
+    navigationMenu {
+        overrideUserInterfaceLevel: true
+    }
+    navigation {
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            .t-Login-container {
+                background-image: url('#APP_FILES#IRON-MART.jpg');
+                background-size: cover;
+            
+             }
+            
+            .t-Login-logo {
+                background-image: url("#APP_FILES#logo_new4.png");
+             
+                border-radius: 50%;
+                width: 100px;
+                height: 100px;
+            }
+            
+            .t-Login-region .t-Login-body .t-Form-fieldContainer:not(.t-Form-fieldContainer--floatingLabel) .apex-item-text {
+                font-size: 16px;
+                padding: 4px 36px;
+                height: 40px;
+                border-radius: 20px;
+            }
+            
+            .a-Button--hot,
+            .t-Button--hot:not(.t-Button--simple),
+            body .ui-button.ui-button--hot,
+            body .ui-state-default.ui-priority-primary {
+                background-color: #0c0b0b;
+                color: #f9f9f9;
+                border-radius: 15px;
+            }
+            
+            .a-Button--hot:hover,
+            .a-Button--hot:not(:active):focus,
+            .t-Button--hot:not(.t-Button--simple):hover,
+            .t-Button--hot:not(.t-Button--simple):not(:active):focus,
+            body .ui-button.ui-button--hot:hover,
+            body .ui-button.ui-button--hot:not(:active):focus,
+            body .ui-state-default.ui-priority-primary:hover,
+            body .ui-state-default.ui-priority-primary:not(:active):focus {
+                background-color: #363b40;
+            }
+            
+            
+            ```
+    }
+    security {
+        authentication: public
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region iron-mart-private-limited (
+        name: " Iron Mart Private Limited"
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/login
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    pageItem P9999_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT COMPANYNAME,COMPANYCODE FROM COMPANY a
+                Where Exists (Select BB.TNo
+                          From BossUser bb, BossUserRole cc
+                         Where cc.CompanyCode = a.CompanyCode
+                           And bb.LoginName = :Global_LoginName
+                           And bb.tno = cc.tno)
+                 Order By A.CompanyName
+                ```
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P9999_USERNAME
+            itemsToSubmit: P9999_USERNAME
+        }
+        layout {
+            sequence: 60
+            region: @iron-mart-private-limited
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+            icon: fa-home
+            width: 30
+            valuePlaceholder: Company Name
+        }
+    )
+
+    pageItem P9999_FINANCIALYEAR (
+        type: popupLov
+        label {
+            label: Financial Year
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT  TO_CHAR(FINANCIALYEARBEGIN,'DD-MON-RRRR')||' TO '||TO_CHAR(FINANCIALYEAREND,'DD-MON-RRRR') , FINANCIALYEARCODE
+                FROM FINANCIALYEAR ORDER BY FINANCIALYEARBEGIN DESC
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @iron-mart-private-limited
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+            icon: fa-calendar
+            width: 30
+            valuePlaceholder: Financial Year
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                select financialyearcode from financialyear a
+                where trunc(sysdate) between a.financialyearbegin and a.financialyearend
+                ; 
+                ```
+        }
+    )
+
+    pageItem P9999_PASSWORD (
+        type: password
+        label {
+            label: Password
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @iron-mart-private-limited
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+            icon: fa-key
+            width: 40
+            valuePlaceholder: Password
+        }
+        validation {
+            maxLength: 100
+        }
+        advanced {
+            customAttributes: autocomplete="current-password"
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P9999_PERSISTENT_AUTH (
+        type: checkbox
+        label {
+            label: Remember me
+            alignment: left
+        }
+        layout {
+            sequence: 80
+            region: @iron-mart-private-limited
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: apex_authentication.persistent_auth_enabled
+        }
+    )
+
+    pageItem P9999_REMEMBER (
+        type: checkbox
+        label {
+            label: Remember username
+            alignment: left
+        }
+        layout {
+            sequence: 70
+            region: @iron-mart-private-limited
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: apex_authentication.persistent_cookies_enabled and not apex_authentication.persistent_auth_enabled
+        }
+    )
+
+    pageItem P9999_USERNAME (
+        type: textField
+        label {
+            label: Username
+            alignment: left
+        }
+        settings {
+            trimSpaces: none
+        }
+        layout {
+            sequence: 30
+            region: @iron-mart-private-limited
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+            icon: fa-user
+            width: 40
+            valuePlaceholder: Username
+        }
+        validation {
+            maxLength: 100
+        }
+        advanced {
+            customAttributes: autocomplete="username"
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button login (
+        buttonName: LOGIN
+        label: Sign In
+        layout {
+            sequence: 40
+            region: @iron-mart-private-limited
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction set-global-login (
+        name: Set Global login
+        execution {
+            sequence: 10
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P9999_USERNAME
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    begin
+                        for vloop in (
+                            SELECT BOSSUSERCODE,LOGINNAME 
+                            FROM BOSSUSER A WHERE UPPER(BOSSUSERNAME)=UPPER(:P9999_USERNAME)
+                        ) loop
+                            :GLOBAL_BOSSUSERCODE := vloop.bossusercode;
+                            :GLOBAL_LOGINNAME    := vloop.LOGINNAME ;
+                        end loop;
+                    
+                    end;
+                    ```
+                itemsToSubmit: P9999_USERNAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select A.COMPANYCODE
+                    From BOSSUSERROLE A
+                    Where A.BOSSUSERROLECODE=:GLOBAL_BOSSUSERCODE
+                    And Nvl(A.ISDEFAULT,'NO') ='YES'
+                    ```
+                itemsToSubmit: GLOBAL_BOSSUSERCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P9999_COMPANY
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select financialyearcode from financialyear a
+                    where trunc(sysdate) between a.financialyearbegin and a.financialyearend
+                    ; 
+                    ```
+            }
+            affectedElements {
+                selectionType: items
+                items: P9999_FINANCIALYEAR
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process clear-page-s-cache (
+        name: Clear Page(s) Cache
+        type: clearSessionState
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 133680390857033352
+        }
+    )
+
+    process get-username-cookie (
+        name: Get Username Cookie
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                :P9999_USERNAME := apex_authentication.get_login_username_cookie;
+                :P9999_REMEMBER := case when :P9999_USERNAME is not null then 'Y' end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 133679992065033352
+        }
+    )
+
+    process login (
+        name: Login
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                apex_authentication.login(
+                    p_username => :P9999_USERNAME,
+                    p_password => :P9999_PASSWORD,
+                    p_set_persistent_auth => nvl(:P9999_PERSISTENT_AUTH, 'N') = 'Y' );
+                 
+                SELECT COMPANYCODE,COMPANYNAME,UPPER(:P9999_USERNAME), :P9999_FINANCIALYEAR INTO :GLOBAL_COMPANYCODE,:GLOBAL_COMPANYNAME,:GLOBAL_BOSSUSERNAME,:GLOBAL_FINANCIALYEARCODE
+                FROM COMPANY A WHERE A.COMPANYCODE = :P9999_COMPANY;
+                
+                SELECT BOSSUSERCODE,LOGINNAME INTO :GLOBAL_BOSSUSERCODE,:GLOBAL_LOGINNAME FROM BOSSUSER A WHERE UPPER(BOSSUSERNAME)=UPPER(:P9999_USERNAME);
+                
+                /*SELECT TO_CHAR(FINANCIALYEARBEGIN,'DD-MM-RRRR'),TO_CHAR(FINANCIALYEAREND,'DD-MM-RRRR')
+                INTO :GLOBAL_FINANCIALYEARBEGIN,:GLOBAL_FINANCIALYEAREND
+                FROM FINANCIALYEAR WHERE UPPER(FINANCIALYEARCODE) = UPPER(:P9999_FINANCIALYEAR) ;
+                */
+                
+                SELECT FINANCIALYEARBEGIN,FINANCIALYEAREND, SYSDATE
+                INTO :GLOBAL_FINANCIALYEARBEGIN,:GLOBAL_FINANCIALYEAREND, :GLOBAL_SYSDATE
+                FROM FINANCIALYEAR WHERE UPPER(FINANCIALYEARCODE) = UPPER(:P9999_FINANCIALYEAR) ;
+                
+                :GLOBAL_TITLE := :GLOBAL_COMPANYNAME||' [ '||:GLOBAL_BOSSUSERNAME||' ] '||' [ '||:GLOBAL_FINANCIALYEARCODE||' ]' ;
+                
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 133676519295033339
+        }
+    )
+
+    process set-global-variables (
+        name: Set global variables
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                SELECT COMPANYCODE,COMPANYNAME,UPPER(:P9999_USERNAME), :P9999_FINANCIALYEAR 
+                INTO :GLOBAL_COMPANYCODE,:GLOBAL_COMPANYNAME,:GLOBAL_BOSSUSERNAME,:GLOBAL_FINANCIALYEARCODE
+                FROM COMPANY A WHERE A.COMPANYCODE = :P9999_COMPANY;
+                
+                SELECT BOSSUSERCODE,LOGINNAME INTO :GLOBAL_BOSSUSERCODE,:GLOBAL_LOGINNAME FROM BOSSUSER A WHERE UPPER(BOSSUSERNAME)=UPPER(:P9999_USERNAME);
+                
+                /*SELECT TO_CHAR(FINANCIALYEARBEGIN,'DD-MM-RRRR'),TO_CHAR(FINANCIALYEAREND,'DD-MM-RRRR')
+                INTO :GLOBAL_FINANCIALYEARBEGIN,:GLOBAL_FINANCIALYEAREND
+                FROM FINANCIALYEAR WHERE UPPER(FINANCIALYEARCODE) = UPPER(:P9999_FINANCIALYEAR) ;
+                */
+                
+                SELECT FINANCIALYEARBEGIN,FINANCIALYEAREND, SYSDATE
+                INTO :GLOBAL_FINANCIALYEARBEGIN,:GLOBAL_FINANCIALYEAREND, :GLOBAL_SYSDATE
+                FROM FINANCIALYEAR WHERE UPPER(FINANCIALYEARCODE) = UPPER(:P9999_FINANCIALYEAR) ;
+                
+                :GLOBAL_TITLE := :GLOBAL_COMPANYNAME||' [ '||:GLOBAL_BOSSUSERNAME||' ] '||' [ '||:GLOBAL_FINANCIALYEARCODE||' ]' ;
+                ```
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 103043378983672533
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    process set-username-cookie (
+        name: Set Username Cookie
+        type: invokeApi
+        invoke {
+            package: APEX_AUTHENTICATION
+            procedureOrFunction: SEND_LOGIN_USERNAME_COOKIE
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 133678459384033352
+        }
+
+        parameter p_consent (
+            parameter {
+                dataType: boolean
+            }
+            value {
+                type: item
+                item: P9999_REMEMBER
+            }
+            advanced {
+                displaySequence: 2
+            }
+        )
+
+        parameter p_username (
+            value {
+                type: expression
+                plsqlExpression: upper( :P9999_USERNAME )
+            }
+            advanced {
+                displaySequence: 1
+            }
+        )
+
+    )
+
+)
+

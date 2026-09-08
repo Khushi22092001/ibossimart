@@ -1,0 +1,1760 @@
+page 738 (
+    name: Gate Operations Command Centre
+    alias: GATE-OPERATIONS
+    title: Gate Operations Command Centre
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText:
+            ```html
+            GATE OPERATIONS COMMAND CENTRE (HSPL). Read-only operational view built from live ERP
+            MaterialIn, MaterialOut, DespatchAdvice, Weighment, GRN, DInspection and CCInvoice data.
+            A live vehicle is a movement gated in during the last 48 hours without Gate Out. Older
+            open rows are shown as historical data-gap exceptions and are never counted as live yard
+            occupancy. Clean turnaround uses Gate Out after Gate In with elapsed time up to 72 hours.
+            ```
+    }
+
+    region action-note (
+        name: Yard Action Note
+        type: staticContent
+        source {
+            htmlCode: <div class="go-section"><h2>Yard Action Centre</h2><p>Open visits are separated from legacy gaps so the gate team can act on the right vehicles first.</p></div>
+        }
+        layout {
+            sequence: 9
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region command-header (
+        name: Gate Operations Command Centre
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="go-command"><div class="go-command__main">'
+                  ||'<span class="go-command__icon"><span class="fa fa-random"></span></span><div>'
+                  ||'<span class="go-command__eye">Yard &middot; Gate &middot; Weighbridge</span><h1>Gate Operations Command Centre</h1>'
+                  ||'<p>One operational view of inbound and outbound vehicle visits &mdash; gate entry, weighment, downstream documents, release and actionable data gaps.</p></div></div>'
+                  ||'<div class="go-command__proof"><span class="go-chip"><span class="fa fa-database"></span><b>Live ERP</b> source</span>'
+                  ||'<span class="go-chip"><span class="fa fa-clock-o"></span>As at <b>'||to_char(sysdate,'DD Mon YYYY HH24:MI')||'</b></span>'
+                  ||'<span class="go-chip"><span class="fa fa-shield"></span><b>Read only</b></span></div></div>' AS HEAD
+                  From dual
+                ```
+        }
+        layout {
+            sequence: 2
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: go-command-region
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region data-proof (
+        name: Data Scope
+        type: staticContent
+        source {
+            htmlCode: <div class="go-proof"><b>Operational rule:</b> “Inside” means Gate In recorded in the last 48 hours with no Gate Out. Older open rows are isolated as historical data gaps. Turnaround uses only clean 0&ndash;72 hour Gate In to Gate Out records. This prevents legacy incomplete rows from inflating the live yard count.</div>
+        }
+        layout {
+            sequence: 4
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region exceptions (
+        name: Gate Exception Centre
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With E As (
+                  Select 1 Seq,'Critical' Severity,'Historical open Gate Out' Exception_Type,Count(*) Records,'Open over 48 hours; excluded from live occupancy' Meaning,'EXC_HISTORICAL_OPEN' Focus
+                    From MaterialOut mo Where mo.GateInTime<=sysdate-2 And mo.GateInTime>sysdate-400 And mo.GateOutTime Is Null And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                  Union All Select 2,'Critical','Gate Out without Gate In',Count(*),'Timestamp sequence is incomplete','EXC_GATEOUT_NO_GATEIN'
+                    From MaterialOut mo Where mo.GateInTime Is Null And mo.GateOutTime Is Not Null And mo.MaterialOutDate Between to_date(:P738_FROMDATE,'DD-MM-RRRR') And to_date(:P738_TODATE,'DD-MM-RRRR') And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                  Union All Select 3,'High','Final weighment pending',Count(*),'First weight exists but second weight is missing','EXC_FINAL_PENDING'
+                    From Weighment w Where w.WeighmentDate>sysdate-30 And w.FirstWeight Is Not Null And w.SecondWeight Is Null And (:P738_COMPANY Is Null Or w.CompanyCode=:P738_COMPANY)
+                  Union All Select 4,'High','Outbound Gate Out not invoiced',Count(*),'Released vehicle has no downstream CC Invoice','EXC_OUT_NO_INVOICE'
+                    From MaterialOut mo Join DespatchAdvice da On da.TNo=mo.ReferenceTNo
+                   Where mo.GateOutTime Is Not Null And mo.MaterialOutDate Between to_date(:P738_FROMDATE,'DD-MM-RRRR') And to_date(:P738_TODATE,'DD-MM-RRRR')
+                     And Not Exists (Select 1 From CCInvoice ci Where ci.DespatchAdviceTNo=da.TNo) And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                  Union All Select 5,'Medium','Inbound Gate Out without GRN',Count(*),'Material In released without a linked GRN','EXC_IN_NO_GRN'
+                    From MaterialIn mi Where mi.GateOutTime Is Not Null And mi.MaterialInDate Between to_date(:P738_FROMDATE,'DD-MM-RRRR') And to_date(:P738_TODATE,'DD-MM-RRRR')
+                     And Not Exists (Select 1 From GRN g Where g.MaterialInTNo=mi.TNo) And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION))
+                Select '<span class="go-pill go-pill--'||Case Severity When 'Critical' Then 'bad' When 'High' Then 'warn' Else 'info' End||'">'||Severity||'</span>' Severity,
+                       Exception_Type,
+                       '<a class="go-count-link" href="#p738VisitRegister" onclick="return gateDrill('''||Focus||''')">'||to_char(Records,'FM999G990')||'</a>' Records,
+                       Meaning,
+                       '<a href="#p738VisitRegister" onclick="return gateDrill('''||Focus||''')">View filtered register &rarr;</a>' Action
+                  From E Where Records>0 Order By Seq
+                ```
+            pageItemsToSubmit: [
+                P738_FROMDATE
+                P738_TODATE
+                P738_COMPANY
+                P738_LOCATION
+            ]
+        }
+        layout {
+            sequence: 23
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                go-panel
+                go-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYNoPagination
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No gate exceptions in this scope.
+        }
+
+        column ACTION (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Drilldown
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EXCEPTION_TYPE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Exception
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column MEANING (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Why it matters
+            }
+            layout {
+                sequence: 40
+            }
+        )
+
+        column RECORDS (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Records
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SEVERITY (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Severity
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-panel (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 3
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+            ]
+            cssClasses: go-filter
+        }
+    )
+
+    region gate-theme (
+        name: Gate Operations Theme
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <style>
+                body:has(.go-command){--go-navy:#173B57;--go-blue:#216A8A;--go-teal:#0F766E;--go-cyan:#0891B2;--go-green:#15803D;--go-amber:#B45309;--go-red:#C2413B;--go-ink:#102A43;--go-muted:#62748A;--go-line:#DCE6EE;--go-bg:#F4F8FB}
+                body:has(.go-command) .t-Body-title{display:none!important}
+                body:has(.go-command) .t-Body-main{background:linear-gradient(180deg,#F7FAFC 0,#F3F7FA 100%)}
+                .go-command{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 24px;border:1px solid #CFE0E9;border-radius:18px;background:radial-gradient(85% 150% at 96% 5%,rgba(8,145,178,.20),transparent 58%),linear-gradient(120deg,#E9F4F8,#F5FAFC 58%,#E8F5F2);box-shadow:0 12px 30px rgba(23,59,87,.10)}
+                .go-command__main{display:flex;align-items:center;gap:16px}.go-command__icon{display:grid;place-items:center;width:58px;height:58px;border-radius:16px;color:#fff;font-size:23px;background:linear-gradient(135deg,var(--go-blue),var(--go-teal));box-shadow:0 10px 22px rgba(15,118,110,.25)}
+                .go-command__eye{font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--go-teal)}.go-command h1{margin:2px 0 3px;font-size:26px;line-height:1.12;color:var(--go-ink)}.go-command p{margin:0;color:#49667A;font-size:13px;line-height:1.45;max-width:72ch}
+                .go-command__proof{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.go-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #C9DFE5;border-radius:999px;background:rgba(255,255,255,.78);font-size:11px;color:#31566A;white-space:nowrap}.go-chip b{color:var(--go-ink)}
+                .go-filter.t-Region{border:1px solid var(--go-line);border-radius:16px;box-shadow:0 5px 15px rgba(16,42,67,.05);overflow:hidden}.go-filter .t-Region-body{padding:16px 18px 12px}.go-filter .t-Form-label{font-size:12px;font-weight:700;color:#405B6E}.go-filter .apex-item-text,.go-filter .apex-item-select,.go-filter .apex-item-group{min-height:42px}
+                .go-section{margin:12px 0 6px;padding-left:13px;border-left:4px solid var(--go-teal)}.go-section h2{margin:0 0 3px;font-size:18px;color:#133F3B}.go-section p{margin:0;color:#6B7F91;font-size:12.5px;line-height:1.45}
+                .go-stage-grid .t-Report-report,.go-kpis .t-Report-report{display:block;width:100%;border:0;overflow:visible}.go-stage-grid .t-Report-report>tbody{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:34px;width:100%;padding:4px 6px 8px}.go-stage-grid .t-Report-report>tbody>tr,.go-kpis .t-Report-report>tbody>tr{display:block;min-width:0;overflow:visible}.go-stage-grid .t-Report-colHead,.go-stage-grid .t-Report-pagination{display:none}.go-stage-grid .t-Report-cell,.go-kpis .t-Report-cell{display:block;height:100%;padding:0;border:0;overflow:visible}.go-stage{--accent:#0F9F79;--wash:#E8F8F2;position:relative;display:flex;height:100%;min-height:190px;padding:16px 13px 15px;border:1px solid #E1E8EF;border-radius:14px;background:linear-gradient(180deg,#fff 0%,#fff 70%,var(--wash) 165%);overflow:visible;box-shadow:0 8px 22px rgba(30,55,85,.07);color:inherit;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.go-stage:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 35%,#DCE5EC);box-shadow:0 12px 28px rgba(30,55,85,.12)}
+                .go-stage:after{content:"";position:absolute;z-index:1;top:50%;right:-35px;width:35px;border-top:2px dashed color-mix(in srgb,var(--accent) 55%,#DCE8EB);pointer-events:none}.go-stage:before{content:"\203A";position:absolute;z-index:2;top:calc(50% - 12px);right:-28px;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;color:#fff;background:var(--accent);font-size:23px;line-height:1;box-shadow:0 4px 10px color-mix(in srgb,var(--accent) 24%,transparent);pointer-events:none}.go-stage-grid .t-Report-report>tbody>tr:last-child .go-stage:after,.go-stage-grid .t-Report-report>tbody>tr:last-child .go-stage:before{display:none}.go-stage__top{display:flex;align-items:center;justify-content:center}.go-stage__ic{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;color:var(--accent);background:var(--wash);font-size:20px}.go-stage__pulse{display:none}.go-stage__label{display:block;margin-top:17px;font-size:10.5px;font-weight:800;line-height:1.25;letter-spacing:.045em;text-align:center;text-transform:uppercase;color:#294661}.go-stage__value{display:block;margin-top:9px;font-size:28px;font-weight:800;line-height:1.05;text-align:center;color:#102A43}.go-stage__sub{display:block;margin-top:9px;font-size:11px;line-height:1.35;text-align:center;color:#637A90}.go-stage:focus-visible,.go-kpi:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 30%,transparent);outline-offset:2px}
+                @keyframes goPulse{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+                .go-kpis{padding:12px;border:1px solid #E4EAF0;border-radius:15px;background:#fff;box-shadow:0 8px 22px rgba(16,42,67,.055)}.go-kpis .t-Report-report>tbody{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:10px;width:100%}.go-kpis .t-Report-colHead,.go-kpis .t-Report-pagination{display:none}.go-kpi{height:100%;min-height:102px;padding:13px 12px;border:1px solid #E3EAF0;border-radius:12px;background:linear-gradient(145deg,var(--wash,#F1FAF8),#fff 72%);box-shadow:0 4px 12px rgba(16,42,67,.045);display:grid;grid-template-columns:38px minmax(0,1fr) auto;grid-template-rows:auto auto auto;column-gap:10px;align-items:center;color:inherit;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease}.go-kpi:hover{transform:translateY(-2px);box-shadow:0 9px 20px rgba(16,42,67,.10)}.go-kpi__ic{grid-row:1/4;display:grid;place-items:center;width:38px;height:38px;border-radius:11px;color:var(--accent,var(--go-teal));background:color-mix(in srgb,var(--accent,var(--go-teal)) 11%,#fff);font-size:17px}.go-kpi__t{grid-column:2/4;display:block;margin:0 0 4px;font-size:10px;font-weight:800;line-height:1.25;letter-spacing:.025em;color:#294661}.go-kpi__n{grid-column:2;display:block;margin-top:1px;font-size:24px;font-weight:800;line-height:1.05;color:#102A43}.go-kpi__badge{grid-column:3;display:inline-flex;padding:3px 7px;border-radius:999px;background:color-mix(in srgb,var(--accent,var(--go-teal)) 12%,#fff);color:var(--accent,var(--go-teal));font-size:9.5px;font-weight:800}.go-kpi__s{grid-column:2/4;display:block;margin-top:5px;font-size:10.5px;line-height:1.3;color:#73869A}
+                .go-panel.t-Region{border:1px solid var(--go-line);border-radius:16px;box-shadow:0 8px 22px rgba(16,42,67,.06);overflow:hidden}.go-panel .t-Region-header{background:#fff}.go-panel .t-Region-title{font-size:16px;color:var(--go-ink)}.go-register .a-IRR-tableContainer{overflow:auto!important}.go-register .t-Report-report,.go-register .a-IRR-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:auto}.go-register .t-Report-colHead,.go-register .a-IRR-header{position:static!important;background:#E9F1F6;color:#214E68;font-size:10.5px;letter-spacing:.055em;text-transform:uppercase;vertical-align:middle}.go-register .t-Report-cell,.go-register .a-IRR-table td{border-color:#DCE6EE;vertical-align:middle}.go-register a{font-weight:700;color:#0B7480}.go-count-link{display:inline-flex;align-items:center;gap:6px;color:#0B7480!important;text-decoration:none}.go-count-link:after{content:"\203A";font-size:18px}.go-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;font-size:10.5px;font-weight:800}.go-pill:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.go-pill--good{color:#15803D;background:#E8F6EC}.go-pill--warn{color:#B45309;background:#FFF3DE}.go-pill--bad{color:#C2413B;background:#FDEBEC}.go-pill--info{color:#036B84;background:#E6F5F8}.go-pill--muted{color:#64748B;background:#EEF2F6}
+                .go-proof{padding:11px 14px;border:1px solid #D7E5EC;border-radius:12px;background:#F8FBFC;color:#556D7E;font-size:11.5px;line-height:1.45}.go-proof b{color:#193E55}.go-shortcuts{display:flex;flex-wrap:wrap;gap:8px}.go-shortcuts a{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #CFE0E8;border-radius:11px;background:#fff;color:#214E68;font-size:11.5px;font-weight:700;text-decoration:none;transition:.15s ease}.go-shortcuts a:hover{transform:translateY(-1px);border-color:#62B8BA;box-shadow:0 5px 12px rgba(15,118,110,.12)}
+                @media(max-width:1200px){.go-kpis .t-Report-report>tbody{grid-template-columns:repeat(3,1fr)}.go-stage-grid .t-Report-report>tbody{grid-template-columns:repeat(5,minmax(145px,1fr));overflow-x:auto}.go-stage:after,.go-stage:before{display:none}}
+                @media(max-width:760px){.go-command{align-items:flex-start;flex-direction:column}.go-command__proof{justify-content:flex-start}.go-stage-grid .t-Report-report>tbody,.go-kpis .t-Report-report>tbody{grid-template-columns:1fr 1fr}}
+                @media(max-width:480px){.go-stage-grid .t-Report-report>tbody,.go-kpis .t-Report-report>tbody{grid-template-columns:1fr}}
+                @media(prefers-reduced-motion:reduce){.go-stage__pulse{animation:none}.go-shortcuts a{transition:none}}
+                </style>
+                <script>
+                window.gateDrill=function(focus){
+                  apex.item('P738_STAGE_FOCUS').setValue(focus||'ALL');
+                  var labels={GATEOUT_TODAY:'Gate-outs Today',INSIDE:'Vehicles Currently Inside',FIRST_PENDING:'First Weighment Pending',READY_RELEASE:'Ready for Release',FINAL_PENDING:'Final Weighment Pending',MEDIAN_TAT:'Clean Turnaround Visits',RELEASED:'Released Vehicles',MOVEMENTS:'Period Movements',OVER8:'Vehicles Inside Over 8 Hours',HISTORICAL_GAPS:'Historical Data Gaps',EXC_HISTORICAL_OPEN:'Historical Open Gate Out',EXC_GATEOUT_NO_GATEIN:'Gate Out Without Gate In',EXC_FINAL_PENDING:'Final Weighment Pending',EXC_OUT_NO_INVOICE:'Outbound Gate Out Not Invoiced',EXC_IN_NO_GRN:'Inbound Gate Out Without GRN'};
+                  var $r=$('#p738VisitRegister');
+                  $('#p738VisitRegister_heading').text((labels[focus]||'Vehicle Visit')+' — Detail Register');
+                  $r.one('apexafterrefresh',function(){this.scrollIntoView({behavior:'smooth',block:'start'});});
+                  apex.region('p738VisitRegister').refresh();
+                  return false;
+                };
+                $(document).on('click','#APPLY,#RESETFILTERS',function(){apex.item('P738_STAGE_FOCUS').setValue('ALL');});
+                </script>
+                ```
+        }
+        layout {
+            sequence: 1
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region live-note (
+        name: Live Yard Note
+        type: staticContent
+        source {
+            htmlCode: <div class="go-section"><h2>Live Gate Position</h2><p>Current operational handoffs. Counts are driven by gate and weighbridge timestamps, independent of the historical date window.</p></div>
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region live-stage-strip (
+        name: Live Gate Stage Strip
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Scope As (
+                  Select 'OUTBOUND' Direction,mo.TNo,mo.CompanyCode,mo.LocationCode,mo.Panel,mo.GateInTime,mo.GateOutTime,mo.ReferenceTNo,mo.VehicleNo
+                    From MaterialOut mo
+                   Where mo.GateInTime>sysdate-2 And mo.GateOutTime Is Null
+                     And (:P738_DIRECTION Is Null Or :P738_DIRECTION='ALL' Or :P738_DIRECTION='OUTBOUND')
+                     And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY)
+                     And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                     And (:P738_PANEL Is Null Or mo.Panel=:P738_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or mo.Panel=(Select GetUserPanelAB_apex() From dual))
+                  Union All
+                  Select 'INBOUND',mi.TNo,mi.CompanyCode,mi.LocationCode,mi.Panel,mi.GateInTime,mi.GateOutTime,mi.TNo,mi.VehicleNo
+                    From MaterialIn mi
+                   Where mi.GateInTime>sysdate-2 And mi.GateOutTime Is Null
+                     And (:P738_DIRECTION Is Null Or :P738_DIRECTION='ALL' Or :P738_DIRECTION='INBOUND')
+                     And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY)
+                     And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION)
+                     And (:P738_PANEL Is Null Or mi.Panel=:P738_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or mi.Panel=(Select GetUserPanelAB_apex() From dual))),
+                Stages As (
+                  Select 1 Seq,'fa-sign-out' Icon,'Gate-outs today' Lbl,
+                         (Select Count(*) From MaterialOut mo Where mo.GateOutTime>=trunc(sysdate) And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION) And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND')))
+                       + (Select Count(*) From MaterialIn mi Where mi.GateOutTime>=trunc(sysdate) And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION) And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND'))) Val,
+                         'Inbound and outbound releases' Sub,'GATEOUT_TODAY' Focus,'#0F9F79' Accent,'#E8F8F2' Wash From dual
+                  Union All
+                  Select 2,'fa-sign-in','Vehicles inside',Count(*),'Gate In recorded; Gate Out pending','INSIDE','#3B82F6','#EAF2FF' From Scope
+                  Union All
+                  Select 3,'fa-balance-scale','First weigh pending',Count(*),'Inside without a first weighment','FIRST_PENDING','#F59E0B','#FFF3E2'
+                    From Scope s Where (s.Direction='OUTBOUND' And Not Exists (Select 1 From Weighment w Where (w.ReferenceTNo=s.ReferenceTNo Or w.DespatchAdviceTNo=s.ReferenceTNo) And w.FirstWeight Is Not Null))
+                                      Or (s.Direction='INBOUND' And Not Exists (Select 1 From Weighment w Where (w.MaterialInTNo=s.TNo Or w.ReferenceTNo=s.TNo) And w.FirstWeight Is Not Null))
+                  Union All
+                  Select 4,'fa-check-circle','Ready for release',Count(*),'Final weight recorded; Gate Out pending','READY_RELEASE','#10A37F','#E8F8F2'
+                    From Scope s Where (s.Direction='OUTBOUND' And Exists (Select 1 From Weighment w Where (w.ReferenceTNo=s.ReferenceTNo Or w.DespatchAdviceTNo=s.ReferenceTNo) And w.SecondWeight Is Not Null))
+                                      Or (s.Direction='INBOUND' And Exists (Select 1 From Weighment w Where (w.MaterialInTNo=s.TNo Or w.ReferenceTNo=s.TNo) And w.SecondWeight Is Not Null))
+                  Union All
+                  Select 5,'fa-hourglass-half','Final weigh pending',Count(*),'First weight done; second pending','FINAL_PENDING','#8B5CF6','#F1EBFF'
+                    From Weighment w Where w.WeighmentDate>sysdate-2 And w.FirstWeight Is Not Null And w.SecondWeight Is Null
+                     And (:P738_COMPANY Is Null Or w.CompanyCode=:P738_COMPANY) And (:P738_PANEL Is Null Or w.Panel=:P738_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or w.Panel=(Select GetUserPanelAB_apex() From dual)))
+                Select '<a class="go-stage" style="--accent:'||Accent||';--wash:'||Wash||'" href="#p738VisitRegister" onclick="return gateDrill('''||Focus||''')">'
+                  ||'<div class="go-stage__top"><span class="go-stage__ic"><span class="fa '||Icon||'"></span></span><span class="go-stage__pulse"></span></div>'
+                  ||'<span class="go-stage__label">'||Lbl||'</span><span class="go-stage__value">'||to_char(Val,'FM999G990')||'</span><span class="go-stage__sub">'||Sub||'</span></a>' Card
+                  From Stages
+                ```
+            pageItemsToSubmit: [
+                P738_COMPANY
+                P738_LOCATION
+                P738_DIRECTION
+                P738_PANEL
+            ]
+        }
+        layout {
+            sequence: 6
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: go-stage-grid
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region operational-kpis (
+        name: Gate Operations KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Win As (Select to_date(:P738_FROMDATE,'DD-MM-RRRR') F,to_date(:P738_TODATE,'DD-MM-RRRR')+1 T From dual),
+                M As (
+                  Select 'OUTBOUND' Direction,mo.TNo,mo.MaterialOutDate DocDate,mo.GateInTime,mo.GateOutTime,mo.CompanyCode,mo.LocationCode,mo.Panel
+                    From MaterialOut mo Cross Join Win w
+                   Where mo.MaterialOutDate>=w.F And mo.MaterialOutDate<w.T And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND'))
+                     And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION) And (:P738_PANEL Is Null Or mo.Panel=:P738_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or mo.Panel=(Select GetUserPanelAB_apex() From dual))
+                  Union All
+                  Select 'INBOUND',mi.TNo,mi.MaterialInDate,mi.GateInTime,mi.GateOutTime,mi.CompanyCode,mi.LocationCode,mi.Panel
+                    From MaterialIn mi Cross Join Win w
+                   Where mi.MaterialInDate>=w.F And mi.MaterialInDate<w.T And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND'))
+                     And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION) And (:P738_PANEL Is Null Or mi.Panel=:P738_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or mi.Panel=(Select GetUserPanelAB_apex() From dual))),
+                K As (
+                  Select Count(*) Movements,
+                         Sum(Case When GateOutTime Is Not Null Then 1 Else 0 End) Released,
+                         Round(Median(Case When GateOutTime>GateInTime And (GateOutTime-GateInTime)*24 Between 0 And 72 Then (GateOutTime-GateInTime)*24 End),1) MedianDwell,
+                         Sum(Case When GateInTime Is Null And GateOutTime Is Not Null Then 1 Else 0 End) MissingGateIn
+                    From M),
+                LiveK As (
+                  Select Sum(Inside) Inside,Sum(Over8) Over8,Sum(Stale) Stale From (
+                    Select Count(*) Inside,Sum(Case When (sysdate-mo.GateInTime)*24>8 Then 1 Else 0 End) Over8,0 Stale From MaterialOut mo Where mo.GateInTime>sysdate-2 And mo.GateOutTime Is Null And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND')) And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                    Union All Select Count(*),Sum(Case When (sysdate-mi.GateInTime)*24>8 Then 1 Else 0 End),0 From MaterialIn mi Where mi.GateInTime>sysdate-2 And mi.GateOutTime Is Null And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND')) And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION)
+                    Union All Select 0,0,Count(*) From MaterialOut mo Where mo.GateInTime<=sysdate-2 And mo.GateInTime>sysdate-400 And mo.GateOutTime Is Null And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND')) And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                    Union All Select 0,0,Count(*) From MaterialIn mi Where mi.GateInTime<=sysdate-2 And mi.GateInTime>sysdate-400 And mi.GateOutTime Is Null And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND')) And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION)))
+                Select Case X.Seq
+                  When 1 Then '<a class="go-kpi" href="#p738VisitRegister" onclick="return gateDrill(''INSIDE'')" style="--accent:#0F9F79;--wash:#EAF8F4"><span class="go-kpi__ic"><span class="fa fa-truck"></span></span><span class="go-kpi__t">Vehicles inside</span><span class="go-kpi__n">'||to_char(Nvl(L.Inside,0),'FM999G990')||'</span><span class="go-kpi__badge">Now</span><span class="go-kpi__s">Live 48-hour operational window</span></a>'
+                  When 2 Then '<a class="go-kpi" href="#p738VisitRegister" onclick="return gateDrill(''MOVEMENTS'')" style="--accent:#3B82F6;--wash:#EDF4FF"><span class="go-kpi__ic"><span class="fa fa-exchange"></span></span><span class="go-kpi__t">Period movements</span><span class="go-kpi__n">'||to_char(K.Movements,'FM999G990')||'</span><span class="go-kpi__badge">Period</span><span class="go-kpi__s">Inbound + outbound gate records</span></a>'
+                  When 3 Then '<a class="go-kpi" href="#p738VisitRegister" onclick="return gateDrill(''RELEASED'')" style="--accent:#10A37F;--wash:#ECF9F5"><span class="go-kpi__ic"><span class="fa fa-sign-out"></span></span><span class="go-kpi__t">Released</span><span class="go-kpi__n">'||to_char(K.Released,'FM999G990')||'</span><span class="go-kpi__badge">Period</span><span class="go-kpi__s">Gate Out recorded in period</span></a>'
+                  When 4 Then '<a class="go-kpi" href="#p738VisitRegister" onclick="return gateDrill(''MEDIAN_TAT'')" style="--accent:#0891B2;--wash:#EAF8FB"><span class="go-kpi__ic"><span class="fa fa-clock-o"></span></span><span class="go-kpi__t">Median turnaround</span><span class="go-kpi__n">'||Nvl(to_char(K.MedianDwell,'FM990D0'),'&ndash;')||' h</span><span class="go-kpi__badge">Clean</span><span class="go-kpi__s">Gate In to Gate Out within 72 h</span></a>'
+                  When 5 Then '<a class="go-kpi" href="#p738VisitRegister" onclick="return gateDrill(''OVER8'')" style="--accent:#F59E0B;--wash:#FFF6E8"><span class="go-kpi__ic"><span class="fa fa-hourglass-half"></span></span><span class="go-kpi__t">Inside over 8 h</span><span class="go-kpi__n">'||to_char(Nvl(L.Over8,0),'FM999G990')||'</span><span class="go-kpi__badge">Now</span><span class="go-kpi__s">Live vehicles needing attention</span></a>'
+                  Else '<a class="go-kpi" href="#p738VisitRegister" onclick="return gateDrill(''HISTORICAL_GAPS'')" style="--accent:#EF4444;--wash:#FEF0F1"><span class="go-kpi__ic"><span class="fa fa-exclamation-triangle"></span></span><span class="go-kpi__t">Historical data gaps</span><span class="go-kpi__n">'||to_char(Nvl(L.Stale,0)+Nvl(K.MissingGateIn,0),'FM999G990')||'</span><span class="go-kpi__badge">Audit</span><span class="go-kpi__s">Stale open or Gate In missing</span></a>' End Card
+                  From K Cross Join LiveK L Cross Join (Select Level Seq From dual Connect By Level<=6) X
+                 Order By X.Seq
+                ```
+            pageItemsToSubmit: [
+                P738_FROMDATE
+                P738_TODATE
+                P738_COMPANY
+                P738_LOCATION
+                P738_DIRECTION
+                P738_PANEL
+            ]
+        }
+        layout {
+            sequence: 8
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: go-kpis
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region pulse-note (
+        name: Operational Pulse Note
+        type: staticContent
+        source {
+            htmlCode: <div class="go-section"><h2>Operational Pulse</h2><p>Period activity, live occupancy, clean turnaround, weighment completion and records requiring intervention.</p></div>
+        }
+        layout {
+            sequence: 7
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region source-shortcuts (
+        name: Source Registers
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="go-shortcuts">
+                  <a href="f?p=&APP_ID.:36:&APP_SESSION.::NO:36"><span class="fa fa-sign-in"></span>Material In Register</a>
+                  <a href="f?p=&APP_ID.:37:&APP_SESSION.::NO:37"><span class="fa fa-archive"></span>GRN Register</a>
+                  <a href="f?p=&APP_ID.:38:&APP_SESSION.::NO:38"><span class="fa fa-search"></span>Inspection Register</a>
+                  <a href="f?p=&APP_ID.:77:&APP_SESSION.::NO:77"><span class="fa fa-truck"></span>Dispatch Advice Register</a>
+                  <a href="f?p=&APP_ID.:144:&APP_SESSION.::NO:144"><span class="fa fa-external-link"></span>Gate Pass Register</a>
+                  <a href="f?p=&APP_ID.:314:&APP_SESSION.::NO:314"><span class="fa fa-balance-scale"></span>Weighment Register</a>
+                  <a href="f?p=&APP_ID.:732:&APP_SESSION.::NO:732"><span class="fa fa-refresh"></span>Vehicle 360</a>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 25
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: go-panel
+        }
+    )
+
+    region tat-by-direction (
+        name: Turnaround by Direction
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Win As (Select to_date(:P738_FROMDATE,'DD-MM-RRRR') F,to_date(:P738_TODATE,'DD-MM-RRRR')+1 T From dual),
+                X As (
+                  Select 'Outbound' Direction,(mo.GateOutTime-mo.GateInTime)*24 Hrs From MaterialOut mo Cross Join Win w
+                   Where mo.GateOutTime>=w.F And mo.GateOutTime<w.T And mo.GateOutTime>mo.GateInTime And (mo.GateOutTime-mo.GateInTime)*24 Between 0 And 72
+                     And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND')) And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION)
+                  Union All
+                  Select 'Inbound',(mi.GateOutTime-mi.GateInTime)*24 From MaterialIn mi Cross Join Win w
+                   Where mi.GateOutTime>=w.F And mi.GateOutTime<w.T And mi.GateOutTime>mi.GateInTime And (mi.GateOutTime-mi.GateInTime)*24 Between 0 And 72
+                     And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND')) And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION))
+                Select Direction,Round(Median(Hrs),1) Median_Hours From X Group By Direction Order By Direction
+                ```
+            pageItemsToSubmit: [
+                P738_FROMDATE
+                P738_TODATE
+                P738_COMPANY
+                P738_LOCATION
+                P738_DIRECTION
+            ]
+        }
+        layout {
+            sequence: 21
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: go-panel
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No clean turnaround records in this scope.
+        }
+
+        series median-tat (
+            name: Median hours
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: DIRECTION
+                value: MEDIAN_HOURS
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Hours
+            value {
+                format: decimal
+                decimalPlaces: 1
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region throughput-trend (
+        name: Weekly Gate Throughput Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Win As (Select to_date(:P738_FROMDATE,'DD-MM-RRRR') F,to_date(:P738_TODATE,'DD-MM-RRRR')+1 T From dual),
+                X As (
+                  Select Trunc(mo.GateOutTime,'IW') D,1 Outbound,0 Inbound From MaterialOut mo Cross Join Win w
+                   Where mo.GateOutTime>=w.F And mo.GateOutTime<w.T And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND'))
+                     And (:P738_COMPANY Is Null Or mo.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mo.LocationCode=:P738_LOCATION) And (:P738_PANEL Is Null Or mo.Panel=:P738_PANEL)
+                  Union All
+                  Select Trunc(mi.GateOutTime,'IW'),0,1 From MaterialIn mi Cross Join Win w
+                   Where mi.GateOutTime>=w.F And mi.GateOutTime<w.T And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND'))
+                     And (:P738_COMPANY Is Null Or mi.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or mi.LocationCode=:P738_LOCATION) And (:P738_PANEL Is Null Or mi.Panel=:P738_PANEL))
+                Select to_char(D,'DD Mon')||' - '||to_char(D+6,'DD Mon') Week_Label,
+                       Sum(Outbound) Outbound,Sum(Inbound) Inbound,D Sort_Date
+                  From X Group By D Order By D
+                ```
+            pageItemsToSubmit: [
+                P738_FROMDATE
+                P738_TODATE
+                P738_COMPANY
+                P738_LOCATION
+                P738_DIRECTION
+                P738_PANEL
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: go-panel
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 300
+        }
+        messages {
+            whenNoDataFound: No Gate Out activity in the selected period.
+        }
+
+        series inbound (
+            name: Inbound released
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: WEEK_LABEL
+                value: INBOUND
+            }
+        )
+
+        series outbound (
+            name: Outbound released
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: WEEK_LABEL
+                value: OUTBOUND
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Vehicles
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region vehicles-inside (
+        name: Vehicles Currently Inside
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<a href="'||apex_page.get_url(p_page=>732,p_clear_cache=>'732',p_items=>'P732_VEHICLE',p_values=>X.VehicleNo)||'">'||apex_escape.html(X.VehicleNo)||'</a>' Vehicle,
+                       X.Direction,X.GateDocument,X.SourceDocument,GetPartyName(X.PartyCode) Party,
+                       X.LocationCode Location,X.GateInTime Gate_In,Round((sysdate-X.GateInTime)*24,1) Dwell_Hours,
+                       Case When (sysdate-X.GateInTime)*24>12 Then '<span class="go-pill go-pill--bad">Escalate</span>'
+                            When (sysdate-X.GateInTime)*24>8 Then '<span class="go-pill go-pill--warn">Delayed</span>'
+                            Else '<span class="go-pill go-pill--info">Inside</span>' End Status
+                  From (
+                    Select 'OUTBOUND' Direction,mo.VehicleNo,mo.MaterialOutNo GateDocument,da.DespatchAdviceNo SourceDocument,mo.PartyCode,mo.LocationCode,mo.GateInTime,mo.CompanyCode,mo.Panel
+                      From MaterialOut mo Left Join DespatchAdvice da On da.TNo=mo.ReferenceTNo
+                     Where mo.GateInTime>sysdate-2 And mo.GateOutTime Is Null And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND'))
+                    Union All
+                    Select 'INBOUND',mi.VehicleNo,mi.MaterialInNo,Nvl(mi.RefDocNo,po.PurchaseOrderNo),mi.PartyCode,mi.LocationCode,mi.GateInTime,mi.CompanyCode,mi.Panel
+                      From MaterialIn mi Left Join PurchaseOrder po On po.TNo=mi.PurchaseOrderTNo
+                     Where mi.GateInTime>sysdate-2 And mi.GateOutTime Is Null And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND'))) X
+                 Where (:P738_COMPANY Is Null Or X.CompanyCode=:P738_COMPANY)
+                   And (:P738_LOCATION Is Null Or X.LocationCode=:P738_LOCATION)
+                   And (:P738_VEHICLE Is Null Or Upper(X.VehicleNo) Like '%'||Upper(:P738_VEHICLE)||'%')
+                   And (:P738_PANEL Is Null Or X.Panel=:P738_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or X.Panel=(Select GetUserPanelAB_apex() From dual))
+                 Order By X.GateInTime
+                ```
+            pageItemsToSubmit: [
+                P738_COMPANY
+                P738_LOCATION
+                P738_DIRECTION
+                P738_VEHICLE
+                P738_PANEL
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                go-panel
+                go-register
+            ]
+        }
+        advanced {
+            htmlDomId: p738Inside
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No live vehicles are inside for this scope.
+        }
+        advanced {
+            savedReportMappingIdentifier: 56016323187411395
+        }
+
+        column DIRECTION (
+            type: plainText
+            heading {
+                heading: Direction
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DWELL_HOURS (
+            type: plainText
+            heading {
+                heading: Dwell (h)
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM990D0
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column GATEDOCUMENT (
+            type: plainText
+            heading {
+                heading: Gate Document
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column GATE_IN (
+            type: plainText
+            heading {
+                heading: Gate In
+            }
+            layout {
+                sequence: 70
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SOURCEDOCUMENT (
+            type: plainText
+            heading {
+                heading: Source Document
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VEHICLE (
+            type: plainText
+            heading {
+                heading: Vehicle
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DIRECTION (
+                sequence: 2
+            )
+
+            displayColumn DWELL_HOURS (
+                sequence: 8
+            )
+
+            displayColumn GATEDOCUMENT (
+                sequence: 3
+            )
+
+            displayColumn GATE_IN (
+                sequence: 7
+            )
+
+            displayColumn LOCATION (
+                sequence: 6
+            )
+
+            displayColumn PARTY (
+                sequence: 5
+            )
+
+            displayColumn SOURCEDOCUMENT (
+                sequence: 4
+            )
+
+            displayColumn STATUS (
+                sequence: 9
+            )
+
+            displayColumn VEHICLE (
+                sequence: 1
+            )
+
+        )
+
+    )
+
+    region visit-register (
+        name: Vehicle Visit Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Win As (Select to_date(:P738_FROMDATE,'DD-MM-RRRR') F,to_date(:P738_TODATE,'DD-MM-RRRR')+1 T From dual),
+                Visits As (
+                  Select 'OUTBOUND' Direction,mo.MaterialOutNo Gate_Document,mo.MaterialOutDate Visit_Date,mo.VehicleNo,GetPartyName(Nvl(mo.PartyCode,da.PartyCode)) Party,
+                         da.DespatchAdviceNo Source_Document,mo.GateInTime,mo.GateOutTime,
+                         (Select Max(w.WeighmentNo) Keep (Dense_Rank Last Order By w.WeighmentDate,w.TNo) From Weighment w Where w.ReferenceTNo=mo.ReferenceTNo) Weighment_No,
+                         (Select Max(ci.CCInvoiceNo) From CCInvoice ci Where ci.DespatchAdviceTNo=da.TNo) Downstream_Document,
+                         mo.LocationCode,mo.CompanyCode,mo.Panel,mo.TNo Gate_TNo,mo.ReferenceTNo Reference_TNo
+                    From MaterialOut mo Cross Join Win x Left Join DespatchAdvice da On da.TNo=mo.ReferenceTNo
+                   Where mo.MaterialOutDate>=x.F And mo.MaterialOutDate<x.T And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','OUTBOUND'))
+                  Union All
+                  Select 'INBOUND',mi.MaterialInNo,mi.MaterialInDate,mi.VehicleNo,GetPartyName(mi.PartyCode),Nvl(mi.RefDocNo,po.PurchaseOrderNo),mi.GateInTime,mi.GateOutTime,
+                         (Select Max(w.WeighmentNo) Keep (Dense_Rank Last Order By w.WeighmentDate,w.TNo) From Weighment w Where w.MaterialInTNo=mi.TNo Or w.ReferenceTNo=mi.TNo),
+                         (Select Max(g.GRNNo) Keep (Dense_Rank Last Order By g.GRNDate,g.TNo) From GRN g Where g.MaterialInTNo=mi.TNo),mi.LocationCode,mi.CompanyCode,mi.Panel,mi.TNo,mi.TNo
+                    From MaterialIn mi Cross Join Win x Left Join PurchaseOrder po On po.TNo=mi.PurchaseOrderTNo
+                   Where mi.MaterialInDate>=x.F And mi.MaterialInDate<x.T And (:P738_DIRECTION Is Null Or :P738_DIRECTION in ('ALL','INBOUND')))
+                Select Direction,Gate_Document,Visit_Date,
+                       Case When VehicleNo Is Not Null Then '<a href="'||apex_page.get_url(p_page=>732,p_clear_cache=>'732',p_items=>'P732_VEHICLE',p_values=>VehicleNo)||'">'||apex_escape.html(VehicleNo)||'</a>' End Vehicle,
+                       Party,Source_Document,GateInTime Gate_In,GateOutTime Gate_Out,
+                       Case When GateInTime Is Not Null Then Round((Nvl(GateOutTime,sysdate)-GateInTime)*24,1) End Dwell_Hours,
+                       Weighment_No,Downstream_Document,
+                       Case When GateInTime Is Null And GateOutTime Is Not Null Then '<span class="go-pill go-pill--bad">Gate In missing</span>'
+                            When GateInTime Is Null Then '<span class="go-pill go-pill--muted">Not gated</span>'
+                            When GateOutTime Is Null And GateInTime<=sysdate-2 Then '<span class="go-pill go-pill--bad">Historical open</span>'
+                            When GateOutTime Is Null Then '<span class="go-pill go-pill--warn">Inside</span>'
+                            Else '<span class="go-pill go-pill--good">Completed</span>' End Status
+                  From Visits V
+                 Where (:P738_COMPANY Is Null Or V.CompanyCode=:P738_COMPANY) And (:P738_LOCATION Is Null Or V.LocationCode=:P738_LOCATION)
+                   And (:P738_VEHICLE Is Null Or Upper(V.VehicleNo) Like '%'||Upper(:P738_VEHICLE)||'%') And (:P738_PANEL Is Null Or V.Panel=:P738_PANEL)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or V.Panel=(Select GetUserPanelAB_apex() From dual))
+                   And (
+                        Nvl(:P738_STAGE_FOCUS,'ALL') In ('ALL','MOVEMENTS')
+                        Or (:P738_STAGE_FOCUS='GATEOUT_TODAY' And V.GateOutTime>=trunc(sysdate))
+                        Or (:P738_STAGE_FOCUS='INSIDE' And V.GateInTime>sysdate-2 And V.GateOutTime Is Null)
+                        Or (:P738_STAGE_FOCUS='FIRST_PENDING' And V.GateInTime>sysdate-2 And V.GateOutTime Is Null And Not Exists (
+                              Select 1 From Weighment w Where w.FirstWeight Is Not Null And
+                                ((V.Direction='OUTBOUND' And (w.ReferenceTNo=V.Reference_TNo Or w.DespatchAdviceTNo=V.Reference_TNo))
+                                  Or (V.Direction='INBOUND' And (w.MaterialInTNo=V.Gate_TNo Or w.ReferenceTNo=V.Gate_TNo)))))
+                        Or (:P738_STAGE_FOCUS='READY_RELEASE' And V.GateInTime>sysdate-2 And V.GateOutTime Is Null And Exists (
+                              Select 1 From Weighment w Where w.SecondWeight Is Not Null And
+                                ((V.Direction='OUTBOUND' And (w.ReferenceTNo=V.Reference_TNo Or w.DespatchAdviceTNo=V.Reference_TNo))
+                                  Or (V.Direction='INBOUND' And (w.MaterialInTNo=V.Gate_TNo Or w.ReferenceTNo=V.Gate_TNo)))))
+                        Or (:P738_STAGE_FOCUS In ('FINAL_PENDING','EXC_FINAL_PENDING') And Exists (
+                              Select 1 From Weighment w Where w.FirstWeight Is Not Null And w.SecondWeight Is Null And
+                                ((V.Direction='OUTBOUND' And (w.ReferenceTNo=V.Reference_TNo Or w.DespatchAdviceTNo=V.Reference_TNo))
+                                  Or (V.Direction='INBOUND' And (w.MaterialInTNo=V.Gate_TNo Or w.ReferenceTNo=V.Gate_TNo)))))
+                        Or (:P738_STAGE_FOCUS='MEDIAN_TAT' And V.GateOutTime>V.GateInTime And (V.GateOutTime-V.GateInTime)*24 Between 0 And 72)
+                        Or (:P738_STAGE_FOCUS='RELEASED' And V.GateOutTime Is Not Null)
+                        Or (:P738_STAGE_FOCUS='OVER8' And V.GateInTime>sysdate-2 And V.GateOutTime Is Null And (sysdate-V.GateInTime)*24>8)
+                        Or (:P738_STAGE_FOCUS='HISTORICAL_GAPS' And ((V.GateInTime<=sysdate-2 And V.GateOutTime Is Null) Or (V.GateInTime Is Null And V.GateOutTime Is Not Null)))
+                        Or (:P738_STAGE_FOCUS='EXC_HISTORICAL_OPEN' And V.Direction='OUTBOUND' And V.GateInTime<=sysdate-2 And V.GateOutTime Is Null)
+                        Or (:P738_STAGE_FOCUS='EXC_GATEOUT_NO_GATEIN' And V.Direction='OUTBOUND' And V.GateInTime Is Null And V.GateOutTime Is Not Null)
+                        Or (:P738_STAGE_FOCUS='EXC_OUT_NO_INVOICE' And V.Direction='OUTBOUND' And V.GateOutTime Is Not Null And V.Downstream_Document Is Null)
+                        Or (:P738_STAGE_FOCUS='EXC_IN_NO_GRN' And V.Direction='INBOUND' And V.GateOutTime Is Not Null And V.Downstream_Document Is Null)
+                       )
+                 Order By Visit_Date Desc,Gate_Document Desc
+                ```
+            pageItemsToSubmit: [
+                P738_FROMDATE
+                P738_TODATE
+                P738_COMPANY
+                P738_LOCATION
+                P738_DIRECTION
+                P738_VEHICLE
+                P738_PANEL
+                P738_STAGE_FOCUS
+            ]
+        }
+        layout {
+            sequence: 24
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                go-panel
+                go-register
+            ]
+        }
+        advanced {
+            htmlDomId: p738VisitRegister
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No vehicle visits match the selected filters.
+        }
+        advanced {
+            savedReportMappingIdentifier: 56019334251411421
+        }
+
+        column DIRECTION (
+            type: plainText
+            heading {
+                heading: Direction
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column DOWNSTREAM_DOCUMENT (
+            type: plainText
+            heading {
+                heading: GRN / Invoice
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DWELL_HOURS (
+            type: plainText
+            heading {
+                heading: Dwell (h)
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM990D0
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column GATE_DOCUMENT (
+            type: plainText
+            heading {
+                heading: Gate Document
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column GATE_IN (
+            type: plainText
+            heading {
+                heading: Gate In
+            }
+            layout {
+                sequence: 70
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column GATE_OUT (
+            type: plainText
+            heading {
+                heading: Gate Out
+            }
+            layout {
+                sequence: 80
+            }
+            appearance {
+                formatMask: DD-Mon HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SOURCE_DOCUMENT (
+            type: plainText
+            heading {
+                heading: Source Document
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VEHICLE (
+            type: plainText
+            heading {
+                heading: Vehicle
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VISIT_DATE (
+            type: plainText
+            heading {
+                heading: Visit Date
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                formatMask: DD-Mon-RR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column WEIGHMENT_NO (
+            type: plainText
+            heading {
+                heading: Weighment
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn DIRECTION (
+                sequence: 1
+            )
+
+            displayColumn DOWNSTREAM_DOCUMENT (
+                sequence: 11
+            )
+
+            displayColumn DWELL_HOURS (
+                sequence: 9
+            )
+
+            displayColumn GATE_DOCUMENT (
+                sequence: 2
+            )
+
+            displayColumn GATE_IN (
+                sequence: 7
+            )
+
+            displayColumn GATE_OUT (
+                sequence: 8
+            )
+
+            displayColumn PARTY (
+                sequence: 5
+            )
+
+            displayColumn SOURCE_DOCUMENT (
+                sequence: 6
+            )
+
+            displayColumn STATUS (
+                sequence: 12
+            )
+
+            displayColumn VEHICLE (
+                sequence: 4
+            )
+
+            displayColumn VISIT_DATE (
+                sequence: 3
+            )
+
+            displayColumn WEIGHMENT_NO (
+                sequence: 10
+            )
+
+        )
+
+    )
+
+    region weighment-control (
+        name: Weighment Control
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Win As (Select to_date(:P738_FROMDATE,'DD-MM-RRRR') F,to_date(:P738_TODATE,'DD-MM-RRRR')+1 T From dual),
+                K As (Select Count(*) Total,Sum(Case When FirstWeight Is Not Null Then 1 Else 0 End) FirstDone,
+                             Sum(Case When SecondWeight Is Not Null Then 1 Else 0 End) FinalDone,
+                             Sum(Case When FirstWeight Is Not Null And SecondWeight Is Null Then 1 Else 0 End) FinalPending
+                        From Weighment w Cross Join Win x Where w.WeighmentDate>=x.F And w.WeighmentDate<x.T
+                         And (:P738_COMPANY Is Null Or w.CompanyCode=:P738_COMPANY) And (:P738_PANEL Is Null Or w.Panel=:P738_PANEL)
+                         And ((Select GetUserPanelAB_apex() From dual) Is Null Or w.Panel=(Select GetUserPanelAB_apex() From dual)))
+                Select '<div class="go-proof"><b>Weighments:</b> '||to_char(Total,'FM999G990')
+                  ||' &nbsp; &middot; &nbsp; <b>First weight:</b> '||to_char(FirstDone,'FM999G990')
+                  ||' &nbsp; &middot; &nbsp; <b>Final weight:</b> '||to_char(FinalDone,'FM999G990')
+                  ||' &nbsp; &middot; &nbsp; <b>Awaiting final:</b> '||to_char(FinalPending,'FM999G990')
+                  ||' &nbsp; <a href="'||apex_page.get_url(p_page=>314,p_clear_cache=>'314')||'">Open Weighment Register &rarr;</a></div>' Card From K
+                ```
+            pageItemsToSubmit: [
+                P738_FROMDATE
+                P738_TODATE
+                P738_COMPANY
+                P738_PANEL
+            ]
+        }
+        layout {
+            sequence: 22
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: go-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        performance {
+            lazyLoading: true
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    pageItem P738_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select CompanyName d,CompanyCode r From Company Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 3
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_DIRECTION (
+        type: selectList
+        label {
+            label: Direction
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:All movements;ALL,Inbound;INBOUND,Outbound;OUTBOUND
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter-panel
+            slot: regionBody
+            column: 1
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        default {
+            type: static
+            staticValue: ALL
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 1
+            region: @filter-panel
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(add_months(trunc(sysdate),-2),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d,LocationCode r From Location Order By 1
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        layout {
+            sequence: 4
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 8
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 5
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_STAGE_FOCUS (
+        type: hidden
+        layout {
+            sequence: 99
+            region: @filter-panel
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: ALL
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 2
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P738_VEHICLE (
+        type: popupLov
+        label {
+            label: Vehicle No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select VehicleNo d, VehicleNo r
+                  From (
+                        Select Distinct Upper(Trim(VehicleNo)) VehicleNo
+                          From MaterialIn
+                         Where VehicleNo Is Not Null
+                        Union
+                        Select Distinct Upper(Trim(VehicleNo)) VehicleNo
+                          From MaterialOut
+                         Where VehicleNo Is Not Null
+                       )
+                 Where VehicleNo Is Not Null
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All vehicles
+        }
+        layout {
+            sequence: 11
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 4
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+            valuePlaceholder: Select vehicle
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Optional. Search and select a vehicle recorded in Gate In or Gate Out transactions.
+        }
+    )
+
+    button apply-filters (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 20
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 8
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-search
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button reset-filters (
+        buttonName: RESETFILTERS
+        label: Reset
+        layout {
+            sequence: 30
+            region: @filter-panel
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-undo
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 738
+                clearCache: 738
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

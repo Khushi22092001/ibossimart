@@ -1,0 +1,1398 @@
+page 405 (
+    name: "TDS PAYBLE "
+    alias: TDS-PAYBLE
+    title: "TDS PAYBLE "
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region tds-payble (
+        name: TDS PAYBLE
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       row_number() over(order by b.VoucherDate) SerialNo,
+                       getlocationname(B.LOCATIONCODE) location,
+                       B.DOCTYPECODE,
+                       B.MODULECODE,
+                       B.VOUCHERNO,
+                       B.VOUCHERDATE,
+                       Null As ITEMNATUREONWHICHTDSDEDECTABLE,
+                       A.TDSPAYEECATEGORYCODE,
+                       Null As TDSDEDUCTABLERATE,
+                       F.TAXSECTIONCODE,
+                       GETPARTYNAME(A.PARTYCODE) As PARTY,
+                       A.PANNO,
+                       DECODE(H.ISCOMPANY, 'YES', 'COMPANY', Null) ISCOMPANY,
+                       F.TDSNATURENAME,
+                       A.TDSDEDUCTEDON As BASICAMOUNT,
+                       A.TDSPERCENT,
+                       A.TDSAMOUNT,
+                       A.CESSPERCENT,
+                       A.CESSAMOUNT,
+                       A.SURCHARGEPERCENT,
+                       A.SURCHARGEAMOUNT,
+                       CHLN.CHALLANNO As CHALLANNO,
+                       CHLN.CHALLANDATE As CHALLANDATE,
+                       CHLN.BSRCODE As CHALLANBSRCODE,
+                       CHLN.CHALLANAMOUNT As CHALLANAMOUNT,
+                       Case
+                         When C.JBPASSNO Is Not Null Then
+                          'JBPASS'
+                         When D.EXTERNALSERVICESENTRYNO Is Not Null Then
+                          'EXTERNAL SERVICE ENTRY '
+                         When E.PAYMENTADVICENO Is Not Null Then
+                          'PAYMENT ADVICE'
+                       End TRANSACTIONMODULE,
+                       Case
+                         When C.JBPASSNO Is Not Null Then
+                          C.JBPASSNO
+                         When D.EXTERNALSERVICESENTRYNO Is Not Null Then
+                          D.EXTERNALSERVICESENTRYNO
+                         When E.PAYMENTADVICENO Is Not Null Then
+                          E.PAYMENTADVICENO
+                       End TRANSACTIONNO,
+                       Case
+                         When C.JBPASSNO Is Not Null Then
+                          C.JBPASSDATE
+                         When D.EXTERNALSERVICESENTRYNO Is Not Null Then
+                          D.EXTERNALSERVICESENTRYDATE
+                         When E.PAYMENTADVICENO Is Not Null Then
+                          E.PAYMENTADVICEDATE
+                       End TRANSACTIONDATE,
+                       
+                       C.JBPASSNO,
+                       c.JOBBILLNO,
+                       c.partybillno as JOBBILLPARTYBILLNO,
+                       D.EXTERNALSERVICESENTRYNO,
+                       E.PAYMENTADVICENO,
+                       i.Freightadviceno,
+                       i.vehicleno,
+                       p.pbpassno,
+                       P.PARTYBILLNO,
+                       P.PURCHASEBILLNO
+                
+                  From VOUCHERTDSDEDUCTED A,
+                       VOUCHER B,
+                       (  select xx.tno,
+                                 xx.jbpassno,
+                                 yy.partybillno,
+                                 xx.jbpassdate,
+                                 yy.jobbillno
+                            from jbpass xx, jobbill yy
+                            where xx.jobbilltno = yy.tno
+                       ) c,
+                       EXTERNALSERVICESENTRY D,
+                       PAYMENTADVICE E,
+                       TDSNATURE F,
+                       TDSTAXCATEGORY G,
+                       PARTY H,
+                       (Select Distinct aa.tno,
+                               aa.Freightadviceno,
+                               aa.FreightAdviceDate,
+                               Case
+                                 When bb.Modulecode = 'CCINVOICE' Then
+                                  (Select yy.Vehicleno
+                                     From Invoice xx, Ccinvoice yy
+                                    Where xx.ModuleTno = yy.Tno
+                                      And yy.tno = bb.ModuleTno)
+                                 When bb.ModuleCode = 'GRN' Then
+                                  (Select VehicleNo From Grn x Where x.tno = bb.ModuleTno)
+                                 Else
+                                  Null
+                               End VehicleNo
+                          From FreightAdvice aa, FreightAdviceDetail bb
+                         Where aa.tno = bb.tno) i,
+                       (Select A.CHALLANNO,
+                               A.CHALLANDATE,
+                               E.BSRCODE,
+                               D.MODULETNO,
+                               A.CHALLANAMOUNT
+                          From CHALLAN A, TDSCHALLAN C, TDSCHALLANDEDUCTEEDETAIL D, BANK E
+                         Where A.DOCTYPECODE = 'TDSCHALLAN'
+                           And A.MODULETNO = C.TNO
+                           And C.TNO = D.TNO
+                           And A.TAXSECTIONCODE = D.TAXSECTIONCODE
+                           And A.DEPOSITEDINBANKCODE = E.BANKCODE) CHLN,
+                       (  select xx.tno,
+                                 xx.pbpassno,
+                                 yy.partybillno,
+                                 xx.pbpassdate,
+                                 YY.PURCHASEBILLNO
+                            from pbpass xx, purchasebill yy
+                            where xx.purchasebilltno = yy.tno
+                       ) p
+                
+                 Where A.TNO = B.TNO(+)
+                   And B.MODULETNO = C.TNO(+)
+                   And B.MODULETNO = D.TNO(+)
+                   And B.MODULETNO = E.TNO(+)
+                   And A.TDSNATURECODE = F.TDSNATURECODE(+)
+                   And A.TDSTAXCATEGORYCODE = G.TDSTAXCATEGORYCODE(+)
+                   And A.PARTYCODE = H.PARTYCODE(+)
+                   And B.MODULETNO = CHLN.MODULETNO(+)
+                   And b.Moduletno = i.tno(+)
+                   And b.ModuleTno = p.tno(+)
+                
+                  and instr(':'||:P405_LOCATION||':',':'||b.LocationCode||':') > 0
+                  and B.VoucherDate between :P405_FROMDATE and :P405_TODATE
+                  and B.ModuleCode like nvl(:P405_MODULECODE,'%')
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 99788416465346680
+        }
+
+        column BASICAMOUNT (
+            type: plainText
+            heading {
+                heading: BASIC AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#BASICAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EB
+            }
+        )
+
+        column CESSAMOUNT (
+            type: plainText
+            heading {
+                heading: CESS AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CESSAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EF
+            }
+        )
+
+        column CESSPERCENT (
+            type: plainText
+            heading {
+                heading: CESS PERCENT
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CESSPERCENT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EE
+            }
+        )
+
+        column CHALLANAMOUNT (
+            type: plainText
+            heading {
+                heading: CHALLAN AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CHALLANAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: ET
+            }
+        )
+
+        column CHALLANBSRCODE (
+            type: plainText
+            heading {
+                heading: CHALLAN BSR CODE
+                alignment: center
+            }
+            layout {
+                sequence: 260
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#CHALLANBSRCODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EK
+            }
+        )
+
+        column CHALLANDATE (
+            type: plainText
+            heading {
+                heading: CHALLAN DATE
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CHALLANDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: ES
+            }
+        )
+
+        column CHALLANNO (
+            type: plainText
+            heading {
+                heading: CHALLAN NO
+                alignment: center
+            }
+            layout {
+                sequence: 240
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#CHALLANNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EI
+            }
+        )
+
+        column DOCTYPECODE (
+            type: plainText
+            heading {
+                heading: VOUCHER TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DOCTYPECODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DS
+            }
+        )
+
+        column EXTERNALSERVICESENTRYNO (
+            type: plainText
+            heading {
+                heading: EXTERNAL SERVICE ENTRY  NO
+                alignment: center
+            }
+            layout {
+                sequence: 320
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#EXTERNALSERVICESENTRYNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EQ
+            }
+        )
+
+        column FREIGHTADVICENO (
+            type: plainText
+            heading {
+                heading: FREIGHT ADVICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 360
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#FREIGHTADVICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EU
+            }
+        )
+
+        column ISCOMPANY (
+            type: plainText
+            heading {
+                heading: COMPANY / NON-COMPANY
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#ISCOMPANY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DZ
+            }
+        )
+
+        column ITEMNATUREONWHICHTDSDEDECTABLE (
+            type: plainText
+            heading {
+                heading: ITEM NATURE ON WHICH TDS DEDUCTABLE
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#ITEMNATUREONWHICHTDSDEDUCTABLE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DT
+            }
+        )
+
+        column JBPASSNO (
+            type: plainText
+            heading {
+                heading: JB PASS NO
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#JBPASSNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EP
+            }
+        )
+
+        column JOBBILLNO (
+            type: plainText
+            heading {
+                heading: JOB BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 390
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#JOBBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EX
+            }
+        )
+
+        column JOBBILLPARTYBILLNO (
+            type: plainText
+            heading {
+                heading: JOB BILL PARTY BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 400
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#JOBBILLPARTYBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EY
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: LOCATION
+            }
+            layout {
+                sequence: 440
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#LOCATION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FC
+            }
+        )
+
+        column MODULECODE (
+            type: plainText
+            heading {
+                heading: "MODULE "
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#MODULECODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BY
+            }
+        )
+
+        column PANNO (
+            type: plainText
+            heading {
+                heading: PAN
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#PANNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DY
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: PARTY
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:230px">#PARTY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DX
+            }
+        )
+
+        column PARTYBILLNO (
+            type: plainText
+            heading {
+                heading: PARTY BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 410
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#PARTYBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EZ
+            }
+        )
+
+        column PAYMENTADVICENO (
+            type: plainText
+            heading {
+                heading: PAYMENT ADVICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#PAYMENTADVICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: ER
+            }
+        )
+
+        column PBPASSNO (
+            type: plainText
+            heading {
+                heading: PB PASS NO
+                alignment: center
+            }
+            layout {
+                sequence: 380
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#PBPASSNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EW
+            }
+        )
+
+        column PURCHASEBILLNO (
+            type: plainText
+            heading {
+                heading: PURCHASE BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 420
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#PURCHASEBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: FA
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: end
+            }
+            layout {
+                sequence: 430
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: FB
+            }
+        )
+
+        column SURCHARGEAMOUNT (
+            type: plainText
+            heading {
+                heading: SURCHARGE AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#SURCHARGEAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EH
+            }
+        )
+
+        column SURCHARGEPERCENT (
+            type: plainText
+            heading {
+                heading: SURCHARGE PERCENT
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#SURCHARGEPERCENT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EG
+            }
+        )
+
+        column TAXSECTIONCODE (
+            type: plainText
+            heading {
+                heading: "SECTION "
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#TAXSECTIONCODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DW
+            }
+        )
+
+        column TDSAMOUNT (
+            type: plainText
+            heading {
+                heading: TDS AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#TDSAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: ED
+            }
+        )
+
+        column TDSDEDUCTABLERATE (
+            type: plainText
+            heading {
+                heading: TDS DEDUCTABLE RATE
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#TDSDEDUCTABLERATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DV
+            }
+        )
+
+        column TDSNATURENAME (
+            type: plainText
+            heading {
+                heading: NATURE OF ASSESEE
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#TDSNATURENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EA
+            }
+        )
+
+        column TDSPAYEECATEGORYCODE (
+            type: plainText
+            heading {
+                heading: TDS PAYEEE CATEGORY CODE
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#TDSPAYEECATEGORYCODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DU
+            }
+        )
+
+        column TDSPERCENT (
+            type: plainText
+            heading {
+                heading: TDS PERCENT
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#TDSPERCENT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: EC
+            }
+        )
+
+        column TRANSACTIONDATE (
+            type: plainText
+            heading {
+                heading: TRANSACTION DATE
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#TRANSACTIONDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: EO
+            }
+        )
+
+        column TRANSACTIONMODULE (
+            type: plainText
+            heading {
+                heading: TRANSACTION MODULE
+                alignment: center
+            }
+            layout {
+                sequence: 280
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#TRANSACTIONMODULE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EM
+            }
+        )
+
+        column TRANSACTIONNO (
+            type: plainText
+            heading {
+                heading: TRANSACTION NO
+                alignment: center
+            }
+            layout {
+                sequence: 290
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#TRANSACTIONNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EN
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: VEHICLE NO
+                alignment: center
+            }
+            layout {
+                sequence: 370
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:90px">#VEHICLENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: EV
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: VOUCHER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VOUCHERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: CA
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: VOUCHER NO
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#VOUCHERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BZ
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: TDS PAYBLE
+        }
+
+        savedReport 131498 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 1000
+            }
+
+            displayColumn BASICAMOUNT (
+                sequence: 20
+            )
+
+            displayColumn CESSAMOUNT (
+                sequence: 24
+            )
+
+            displayColumn CESSPERCENT (
+                sequence: 23
+            )
+
+            displayColumn CHALLANAMOUNT (
+                sequence: 29
+            )
+
+            displayColumn CHALLANBSRCODE (
+                sequence: 30
+            )
+
+            displayColumn CHALLANDATE (
+                sequence: 28
+            )
+
+            displayColumn CHALLANNO (
+                sequence: 27
+            )
+
+            displayColumn DOCTYPECODE (
+                sequence: 5
+            )
+
+            displayColumn FREIGHTADVICENO (
+                sequence: 6
+            )
+
+            displayColumn ISCOMPANY (
+                sequence: 17
+            )
+
+            displayColumn JBPASSNO (
+                sequence: 11
+            )
+
+            displayColumn JOBBILLNO (
+                sequence: 12
+            )
+
+            displayColumn JOBBILLPARTYBILLNO (
+                sequence: 13
+            )
+
+            displayColumn LOCATION (
+                sequence: 2
+            )
+
+            displayColumn PANNO (
+                sequence: 16
+            )
+
+            displayColumn PARTY (
+                sequence: 15
+            )
+
+            displayColumn PARTYBILLNO (
+                sequence: 10
+            )
+
+            displayColumn PBPASSNO (
+                sequence: 8
+            )
+
+            displayColumn PURCHASEBILLNO (
+                sequence: 9
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SURCHARGEAMOUNT (
+                sequence: 26
+            )
+
+            displayColumn SURCHARGEPERCENT (
+                sequence: 25
+            )
+
+            displayColumn TAXSECTIONCODE (
+                sequence: 14
+            )
+
+            displayColumn TDSAMOUNT (
+                sequence: 22
+            )
+
+            displayColumn TDSNATURENAME (
+                sequence: 19
+            )
+
+            displayColumn TDSPAYEECATEGORYCODE (
+                sequence: 18
+            )
+
+            displayColumn TDSPERCENT (
+                sequence: 21
+            )
+
+            displayColumn TRANSACTIONDATE (
+                sequence: 33
+            )
+
+            displayColumn TRANSACTIONMODULE (
+                sequence: 31
+            )
+
+            displayColumn TRANSACTIONNO (
+                sequence: 32
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 7
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 4
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 3
+            )
+
+            aggregate (
+                column: TDSAMOUNT
+            )
+
+            aggregate (
+                column: BASICAMOUNT
+            )
+
+        )
+
+    )
+
+    region tds-payble-2 (
+        name: TDS PAYBLE
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P405_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @tds-payble-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)-7
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P405_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PAYMENTADVICE'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                  
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @tds-payble-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P405_MODULECODE (
+        type: selectList
+        label {
+            label: Module
+            alignment: left
+        }
+        settings {
+            pageActionOnSelection: submitPage
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT MODULECODE AS MODULENAME,MODULECODE FROM VOUCHERTDSDEDUCTED A, VOUCHER B
+                WHERE A.TNO = B.TNO
+                ```
+            nullDisplayValue: --Select Module--
+        }
+        layout {
+            sequence: 70
+            region: @tds-payble-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P405_TODATE (
+        type: datePickerJquery
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 30
+            region: @tds-payble-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @tds-payble-2
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

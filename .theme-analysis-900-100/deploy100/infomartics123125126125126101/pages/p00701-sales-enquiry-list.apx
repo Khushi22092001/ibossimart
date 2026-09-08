@@ -1,0 +1,1611 @@
+page 701 (
+    name: Sales Enquiry List
+    alias: SALES-ENQUIRY-LIST
+    title: Sales Enquiry List
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent15
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region sales-enquiry-list (
+        name: Sales Enquiry List
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select a.Tno,
+                       a.FinancialYearCode,
+                       a.PartySalesEnquiryNo,
+                       a.PartySalesEnquiryDate,
+                       a.SumOfAmount,
+                       a.SumOfFooterAmount,
+                       a.SalesEnquiryAmount,
+                       a.SubjectText,
+                       a.ReferenceText,
+                       a.LetterText,
+                       a.TitleText,
+                       a.Remark,
+                       a.AgentCode,
+                       a.CreationTime,
+                       a.Creator,
+                       a.DeliveryOrderTno,
+                       a.WorkOrderTno,
+                       a.ValidityUptoDate,
+                       a.CurrencyValue,
+                       a.ItemWiseFooter,
+                	   b.LocationName,
+                	   c.CompanyName,
+                	   d.DocTypeName,
+                       de.DepartmentName,
+                	   e.EmployeeName,
+                	   a.SalesEnquiryNo,
+                	   a.SalesEnquiryDate,
+                	   a.DeliveryDate,
+                	   f.QuotationNo,
+                	   p.PartyName,
+                       pa.PartyName as ConsigneeName,
+                       rc.RateContractNo,
+                	   cu.CurrencyUnitName,
+                       i.IndentNo
+                 From SalesEnquiry a,Location b,Company c,DocType d,Department de,Employee e,Quotation f,CurrencyUnit cu,Party p, Indent i,RateContract rc,Party pa,
+                      DocumentStatusDetail dsd, SalesEnquiryDetail b1
+                  where a.LocationCode = b.LocationCode(+)
+                    and a.CompanyCode = c.CompanyCode(+)
+                    and a.DocTypeCode = d.DocTypeCode (+)
+                	and a.DepartmentCode = de.DepartmentCode(+)
+                    and a.EmployeeCode = e.EmployeeCode(+)
+                	and a.QuotationTno = f.Tno(+)
+                	and a.CurrencyUnitCode = cu.CurrencyUnitCode (+)
+                	and a.PartyCode = p.PartyCode (+)
+                    and a.IndentTno = i.Tno (+)
+                    and a.RateContractTno = rc.Tno(+)
+                    and a.ConsigneeCode = pa.PartyCode (+)
+                    and a.tno = dsd.Moduletno(+)
+                    and a.tno = b1.tno(+)
+                  
+                  --- Filter
+                    and a.SalesEnquiryDate between :P701_FROMDATE and :P701_TODATE
+                  and   (:P701_COMPANY is null or instr(':'||:P701_COMPANY||':',':'||a.CompanyCode||':') > 0)
+                  and   (:P701_LOCATION is null or instr(':'||:P701_LOCATION||':',':'||a.LocationCode||':') > 0)
+                  and   (:P701_DOCTYPE is null or instr(':'||:P701_DOCTYPE||':',':'||a.DocTypeCode||':') > 0)
+                  and ( :P701_PARTYNAME IS NULL OR instr(':'||:P701_PARTYNAME||':',':'||a.PartyCode||':') > 0 ) 
+                  and ( :P701_ITEM IS NULL OR instr(':'||:P701_ITEM||':',':'||b1.ItemCode||':') > 0 ) 
+                  and ( :P701_ITEMSPECIFICATION IS NULL OR instr(':'||:P701_ITEMSPECIFICATION||':',':'||b1.ItemSpecificationCode||':') > 0 )
+                -- added on 20-may-2024 Previleage
+                 and getlocationprivilege(a.locationcode,getmodulecodeforpageno(:APP_PAGE_ID),A.COMPANYCODE,:GLOBAL_LOGINNAME)='YES' 
+                 AND getdoctypeprivilege(a.doctypecode,getmodulecodeforpageno(:APP_PAGE_ID),A.COMPANYCODE,:GLOBAL_LOGINNAME)='YES' 
+                 and getcompanyprivilege(A.COMPANYCODE,GETMODULECODEFORPAGENO(:APP_PAGE_ID),:GLOBAL_LOGINNAME)='YES'
+                 and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+                           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+                           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+                           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+                           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+                           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+                           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+                           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+                           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+                           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+                           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+                      End  like nvl(:P701_STATUS,'%')
+                 -- and a.SalesEnquiryNo like nvl(:P701_SalesEnquiryNO,'%')
+                order by a.SalesEnquiryDate desc , a.SalesEnquiryNo desc
+                ```
+            pageItemsToSubmit: [
+                P701_COMPANY
+                P701_TNO
+                P701_STATUS
+                P701_FROMDATE
+                P701_TODATE
+                P701_LOCATION
+                P701_PARTYNAME
+                P701_DOCTYPE
+                P701_ITEM
+                P701_SALESENQUIRYNO
+                P701_GRNSTATUS
+                P701_ITEMSPECIFICATION
+                P701_TODOLIST
+                P701_NEXTPROCESS
+                P701_BIREPORTURL
+                P701_TNO_1
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 702
+                items: {
+                    P702_TNO: \#TNO#\
+                }
+                action: resetPagination
+            }
+            linkIcon: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 123127210386793905
+        }
+
+        column AGENTCODE (
+            type: plainText
+            heading {
+                heading: Agent Code
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Company Name
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column CONSIGNEENAME (
+            type: plainText
+            heading {
+                heading: Consignee Name
+            }
+            layout {
+                sequence: 310
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BL
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: Creation Time
+            }
+            layout {
+                sequence: 190
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column CURRENCYUNITNAME (
+            type: plainText
+            heading {
+                heading: Currency Unit
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column CURRENCYVALUE (
+            type: plainText
+            heading {
+                heading: Currency Value
+                alignment: end
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column DELIVERYDATE (
+            type: plainText
+            heading {
+                heading: Delivery Date
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DELIVERYORDERTNO (
+            type: plainText
+            heading {
+                heading: Delivery Order Tno
+                alignment: end
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column DEPARTMENTNAME (
+            type: plainText
+            heading {
+                heading: Department Name
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doc Type Name
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: plainText
+            heading {
+                heading: Employee Name
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column FINANCIALYEARCODE (
+            type: plainText
+            heading {
+                heading: "Financial Year "
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column INDENTNO (
+            type: plainText
+            heading {
+                heading: Indent No
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column ITEMWISEFOOTER (
+            type: plainText
+            heading {
+                heading: Item Wise Footer
+            }
+            layout {
+                sequence: 300
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        column LETTERTEXT (
+            type: plainText
+            heading {
+                heading: Letter Text
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Party Name
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column PARTYSALESENQUIRYDATE (
+            type: plainText
+            heading {
+                heading: Party Sales Enquiry Date
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column PARTYSALESENQUIRYNO (
+            type: plainText
+            heading {
+                heading: Party Sales Enquiry No
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column QUOTATIONNO (
+            type: plainText
+            heading {
+                heading: Quotation No
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column RATECONTRACTNO (
+            type: plainText
+            heading {
+                heading: Rate Contract No
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column REFERENCETEXT (
+            type: plainText
+            heading {
+                heading: Reference Text
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: Remark
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column SALESENQUIRYAMOUNT (
+            type: plainText
+            heading {
+                heading: Sales Enquiry Amount
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column SALESENQUIRYDATE (
+            type: plainText
+            heading {
+                heading: Sales Enquiry Date
+            }
+            layout {
+                sequence: 9
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column SALESENQUIRYNO (
+            type: plainText
+            heading {
+                heading: Sales Enquiry No.
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SUBJECTTEXT (
+            type: plainText
+            heading {
+                heading: Subject Text
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column SUMOFAMOUNT (
+            type: plainText
+            heading {
+                heading: Sum Of Amount
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column SUMOFFOOTERAMOUNT (
+            type: plainText
+            heading {
+                heading: Sum Of Footer Amount
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column TITLETEXT (
+            type: plainText
+            heading {
+                heading: Title Text
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 0
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VALIDITYUPTODATE (
+            type: plainText
+            heading {
+                heading: Validity Upto Date
+            }
+            layout {
+                sequence: 290
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column WORKORDERTNO (
+            type: plainText
+            heading {
+                heading: Work Order Tno
+                alignment: end
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BE
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Sales Enquiry List
+        }
+
+        savedReport 39129 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGENTCODE (
+                sequence: 14
+            )
+
+            displayColumn COMPANYNAME (
+                sequence: 1
+            )
+
+            displayColumn CONSIGNEENAME (
+                sequence: 28
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 32
+            )
+
+            displayColumn CREATOR (
+                sequence: 33
+            )
+
+            displayColumn CURRENCYUNITNAME (
+                sequence: 10
+            )
+
+            displayColumn CURRENCYVALUE (
+                sequence: 11
+            )
+
+            displayColumn DELIVERYDATE (
+                sequence: 9
+            )
+
+            displayColumn DELIVERYORDERTNO (
+                sequence: 17
+            )
+
+            displayColumn DEPARTMENTNAME (
+                sequence: 5
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn EMPLOYEENAME (
+                sequence: 6
+            )
+
+            displayColumn FINANCIALYEARCODE (
+                sequence: 2
+            )
+
+            displayColumn INDENTNO (
+                sequence: 18
+            )
+
+            displayColumn ITEMWISEFOOTER (
+                sequence: 27
+            )
+
+            displayColumn LETTERTEXT (
+                sequence: 24
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 3
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 13
+            )
+
+            displayColumn PARTYSALESENQUIRYDATE (
+                sequence: 29
+            )
+
+            displayColumn PARTYSALESENQUIRYNO (
+                sequence: 30
+            )
+
+            displayColumn QUOTATIONNO (
+                sequence: 15
+            )
+
+            displayColumn RATECONTRACTNO (
+                sequence: 16
+            )
+
+            displayColumn REFERENCETEXT (
+                sequence: 23
+            )
+
+            displayColumn REMARK (
+                sequence: 26
+            )
+
+            displayColumn SALESENQUIRYAMOUNT (
+                sequence: 21
+            )
+
+            displayColumn SALESENQUIRYDATE (
+                sequence: 8
+            )
+
+            displayColumn SALESENQUIRYNO (
+                sequence: 7
+            )
+
+            displayColumn SUBJECTTEXT (
+                sequence: 22
+            )
+
+            displayColumn SUMOFAMOUNT (
+                sequence: 19
+            )
+
+            displayColumn SUMOFFOOTERAMOUNT (
+                sequence: 20
+            )
+
+            displayColumn TITLETEXT (
+                sequence: 25
+            )
+
+            displayColumn VALIDITYUPTODATE (
+                sequence: 31
+            )
+
+            displayColumn WORKORDERTNO (
+                sequence: 12
+            )
+
+        )
+
+    )
+
+    pageItem P701_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 190
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P701_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'PURCHASEORDER'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                   and getcompanyprivilege(C.COMPANYCODE,GETMODULECODEFORPAGENO(:APP_PAGE_ID),:GLOBAL_LOGINNAME)='YES'
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Company Name
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P701_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'PURCHASEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  and instr(':'||:P701_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order by 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P701_COMPANY
+            itemsToSubmit: P701_DOCTYPE
+        }
+        layout {
+            sequence: 100
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Doc Type Name
+        }
+    )
+
+    pageItem P701_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: From Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)-3
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P701_GRNSTATUS (
+        type: hidden
+        layout {
+            sequence: 130
+            region: @filter
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P701_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      e.ItemName||'( '||e.ItemCode||' )' as d,
+                      e.ItemCode r
+                From PurchaseOrderDetail a,Item e
+                Where a.ItemCode = e.ItemCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 110
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 74
+            valuePlaceholder: Material
+        }
+    )
+
+    pageItem P701_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      ee.ItemSpecificationName as d,
+                      ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P701_ITEM
+                  and e.TNo = ee.TNO
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P701_ITEM
+            itemsToSubmit: P701_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 140
+            region: @filter
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P701_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PURCHASEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  and instr(':'||:P701_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P701_COMPANY
+            itemsToSubmit: P701_LOCATION
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+    )
+
+    pageItem P701_NEXTPROCESS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 170
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P701_PARTYNAME (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From PurchaseOrder a, Party p
+                Where a.PartyCode = p.PartyCode
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @filter
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 74
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P701_SALESENQUIRYNO (
+        type: textFieldWithAutocomplete
+        label {
+            label: PoNo
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select PurchaseOrderNo From PurchaseOrder 
+                Where instr(':'||:P701_LOCATION||':',':'||LocationCode||':') > 0
+                  and PurchaseOrderDate Between :P701_FROMDATE and :P701_TODATE
+                Order by 1
+                ```
+        }
+        cascadingLov {
+            parentItems: P701_LOCATION
+            itemsToSubmit: P701_SALESENQUIRYNO
+        }
+        layout {
+            sequence: 120
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Enter Rate Contract No
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P701_STATUS (
+        type: selectList
+        label {
+            label: Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:Active;ACTIVE,Non-Active;NONACTIVE,Canceled;CANCELED,Closed;CLOSED,Preparing;PREPARING,Prepared;PREPARED,Authorised;AUTHORISED,On Hold;ONHOLD,Short Closed;SHORTCLOSED,Dept Approved;DEPTAPPROVED,Store Approval;STOREAPPROVED
+            nullDisplayValue: --Select Status--
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P701_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+    )
+
+    pageItem P701_TNO_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 200
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P701_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 15
+            valuePlaceholder: To Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P701_TODOLIST (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Add New
+        layout {
+            sequence: 50
+            region: @sales-enquiry-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--iconLeft
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 702
+                clearCache: 702
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button home (
+        buttonName: Home
+        label: Home
+        layout {
+            sequence: 40
+            region: @sales-enquiry-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: #DEFAULT#
+            icon: fa-window-close-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 30
+            region: @sales-enquiry-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 150
+            region: @filter
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction pagination (
+        name: Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

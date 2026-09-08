@@ -1,0 +1,2350 @@
+page 11 (
+    name: "Account Ledger "
+    alias: ACCOUNT-LEDGER
+    title: "Account Ledger "
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P11_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/AccountLedger.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P11_FROMDATE').val());
+              var toDate = new Date($('#P11_TODATE').val());
+              var companycode ,global_companycode;
+              
+             
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+                 global_companycode='&GLOBAL_COMPANYCODE.';
+              } 
+            
+            var reportParams = 
+                  '&P_FROMDATE='+ $('#P11_FROMDATE').val()+
+                  '&P_TODATE=' + $('#P11_TODATE').val() +
+                  '&P_LOCATION=' +$('#P11_LOCATION').val() +  
+                  '&P_PARTY=' +$('#P11_PARTY').val() +
+                  '&GLOBAL_COMPANYCODE=' +global_companycode
+                  ;
+             
+            //alert($v('P11_PARTY'));
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P11_BIREPORTURL').val()
+              var reportName =  'AccountLedger.xdo';
+              var outputFormat = 'pdf';
+            var companycode ,global_companycode;
+              
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+                 global_companycode='&GLOBAL_COMPANYCODE.';
+              } 
+            
+            
+            //   var reportParams = 
+            //     '"_paramsP_TNO":"' + $('#P11_TNO').val() 
+            //       ;
+            
+            var reportParams = 
+                     '"_paramsP_FROMDATE":"' +$('#P11_FROMDATE').val() + '",' + 
+                     '"_paramsP_TODATE":"' +$('#P11_TODATE').val() + '",' + 
+            	 '"_paramsP_LOCATION":"' + $('#P11_LOCATION').val() + '",' + 
+            	 '"_paramsP_PARTY":"' + $('#P11_PARTY').val() + '",' + 
+                     '"_paramsGLOBAL_COMPANYCODE":"' +global_companycode;
+                 
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    security {
+        authentication: public
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region account-ledger (
+        name: "Account Ledger "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: fullWidthContent
+        }
+        appearance {
+            template: @/content-block
+            templateOptions: [
+                #DEFAULT#
+                t-ContentBlock--h3
+                t-Region--removeHeader js-removeLandmark
+                t-Form--slimPadding
+                margin-bottom-sm
+            ]
+        }
+    )
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: beforeNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noUI
+            ]
+        }
+    )
+
+    region new (
+        name: New
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                
+                ---- DT 20-NOV-2024
+                SELECT X.TNO,
+                       X.VOUCHERDATE,
+                       getlocationname(X.LOCATIONCODE) LocationCode,
+                       X.ACCOUNTNAME,
+                       X.VOUCHERNO,
+                       :P11_PARTY as party,
+                       ( SELECT DOCTYPECODE FROM VOUCHER WHERE TNO = X.TNO) AS VOUCHERTYPE,
+                      -- 'DETAIL' AS VRDETAIL,
+                       --'NARRATION' AS NARRATION,
+                       X.NARRATION AS NARRATION,
+                       abs(X.AMOUNT) as amount,
+                       CASE WHEN X.VOUCHERNO = 'CLOSING' THEN 
+                               0
+                            ELSE           
+                               X.DRAMOUNT
+                       END DRAMOUNT,
+                      CASE WHEN X.VOUCHERNO = 'CLOSING' THEN 
+                               0
+                            ELSE            
+                               X.CRAMOUNT
+                       END CRAMOUNT,
+                       CASE
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) < 0 AND
+                              X.VOUCHERNO != 'CLOSING' THEN
+                          ROUND((SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)), 2) * -1
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) < 0 AND
+                              X.VOUCHERNO = 'CLOSING' THEN
+                          DECODE(X.AMOUNT + ABS(X.AMOUNT), 0, ROUND(X.AMOUNT * -1, 2))
+                         ELSE
+                          0
+                       END DRCLOSING,
+                       CASE
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) > 0 AND
+                              X.VOUCHERNO != 'CLOSING' THEN
+                          ROUND((SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)), 2)
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) > 0 AND
+                              X.VOUCHERNO = 'CLOSING' THEN
+                          DECODE(X.AMOUNT + ABS(X.AMOUNT), 2 * X.AMOUNT, ROUND(X.AMOUNT, 2))
+                         ELSE
+                          0
+                       END CRCLOSING,
+                       'VOUCHER' AS VOUCHER,
+                     CASE WHEN NVL(X.BILLATTACHED,'NO')='YES' THEN
+                        getmodulename(X.MODULECODE)
+                        ELSE
+                          NULL
+                    END MODULEODE,
+                     --X.MODULETNO,
+                
+                	  abs(Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding)) As ClosingAmount,
+                 
+                     Case When Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding) > 0 Then
+                    	         'Cr'
+                    			Else 'Dr'
+                     End ClosingType
+                      
+                  FROM (
+                         SELECT 1 AS TNO,
+                               TO_DATE(:P11_FROMDATE,'DD-MM-RRRR') AS VOUCHERDATE,
+                               NULL AS LOCATIONCODE,
+                               'OPENING' AS ACCOUNTNAME,
+                               'OPENING' AS VOUCHERNO,
+                               NULL AS NARRATION,
+                               (Select Sum(AMOUNT)
+                          From (
+                		        (Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE < TO_DATE(:P11_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P11_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 /*Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P11_PARTY
+                                    And a.locationcode = :P11_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE
+                                  */ 
+                                    ))) As AMOUNT,
+                               CASE
+                                 WHEN (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE < TO_DATE(:P11_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P11_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (&P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 /*Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P11_PARTY
+                                    And a.locationcode = :P11_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE
+                                  */
+                                    )))  < 0 THEN
+                                  (Select Sum(AMOUNT)
+                          From (
+                		        (Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X, voucher y
+                                  Where x.tno = y.tno
+                				    and X.VOUCHERDATE < TO_DATE(:P11_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P11_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                							   
+                				    and y.companycode = :Global_companycode
+                                /* Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P11_PARTY
+                                    And a.locationcode = :P11_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE
+                					*/
+                					)))  * -1
+                                 ELSE
+                                  0
+                               END DRAMOUNT,
+                               CASE
+                                 WHEN (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X, Voucher y
+                                  Where x.tno = y.tno
+                				    and X.VOUCHERDATE < TO_DATE(:P11_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P11_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                				    and y.companycode = :Global_companycode
+                                 /*Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P11_PARTY
+                                    And a.locationcode = :P11_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE
+                					*/
+                					)))  > 0 THEN
+                                  (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X, voucher y
+                                  Where X.VOUCHERDATE < TO_DATE(:P11_FROMDATE, 'DD-MM-RRRR')
+                				    and x.tno =y.tno
+                                    And
+                                        instr(':' || :P11_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                					and y.companycode = :Global_companycode
+                                 /*Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P11_PARTY
+                                    And a.locationcode = :P11_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE
+                					*/
+                					)))
+                                 ELSE
+                                  0
+                               END CRAMOUNT,
+                               (Select Sum(AMOUNT)
+                          From (
+                		        (Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X, voucher y
+                                  Where X.VOUCHERDATE < TO_DATE(:P11_FROMDATE, 'DD-MM-RRRR')
+                				    and x.tno =y.tno
+                                    And 
+                                        instr(':' || :P11_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                				    and y.companycode = :Global_companycode
+                                 /*Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P11_PARTY
+                                    And a.locationcode = :P11_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE
+                					*/
+                					)
+                				)
+                				)  AS CLOSING,
+                                NULL AS MODULECODE,
+                                --'OPENING' AS MODULETNO,
+                        NULL AS BILLATTACHED
+                          FROM DUAL
+                        UNION ALL
+                        
+                        SELECT X.TNO,
+                               
+                               X.VOUCHERDATE,
+                               X.LOCATIONCODE,
+                               getpartyname(X.ACCOUNTCODE) AS ACCOUNTNAME,
+                               X.VOUCHERNO,
+                               X.NARRATION,
+                               X.AMOUNT,
+                               DECODE(X.AMOUNT + ABS(X.AMOUNT), 0, ROUND(X.AMOUNT * -1, 2)) AS DRAMOUNT,
+                               DECODE(X.AMOUNT + ABS(X.AMOUNT), 2 * X.AMOUNT, ROUND(X.AMOUNT, 2)) AS CRAMOUNT,
+                               (SUM(X.Amount) OVER(ORDER BY X.VOUCHERDATE, X.TNO)) CLOSING,
+                               nvl(Y.MODULECODE,y.referencemodulecode) as modulecode,
+                 
+                         X.BILLATTACHED
+                            FROM Accountledgerreport X, Voucher y
+                         WHERE X.TNO = y.tno
+                           AND X.VOUCHERDATE BETWEEN TO_DATE(:P11_FROMDATE,'DD-MM-RRRR') AND TO_DATE(:P11_TODATE,'DD-MM-RRRR')
+                           AND X.CREATOR = '&APP_USER.'
+                           AND instr(':'||:P11_PARTY||':',':'||X.LEDGERACCOUNTCODE||':') > 0
+                           AND (:P11_LOCATION IS NULL OR instr(':'||:P11_LOCATION||':',':'||X.LocationCode||':') > 0)
+                        UNION ALL
+                        SELECT 99999999999 AS TNO,
+                               TO_DATE(:P11_TODATE,'DD-MM-RRRR') AS VOUCHERDATE,
+                               NULL AS LOCATIONCODE,
+                               'CLOSING' AS ACCOUNTNAME,
+                               'CLOSING' AS VOUCHERNO,
+                               NULL AS NARRATION,
+                               0 AS AMOUNT,
+                               CASE
+                                 WHEN (SELECT ROUND(SUM(AMOUNT), 2)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P11_TODATE,'DD-MM-RRRR')
+                                   AND  instr(':'||:P11_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P11_LOCATION IS NULL OR instr(':'||:P11_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) < 0 THEN
+                                  0
+                                 ELSE
+                                  0
+                               END DRAMOUNT,
+                               CASE
+                                 WHEN (SELECT ROUND(SUM(AMOUNT), 2)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P11_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P11_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P11_LOCATION IS NULL OR instr(':'||:P11_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) > 0 THEN
+                                  0               
+                                 ELSE
+                                  0
+                               END CRAMOUNT,
+                               0 AS CLOSING,
+                               NULL AS MODULECODE,
+                               --NULL AS MODULETNO,
+                         NULL AS BILLATTACHED
+                        
+                          FROM DUAL
+                
+                         ORDER BY VOUCHERDATE
+                        
+                 
+                        
+                        ) X
+                
+                ```
+            pageItemsToSubmit: [
+                P11_FROMDATE
+                P11_TODATE
+                P11_NARRATION
+                P11_PRINTDRCR
+                P11_LOCATION
+                P11_PARTY_1
+                P11_REPORTTITLE
+                P11_BIREPORTURL
+                P11_PARTY_OLD
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 486571582611520341
+        }
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: ACCOUNT NAME
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CLOSINGAMOUNT (
+            type: plainText
+            heading {
+                heading: CLOSING AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column CLOSINGTYPE (
+            type: plainText
+            heading {
+                heading: DR/CR
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column CRAMOUNT (
+            type: plainText
+            heading {
+                heading: CR AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column CRCLOSING (
+            type: plainText
+            heading {
+                heading: CR CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DRAMOUNT (
+            type: plainText
+            heading {
+                heading: DR AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DRCLOSING (
+            type: plainText
+            heading {
+                heading: DR CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: LOCATION CODE
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column MODULEODE (
+            type: link
+            heading {
+                heading: MODULE CODE
+            }
+            layout {
+                sequence: 160
+            }
+            link {
+                target: {
+                    page: 58
+                    items: {
+                        P58_TNO: #MODULETNO#
+                    }
+                    clearCache: 58
+                }
+                linkText: #MODULEODE#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column NARRATION (
+            type: plainText
+            heading {
+                heading: NARRATION
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VOUCHER (
+            type: plainText
+            heading {
+                heading: VOUCHER
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: VOUCHER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column VOUCHERNO (
+            type: link
+            heading {
+                heading: VOUCHER NO
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            link {
+                target: {
+                    page: 156
+                    items: {
+                        P156_TNO: #TNO#
+                        P156_CALLEDFROMPAGE: 11
+                        P156_FORMSTATUS: CALLED
+                        P156_CALLEDFROMTNO: #TNO#
+                        P156_PARTYCODE: #PARTY#
+                    }
+                }
+                linkText: #VOUCHERNO#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column VOUCHERTYPE (
+            type: plainText
+            heading {
+                heading: VOUCHER TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: New
+        }
+
+        savedReport 690993 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCOUNTNAME (
+                sequence: 3
+            )
+
+            displayColumn CLOSINGAMOUNT (
+                sequence: 8
+            )
+
+            displayColumn CLOSINGTYPE (
+                sequence: 9
+            )
+
+            displayColumn CRAMOUNT (
+                sequence: 7
+            )
+
+            displayColumn DRAMOUNT (
+                sequence: 6
+            )
+
+            displayColumn LOCATIONCODE (
+                sequence: 2
+            )
+
+            displayColumn NARRATION (
+                sequence: 10
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 1
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 4
+            )
+
+            displayColumn VOUCHERTYPE (
+                sequence: 5
+            )
+
+            aggregate (
+                column: DRAMOUNT
+            )
+
+            aggregate (
+                column: CRAMOUNT
+            )
+
+        )
+
+    )
+
+    pageItem P11_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 150
+            region: @account-ledger
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P11_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-RRRR
+            width: 40
+            valuePlaceholder: From Date
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                SELECT
+                FINANCIALYEARBEGIN
+                FROM FINANCIALYEAR
+                WHERE TRUNC(SYSDATE) BETWEEN FINANCIALYEARBEGIN AND FINANCIALYEAREND
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P11_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select distinct 
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = getmodulecodeforpageno(:APP_PAGE_ID)
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            nullDisplayValue: - Select -
+        }
+        layout {
+            sequence: 70
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+    )
+
+    pageItem P11_NARRATION (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @account-ledger
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P11_PARTY (
+        type: selectOne
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      distinct nvl(getpartyname(a.partycode),a.partycode) d, 
+                      a.partycode r
+                From  Party a
+                Where a.PartyTYPECODE != 'ACCOUNTGROUP'
+                
+                Order By 1
+                ```
+        }
+        layout {
+            sequence: 90
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+        sessionState {
+            storage: user
+        }
+    )
+
+    pageItem P11_PARTY_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @account-ledger
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+    )
+
+    pageItem P11_PARTY_OLD (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      distinct nvl(getpartyname(a.partycode),a.partycode) d, 
+                      a.partycode r
+                From  Party a
+                Where a.PartyTYPECODE != 'ACCOUNTGROUP'
+                
+                Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: -Select-
+        }
+        layout {
+            sequence: 10
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+        sessionState {
+            storage: user
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    pageItem P11_PRINTDRCR (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @account-ledger
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        default {
+            type: static
+            staticValue: STATE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P11_REPORTTITLE (
+        type: hidden
+        layout {
+            sequence: 140
+            region: @account-ledger
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: Account Ledger
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P11_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P11_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-RRRR
+            width: 40
+            valuePlaceholder: To Date
+        }
+        source {
+            used: always
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT TRUNC(SYSDATE) FROM DUAL;
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button addnew (
+        buttonName: AddNew
+        label: Add New
+        layout {
+            sequence: 210
+            region: @buttons
+            slot: change
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--pillEnd
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: &APP_PAGE_ID.
+                clearCache: &APP_PAGE_ID.
+            }
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Want to Add New Record?
+        }
+        serverSideCondition {
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                DECLARE
+                  tModuleFlow number;
+                  tmp         number;
+                  tmp1        number;
+                BEGIN
+                   select count(*) into tmp1 from ModuleFlow a where a.modulecode = getmodulecodeforpageno(:APP_PAGE_ID);
+                   if nvl(tmp1,0) > 0 then
+                        select 
+                            count(*) into tModuleFlow
+                        from ModuleFlow a, ModuleFlowUser b, Bossuser c
+                        where a.tno = b.tno
+                          and b.bossusercode = c.bossusercode
+                          and a.Modulecode = getmodulecodeforpageno(:APP_PAGE_ID)
+                          and c.bossusername = :APP_USER
+                          ;
+                
+                          if nvl(tModuleFlow,0) > 0 then
+                             return(TRUE) ;
+                          else
+                             return(FALSE);
+                          end if;
+                     else
+                            Select
+                            	COUNT(*) into tmp 
+                            From Module a, ModulePrivilege b, BossUser c
+                            Where a.ModuleCode = b.ModuleCode
+                            	and b.BossUsercode = c.BossUserCode
+                            	and c.LoginName = :GLOBAL_LOGINNAME
+                                and a.ModuleCode= getmodulecodeforpageno(:APP_PAGE_ID)
+                            	and b.CompanyCode = :GLOBAL_COMPANYCODE
+                            	and b.InsertPrivilege = 'YES' ;
+                            if nvl(tmp,0) > 0 then
+                               return(TRUE);
+                            else
+                               return(FALSE);
+                            end if;
+                      end if;
+                              
+                END;
+                ```
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 100
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-arrow-circle-o-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 130
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button daily (
+        buttonName: Daily
+        label: Daily
+        layout {
+            sequence: 120
+            region: @account-ledger
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 110
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-trash-o
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button fail (
+        buttonName: Fail
+        label: Fail
+        layout {
+            sequence: 60
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-down
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button flow (
+        buttonName: Flow
+        label: FLow
+        layout {
+            sequence: 70
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-workflow
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 162
+                items: {
+                    P162_TNO: &P71_TNO.
+                }
+                clearCache: 162
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button monthly (
+        buttonName: Monthly
+        label: Monthly
+        layout {
+            sequence: 110
+            region: @account-ledger
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button new (
+        buttonName: New
+        label: Preview
+        layout {
+            sequence: 20
+            region: @account-ledger
+            slot: regionBody
+            startNewRow: false
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:window.open('http://65.1.227.214:9502/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/LOGICBOX/REPORT/AccountLedgerRevisedwithattachment.xdo&nQUser=weblogic&nQPassword=webboss123&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1","_paramsP304_FROMDATE":"&P11_FROMDATE.","_paramsP304_TODATE":"&P11_TODATE.","_paramsP304_LOCATION":"&P11_LOCATION.","_paramsP304_PARTY":"&P11_PARTY.","_paramsP304_USER":"&APP_USER."}');
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button pass (
+        buttonName: Pass
+        label: Pass
+        layout {
+            sequence: 50
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-up
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        advanced {
+            htmlDomId: PASS
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button print (
+        buttonName: PRINT_1
+        label: Print
+        layout {
+            sequence: 90
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-print
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button print-2 (
+        buttonName: PRINT
+        label: PDF
+        layout {
+            sequence: 10
+            region: @new
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconLeft
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @account-ledger
+            slot: regionBody
+            startNewRow: false
+            columnAttributes: [
+                style="margin-left:
+                50px;"
+            ]
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+            executeValidations: false
+        }
+        advanced {
+            htmlDomId: REFRESH
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 120
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save-as
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button status (
+        buttonName: Status
+        label: &P118_STATUS.
+        layout {
+            sequence: 80
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-comments-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 164
+                clearCache: 164
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    dynamicAction call-daily-summary (
+        name: call daily summary
+        execution {
+            sequence: 60
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @daily
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P11_FROMDATE').getValue();
+                    var y = '11';
+                    var z = 'CALLED';
+                    var x1 = apex.item('P11_TODATE').getValue();
+                    var y1 = apex.item('P11_LOCATION').getValue();
+                    var z1 = apex.item('P11_PARTY').getValue();
+                    
+                    
+                    var url = "f?p=#APP_ID#:250:#SESSION#::NO:RP,250:P250_FROMDATE,P250_TODATE,P250_CALLEDFROMPAGE,P250_PARTY:#P250_FROMDATE#,#P250_TODATE#,#P250_CALLEDFROMPAGE#,#P250_PARTY#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#P250_FROMDATE#", x);
+                    url = url.replace("#P250_CALLEDFROMPAGE#", y);
+                    url = url.replace("#P250_TODATE#", x1);
+                    url = url.replace("#P250_LOCATION#", y1);
+                    url = url.replace("#P250_PARTY#", z1);
+                    
+                    
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction call-monthly-summary (
+        name: call monthly summary
+        execution {
+            sequence: 50
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @monthly
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P11_FROMDATE').getValue();
+                    var y = '11';
+                    var z = 'CALLED';
+                    var x1 = apex.item('P11_TODATE').getValue();
+                    var y1 = apex.item('P11_LOCATION').getValue();
+                    var z1 = apex.item('P11_PARTY').getValue();
+                    
+                    
+                    var url = "f?p=#APP_ID#:249:#SESSION#::NO:RP,249:P249_FROMDATE,P249_TODATE,P249_CALLEDFROMPAGE,P249_PARTY:#P249_FROMDATE#,#P249_TODATE#,#P249_CALLEDFROMPAGE#,#P249_PARTY#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#P249_FROMDATE#", x);
+                    url = url.replace("#P249_CALLEDFROMPAGE#", y);
+                    url = url.replace("#P249_TODATE#", x1);
+                    url = url.replace("#P249_LOCATION#", y1);
+                    url = url.replace("#P249_PARTY#", z1);
+                    
+                    
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction delete-unsaved-data (
+        name: Delete unsaved data
+        execution {
+            sequence: 80
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P11_CALLEDFROMPAGE').getValue();
+                    var y = apex.item('P11_CALLEDFROMTNO').getValue();
+                    
+                    //var url = "f?p=#APP_ID#:80:#SESSION#::NO:RP,80:P156_TNO,P156_CALLEDFROMPAGE,P156_FORMSTATUS:#P156_TNO#,#P156_CALLEDFROMPAGE#,#P156_FORMSTATUS#";
+                    
+                    
+                    var url = "f?p=#APP_ID#:#2002#:#SESSION#::NO:RP,#2002#:P#2002#_TNO:#P2002_TNO#";
+                    //:P2002_TNO:#P2002_TNO#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    
+                    url = url.replace("#P2002_TNO#", y);
+                    //window.alert(x);
+                    //window.alert(y);
+                    //window.alert(url);
+                    
+                    
+                    //call
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @print-2
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P11_FROMDATE,:P11_TODATE,:P11_LOCATION,:P11_PARTY FROM DUAL
+                itemsToSubmit: [
+                    P11_FROMDATE
+                    P11_TODATE
+                    P11_LOCATION
+                    P11_PARTY_OLD
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P11_FROMDATE
+                    P11_TODATE
+                    P11_LOCATION
+                    P11_PARTY_OLD
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+                stopExecutionOnError: false
+            }
+        )
+
+    )
+
+    dynamicAction generate-pdf-2 (
+        name: Generate PDF
+        execution {
+            sequence: 70
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @print
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    APEX_UTIL.SET_SESSION_STATE ('P11_PARTY',:P11_PARTY);
+                    APEX_UTIL.SET_SESSION_STATE ('P11_FROMDATE',:P11_FROMDATE);
+                    APEX_UTIL.SET_SESSION_STATE ('P11_TODATE',:P11_TODATE);
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-execute-plsql-code-2 (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    pappuser varchar2(100);
+                    PPARTYCODE VARCHAR2(30);
+                    BEGIN
+                      DELETE FROM TrialbalancerevisedLOCATION;
+                      INSERT INTO TrialbalancerevisedLOCATION
+                        (TNO, LOCATIONCODE, CREATOR )
+                        (select globaltno.nextval,
+                               X.locationcode,
+                               v('APP_USER')
+                         FROM LOCATION X
+                         WHERE (:P11_LOCATION Is Null Or
+                                            instr(':' || :P11_LOCATION || ':',
+                                                   ':' || X.LocationCode || ':') > 0))
+                                        
+                        --values ( globaltno.nextval,:P11_LOCATION,V('APP_USER'))
+                        
+                        ;
+                    commit;
+                    
+                       if :P11_LOCATION is not null then
+                                FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                              /* raise_application_error(
+                                      -20000,
+                                      :P11_PARTY||'-'||:P11_FROMDATE||'-'||:P11_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P11_LOCATION||'-'||V('APP_USER')
+                                    );   
+                               */ 
+                               GenerateAccountLedgerRevised(:P11_PARTY,
+                                                             TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                             TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                             :GLOBAL_COMPANYCODE,
+                                                             vLocation.LocationCode,
+                                                             'NO',
+                                                             vLocation.Creator);
+                                
+                    
+                             END LOOP;
+                        else
+                            GenerateAccountLedgerRevised(:P11_PARTY,
+                                                             TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                             TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                             :GLOBAL_COMPANYCODE,
+                                                             :P11_LOCATION,
+                                                             'NO',
+                                                             V('APP_USER'));
+                        end if;
+                    
+                    COMMIT;
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P11_FROMDATE
+                    P11_TODATE
+                    P11_LOCATION
+                    P11_PARTY_1
+                    P11_PARTY_OLD
+                    P11_PARTY
+                ]
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P11_FROMDATE,:P11_TODATE,:P11_LOCATION, :P11_PARTY FROM DUAL
+                itemsToSubmit: [
+                    P11_FROMDATE
+                    P11_TODATE
+                    P11_LOCATION
+                    P11_PARTY_1
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P11_FROMDATE
+                    P11_TODATE
+                    P11_LOCATION
+                    P11_PARTY_1
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 30
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                     var button = document.getElementById('REFRESH');
+                        button.click();
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new-3 (
+        name: New_2
+        execution {
+            sequence: 40
+        }
+        when {
+            selectionType: items
+            items: P11_PARTY_1
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P11_PARTY_1 FROM DUAL
+                itemsToSubmit: P11_PARTY_1
+            }
+            affectedElements {
+                selectionType: items
+                items: P11_PARTY_OLD
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process loading-event (
+        name: loading event
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                pappuser varchar2(100);
+                PPARTYCODE VARCHAR2(30);
+                BEGIN
+                  DELETE FROM TrialbalancerevisedLOCATION;
+                  INSERT INTO TrialbalancerevisedLOCATION
+                    (TNO, LOCATIONCODE, CREATOR )
+                    (select globaltno.nextval,
+                           X.locationcode,
+                           v('APP_USER')
+                     FROM LOCATION X
+                     WHERE (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0))
+                                    
+                    --values ( globaltno.nextval,:P11_LOCATION,V('APP_USER'))
+                    
+                    ;
+                commit;
+                
+                   if :P11_LOCATION is not null then
+                            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                          /* raise_application_error(
+                                  -20000,
+                                  :P11_PARTY||'-'||:P11_FROMDATE||'-'||:P11_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P11_LOCATION||'-'||V('APP_USER')
+                                );   
+                           */ 
+                           GenerateAccountLedgerRevised(:P11_PARTY,
+                                                         TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         vLocation.LocationCode,
+                                                         'NO',
+                                                         vLocation.Creator);
+                            
+                
+                         END LOOP;
+                    else
+                        GenerateAccountLedgerRevised(:P11_PARTY,
+                                                         TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         :P11_LOCATION,
+                                                         'NO',
+                                                         V('APP_USER'));
+                    end if;
+                
+                COMMIT;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 167253103758610495
+        }
+    )
+
+    process new (
+        name: New_1
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                pappuser varchar2(100);
+                PPARTYCODE VARCHAR2(30);
+                BEGIN
+                  DELETE FROM TrialbalancerevisedLOCATION;
+                  INSERT INTO TrialbalancerevisedLOCATION
+                    (TNO, LOCATIONCODE, CREATOR )
+                    (select globaltno.nextval,
+                           X.locationcode,
+                           v('APP_USER')
+                     FROM LOCATION X
+                     WHERE (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0))
+                                    
+                    --values ( globaltno.nextval,:P11_LOCATION,V('APP_USER'))
+                    
+                    ;
+                commit;
+                
+                   if :P11_LOCATION is not null then
+                            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                          /* raise_application_error(
+                                  -20000,
+                                  :P11_PARTY||'-'||:P11_FROMDATE||'-'||:P11_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P11_LOCATION||'-'||V('APP_USER')
+                                );   
+                           */ 
+                           GenerateAccountLedgerRevised(:P11_PARTY,
+                                                         TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         vLocation.LocationCode,
+                                                         'NO',
+                                                         vLocation.Creator);
+                            
+                
+                         END LOOP;
+                    else
+                        GenerateAccountLedgerRevised(:P11_PARTY,
+                                                         TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         :P11_LOCATION,
+                                                         'NO',
+                                                         V('APP_USER'));
+                    end if;
+                
+                COMMIT;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: afterHeader
+        }
+        advanced {
+            executionMappingIdentifier: 167252764103610494
+        }
+    )
+
+    process new-2 (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                pappuser varchar2(100);
+                PPARTYCODE VARCHAR2(30);
+                BEGIN
+                  DELETE FROM TrialbalancerevisedLOCATION;
+                  INSERT INTO TrialbalancerevisedLOCATION
+                    (TNO, LOCATIONCODE, CREATOR )
+                    (select globaltno.nextval,
+                           X.locationcode,
+                           v('APP_USER')
+                     FROM LOCATION X
+                     WHERE (:P11_LOCATION Is Null Or
+                                        instr(':' || :P11_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0))
+                                    
+                    --values ( globaltno.nextval,:P11_LOCATION,V('APP_USER'))
+                    
+                    ;
+                commit;
+                
+                   if :P11_LOCATION is not null then
+                            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                          /* raise_application_error(
+                                  -20000,
+                                  :P11_PARTY||'-'||:P11_FROMDATE||'-'||:P11_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P11_LOCATION||'-'||V('APP_USER')
+                                );   
+                           */ 
+                           GenerateAccountLedgerRevised(:P11_PARTY,
+                                                         TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         vLocation.LocationCode,
+                                                         'NO',
+                                                         vLocation.Creator);
+                            
+                
+                         END LOOP;
+                    else
+                        GenerateAccountLedgerRevised(:P11_PARTY,
+                                                         TO_DATE(:P11_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P11_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         :P11_LOCATION,
+                                                         'NO',
+                                                         V('APP_USER'));
+                    end if;
+                
+                COMMIT;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: afterSubmit
+        }
+        advanced {
+            executionMappingIdentifier: 167252366607610494
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    process set-party (
+        name: set party
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                if :P156_PARTYCODE is not null then
+                    :P11_PARTY_1 := :P156_PARTYCODE;
+                    :P11_PARTY := :P156_PARTYCODE;
+                    :P156_PARTYCODE:=null;
+                end if;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 83951076737008226
+        }
+    )
+
+)
+

@@ -1,0 +1,510 @@
+page 383 (
+    name: Payloader Diesel Detail
+    alias: PAYLOADER-DIESEL-DETAIL
+    title: Payloader Diesel Detail
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: [
+            #DEFAULT#
+            t-Dialog--noPadding
+        ]
+    }
+    dialog {
+        width: 1400
+        height: 800
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #abc .t-fht-thead{
+                overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region payloader-diesel-detail (
+        name: PayLoader Diesel Detail
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /*Select
+                   a.CompanyCode,
+                   a.EquipmentTno,
+                   c.EquipmentID,
+                   a.NecessitySlipNo as ModuleNo,
+                   a.NecessitySlipDate as ModuleDate,
+                   d.ModuleName,
+                   b.Quantity1 as Quantity,
+                   round(nvl(b.Quantity1, 0) * nvl(b.DieselRate, 0), 2) as Amount,
+                   e.LocationName
+                From NecessitySlip a, NecessitySlipDetail b, Equipment c, Module d, DocumentStatusDetail dsd, Location e
+                Where a.Tno = b.Tno
+                  and a.EquipmentTno = c.Tno
+                  and d.ModuleCode = 'NECESSITYSLIP'
+                  and c.EquipmentGroupCode = 'PL'
+                  and a.Tno = dsd.ModuleTno
+                  and dsd.DocumentStatusCode = 'ACTIVE'
+                  and a.LocationCode = e.LocationCode
+                  and a.PartyCode is not null
+                  and a.EquipmentTno is not null
+                  and a.VehicleGroupCode = 'SELF'
+                  and (:P383_LOCATION is null
+                       or exists(
+                         Select
+                            aa.LocationCode
+                          From PayloaderPerformanceLocation aa
+                          Where aa.LocationCode = a.LocationCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and b.VehicleNecessityCode in (Select a.VehicleNecessityCode From VehicleNecessityForFuel a)
+                  and a.NecessitySlipDate between :P383_FROMDATE and :P383_TODATE
+                  and (:P383_COMPANYCODE is Null Or Instr (':' || :P383_COMPANYCODE || ':' , ':' || a.CompanyCode || ':') > 0)
+                  and (:P383_EQUIPMENTID is Null Or Instr (':' || :P383_EQUIPMENTID || ':' , ':' || c.Tno || ':') > 0)
+                UNION ALL
+                Select
+                  a.CompanyCode,
+                  a.EquipmentTno,
+                  h.EquipmentID,
+                  d.IssueNo as ModuleNo,
+                  d.IssueDate as ModuleDate,
+                  i.ModuleName,
+                  d1.Quantity,
+                  g.Amount,
+                  j.LocationName
+                From NecessitySlip a, NecessitySlipDetail b, Requisition c, Issue d,
+                  (
+                  Select
+                    b.Tno,
+                    b.Quantity1 as Quantity
+                  From IssueDetail b, Item c
+                  Where b.ItemCode = c.ItemCode
+                    and c.MeasuringUnitCode1 = 'LTR'
+                  UNION ALL
+                  Select
+                    b.Tno,
+                    b.Quantity2 as Quantity
+                  From IssueDetail b, Item c
+                  Where b.ItemCode = c.ItemCode
+                    and c.MeasuringUnitCode2 = 'LTR'
+                ) d1, 
+                Voucher e, VoucherDetail f, VoucherCostCentreDetail g, 
+                Equipment h, DocumentStatusDetail dsd, Module i, Location j
+                Where a.Tno = b.Tno
+                  and a.Tno = c.ModuleTno
+                  and c.Tno = d.RequisitionTno
+                  and d.Tno = d1.Tno
+                  and d.Tno = e.ModuleTno
+                  and e.Tno = f.Tno
+                  and f.Tno = g.Tno
+                  and f.Sno = g.Sno
+                  and a.EquipmentTno = h.Tno
+                  and g.CostCentreCode = h.CostCentreCode
+                  and i.ModuleCode = 'ISSUE'
+                  and a.LocationCode = j.LocationCode
+                  and a.VehicleGroupCode = 'SELF'
+                  and b.VehicleNecessityCode in (Select a.VehicleNecessityCode From VehicleNecessityForFuel a)
+                  and a.Tno = dsd.ModuleTno
+                  and dsd.DocumentStatusCode = 'ACTIVE'
+                  and (:P383_LOCATION is null
+                       or exists(
+                         Select
+                            aa.LocationCode
+                          From PayloaderPerformanceLocation aa
+                          Where aa.LocationCode = a.LocationCode
+                              and aa.Creator = :APP_USER
+                       )
+                   )
+                  and exists(
+                    Select
+                      aa.Tno
+                    From IssueCostCentreDetail aa, Equipment bb
+                    Where aa.CostCentreCode = bb.CostCentreCode
+                      and bb.EquipmentGroupCode = 'PL'
+                      and aa.Tno = d.Tno
+                    )
+                  and exists(
+                        Select
+                            aa.EquipmentTno
+                        From PayloaderPerformanceTable aa
+                        Where aa.Creator = :APP_USER
+                            and aa.EquipmentTno = a.EquipmentTno
+                            and aa.CompanyCode = a.CompanyCode
+                  )
+                  and a.NecessitySlipDate between :P383_FROMDATE and :P383_TODATE
+                  and (:P383_COMPANYCODE is Null Or Instr (':' || :P383_COMPANYCODE || ':' , ':' || a.CompanyCode || ':') > 0)
+                  and (:P383_EQUIPMENTID is Null Or Instr (':' || :P383_EQUIPMENTID || ':' , ':' || h.Tno || ':') > 0)  */
+                 
+                
+                 Select 
+                  row_number() over(order by a.ModuleDate) SerialNo,
+                  a.CompanyCode,
+                  a.EquipmentTno,
+                  a.EquipmentID,
+                  a.ModuleName,
+                  a.ModuleNo,
+                  a.ModuleDate,
+                  a.Quantity,
+                  a.Amount,
+                  b.LocationName
+                From PayloaderExpenseTable a, Location b
+                Where a.Creator = :APP_USER
+                	and a.LocationCode = b.LocationCode
+                	and (:P383_LOCATION is null
+                		or exists(
+                			 Select
+                				aa.LocationCode
+                			  From PayloaderPerformanceLocation aa
+                			  Where aa.LocationCode = a.LocationCode
+                				  and aa.Creator = :APP_USER
+                			)
+                		)
+                	and a.Categories = 'DIESEL'
+                	and a.ModuleDate between :P383_FROMDATE and :P383_TODATE
+                	and (:P383_COMPANYCODE is Null Or Instr (':' || :P383_COMPANYCODE || ':' , ':' || a.CompanyCode || ':') > 0)
+                	and (:P383_EQUIPMENTID is Null Or Instr (':' || :P383_EQUIPMENTID || ':' , ':' || a.EquipmentTno || ':') > 0)
+                ```
+        }
+        layout {
+            sequence: 70
+            slot: contentBody
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+            cssClasses: abc
+        }
+        advanced {
+            htmlDomId: abc
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 444435970999990921
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column EQUIPMENTID (
+            type: plainText
+            heading {
+                heading: Equipment  ID
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column EQUIPMENTTNO (
+            type: plainText
+            heading {
+                heading: Equipmenttno
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column MODULEDATE (
+            type: plainText
+            heading {
+                heading: Module Date
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column MODULENAME (
+            type: plainText
+            heading {
+                heading: Module Name
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column MODULENO (
+            type: plainText
+            heading {
+                heading: Module No.
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column QUANTITY (
+            type: plainText
+            heading {
+                heading: Liters
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Open Billed Detail
+        }
+
+        savedReport 1102245 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 8
+            )
+
+            displayColumn EQUIPMENTID (
+                sequence: 6
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn MODULEDATE (
+                sequence: 5
+            )
+
+            displayColumn MODULENAME (
+                sequence: 3
+            )
+
+            displayColumn MODULENO (
+                sequence: 4
+            )
+
+            displayColumn QUANTITY (
+                sequence: 7
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+        )
+
+    )
+
+    pageItem P383_COMPANYCODE (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+    )
+
+    pageItem P383_EQUIPMENTID (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P383_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    pageItem P383_LOCATION (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+    )
+
+    pageItem P383_TODATE (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

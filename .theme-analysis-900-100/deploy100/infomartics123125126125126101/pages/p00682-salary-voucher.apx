@@ -1,0 +1,2737 @@
+page 682 (
+    name: Salary Voucher
+    alias: SALARY-VOUCHER
+    title: Salary Voucher
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+               var bireporturl = $('#P682_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/SalaryVoucher.xdo';
+              var outputFormat = 'pdf';
+            
+              var reportParams = 
+                '&P_TNO=' + $('#P682_TNO').val() 
+                  ;
+            
+             
+                    var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P682_BIREPORTURL').val()
+              var reportName =  'SalaryVoucher.xdo';
+              var outputFormat = 'pdf';
+            
+              var reportParams = 
+                '"_paramsP_TNO":"' + $('#P682_TNO').val() 
+                  ;
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+        inline:
+            ```css
+            .t-TreeNav--styleA .a-TreeView-node--topLevel ul,
+            .t-TreeNav--styleB .a-TreeView-node--topLevel ul {
+              --a-treeview-node-padding-y: 0.40rem !important;
+              --a-treeview-node-font-size: 0.90rem !important; 
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: beforeNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noUI
+            ]
+        }
+    )
+
+    region common-fields (
+        name: Common Fields
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: afterNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noBorder
+            ]
+        }
+        accessibility {
+            landmarkType: region
+        }
+    )
+
+    region detail (
+        name: Detail
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select a.tno,
+                       a.sno,
+                       A.SERIALNO,
+                       b.SALARYNO,
+                       c.EmployeeName || ' ( ' ||
+                       getEmployeeEmployeeID(b.EmployeeCode, b.SalaryDate) || ' )' As EmployeeName,
+                       e.amount As GrossEarning,
+                       d.Amount As grossDeduction,
+                       n.amount As NetEarning
+                  From SalaryVoucherDetail a,
+                       Salary b,
+                       Employee c,
+                       (Select a.tno,
+                               Sum(a.SalaryHeadAmount +
+                                   nvl(GetPrevMonthDiffereceSalary(a.TNo, a.SalaryHeadCode),
+                                       0)) amount
+                          From SalaryDetail a
+                         Where a.SalaryHeadCode = 'GROSSEARNING'
+                         Group By a.tno) e,
+                       (Select a.tno,
+                               Sum(a.SalaryHeadAmount +
+                                   nvl(GetPrevMonthDiffereceSalary(a.TNo, a.SalaryHeadCode),
+                                       0)) amount
+                          From SalaryDetail a
+                         Where a.SalaryHeadCode = 'GROSSDEDUCTION'
+                         Group By a.tno) d,
+                       (Select a.tno,
+                               Sum(a.SalaryHeadAmount +
+                                   nvl(GetPrevMonthDiffereceSalary(a.TNo, a.SalaryHeadCode),
+                                       0)) amount
+                          From SalaryDetail a
+                         Where a.SalaryHeadCode = 'NETEARNING'
+                         Group By a.tno) n
+                
+                 Where a.SalaryTnO = b.TNo
+                   And b.EmployeeCode = c.EmployeeCode
+                   And b.tno = e.tno(+)
+                   And b.tno = d.tno(+)
+                   And b.tno = n.tno(+)
+                
+                ```
+            pageItemsToSubmit: P682_TNO
+        }
+        layout {
+            sequence: 20
+            parentRegion: @new
+            slot: tabs
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 39723892971148730
+        }
+
+        savedReport 411125 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SALARYNO
+                layout {
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @EMPLOYEENAME
+                layout {
+                    width: 364
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @GROSSEARNING
+                layout {
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @GROSSDEDUCTION
+                layout {
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @NETEARNING
+                layout {
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    width: 42
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @TNO
+                layout {
+                    show: false
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @SNO
+                layout {
+                    show: false
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    width: 64
+                    sequence: 4
+                }
+            )
+
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: textarea
+            heading {
+                heading: Employee Name
+            }
+            layout {
+                sequence: 70
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: EMPLOYEENAME
+                dataType: varchar2
+                queryOnly: true
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column GROSSDEDUCTION (
+            type: numberField
+            heading {
+                heading: Gross Deduction
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: GROSSDEDUCTION
+                dataType: number
+                queryOnly: true
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column GROSSEARNING (
+            type: numberField
+            heading {
+                heading: Gross Earning
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: GROSSEARNING
+                dataType: number
+                queryOnly: true
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column NETEARNING (
+            type: numberField
+            heading {
+                heading: Net Earning
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: NETEARNING
+                dataType: number
+                queryOnly: true
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SALARYNO (
+            type: textField
+            heading {
+                heading: Salary No
+            }
+            layout {
+                sequence: 60
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SALARYNO
+                dataType: varchar2
+                queryOnly: true
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SNO (
+            type: numberField
+            heading {
+                heading: Sno
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SNO
+                dataType: number
+                primaryKey: true
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TNO (
+            type: numberField
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TNO
+                dataType: number
+                primaryKey: true
+            }
+            default {
+                type: item
+                item: P682_TNO
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Detail
+        }
+    )
+
+    region new (
+        name: New
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/tabs-container
+            templateOptions: [
+                #DEFAULT#
+                t-TabsRegion-mod--simple
+            ]
+        }
+    )
+
+    region salary-voucher (
+        name: Salary Voucher
+        type: form
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select TNO,
+                       LOCATIONCODE,
+                       DOCTYPECODE,
+                       COMPANYCODE,
+                       FINANCIALYEARCODE,
+                       SALARYVOUCHERNO,
+                       SALARYVOUCHERDATE,
+                       REMARK,
+                       SALARYFROMDATE,
+                       SALARYTODATE,
+                       ACCOUNTCODEPAYABLE,
+                       NARRATION,
+                       STAFFTYPECODE,
+                       ARREARDATE,
+                       CREATIONTIME,
+                       CREATOR
+                  from SALARYVOUCHER
+                ```
+        }
+        layout {
+            sequence: 10
+            parentRegion: @new
+            slot: tabs
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+    )
+
+    pageItem P682_ACCOUNTCODEPAYABLE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 180
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: ACCOUNTCODEPAYABLE
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_ARREARDATE (
+        type: datePicker
+        label {
+            label: Arrear Date
+            alignment: left
+        }
+        layout {
+            sequence: 120
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @salary-voucher
+            column: ARREARDATE
+            dataType: date
+        }
+    )
+
+    pageItem P682_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P682_CALLEDFROMPAGE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: 681
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P682_CALLEDFROMTNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P682_COMPANYCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: COMPANYCODE
+            dataType: varchar2
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P682_CREATIONTIME (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 190
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: CREATIONTIME
+            dataType: date
+        }
+        default {
+            type: item
+            item: GLOBAL_SYSDATE
+        }
+    )
+
+    pageItem P682_CREATOR (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 200
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: CREATOR
+            dataType: varchar2
+        }
+        default {
+            type: item
+            item: GLOBAL_LOGINNAME
+        }
+    )
+
+    pageItem P682_DOCTYPECODE (
+        type: popupLov
+        label {
+            label: Doctype
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @doctype
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 30
+        }
+        source {
+            formRegion: @salary-voucher
+            column: DOCTYPECODE
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_FINANCIALYEARCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 170
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: FINANCIALYEARCODE
+            dataType: varchar2
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARCODE
+        }
+    )
+
+    pageItem P682_FORMONTH (
+        type: popupLov
+        label {
+            label: For Month
+            alignment: left
+        }
+        settings {
+            fetchOnSearch: true
+            additionalOutputs: TOTAL_DAYS:P682_TOTALDAYS,FROMDATE:P682_SALARYFROMDATE,TODATE:P682_SALARYTODATE
+        }
+        lov {
+            type: sharedComponent
+            lov: @formonth
+        }
+        layout {
+            sequence: 70
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P682_FORMSTATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P682_LOCATIONCODE (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+        }
+        layout {
+            sequence: 20
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 30
+        }
+        source {
+            formRegion: @salary-voucher
+            column: LOCATIONCODE
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_MODULEFLOW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P682_NARRATION (
+        type: textField
+        label {
+            label: Narration
+            alignment: left
+        }
+        layout {
+            sequence: 90
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 60
+        }
+        validation {
+            maxLength: 2000
+        }
+        source {
+            formRegion: @salary-voucher
+            column: NARRATION
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_ONTHETABLE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @common-fields
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P682_PASSFAILREMARK (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P682_REMARK (
+        type: textField
+        label {
+            label: Remark
+            alignment: left
+        }
+        settings {
+            trimSpaces: none
+        }
+        layout {
+            sequence: 100
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @salary-voucher
+            column: REMARK
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_SALARYFROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 140
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: SALARYFROMDATE
+            dataType: date
+        }
+    )
+
+    pageItem P682_SALARYTODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 150
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: SALARYTODATE
+            dataType: date
+        }
+    )
+
+    pageItem P682_SALARYVOUCHERDATE (
+        type: datePicker
+        label {
+            label: Salary Voucher Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 255
+        }
+        source {
+            formRegion: @salary-voucher
+            column: SALARYVOUCHERDATE
+            dataType: date
+        }
+        default {
+            type: item
+            item: GLOBAL_SYSDATE
+        }
+    )
+
+    pageItem P682_SALARYVOUCHERNO (
+        type: textField
+        label {
+            label: Salary Voucher No
+            alignment: left
+        }
+        settings {
+            trimSpaces: none
+        }
+        layout {
+            sequence: 50
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 100
+        }
+        source {
+            formRegion: @salary-voucher
+            column: SALARYVOUCHERNO
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_STAFFTYPECODE (
+        type: popupLov
+        label {
+            label: Staff Type
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select
+                a.StaffTypeName,
+                a.StaffTypeCode
+                from StaffType a
+                order by 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 110
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 30
+        }
+        source {
+            formRegion: @salary-voucher
+            column: STAFFTYPECODE
+            dataType: varchar2
+        }
+    )
+
+    pageItem P682_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P682_TNO), 'Status')
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P682_STATUSRIGHT (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select B.STATUSPRIVILEGE
+                  From module a, moduleprivilege b, bossuser c
+                 Where a.modulecode = b.modulecode
+                   And b.bossusercode = c.bossusercode
+                   And c.loginname = :GLOBAL_LOGINNAME
+                   And A.ENTRYPAGENO = :APP_PAGE_ID
+                   AND B.COMPANYCODE = :GLOBAL_COMPANYCODE
+                ```
+        }
+    )
+
+    pageItem P682_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            region: @salary-voucher
+            slot: regionBody
+        }
+        source {
+            formRegion: @salary-voucher
+            column: TNO
+            dataType: number
+            primaryKey: true
+        }
+    )
+
+    pageItem P682_TOTALDAYS (
+        type: numberField
+        label {
+            label: Total days
+            alignment: left
+        }
+        layout {
+            sequence: 80
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P682_VOUCHERTNO (
+        type: popupLov
+        label {
+            label: Voucher No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select voucherno , tno from voucher
+            displayNullValue: false
+        }
+        layout {
+            sequence: 130
+            region: @salary-voucher
+            slot: regionBody
+            alignment: left
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        advanced {
+            postText: <a href="f?p=&APP_ID.:156:&SESSION.::NO:RP,156:P156_TNO,P156_CALLEDFROMPAGE,P156_FORMSTATUS,P156_CALLEDFROMTNO:&P682_VOUCHERTNO.,682,CALLED,&P682_TNO."><span class="fa fa-magic"></span></a>
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button addnew (
+        buttonName: AddNew
+        label: Add New
+        layout {
+            sequence: 140
+            region: @buttons
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--pillEnd
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: &APP_PAGE_ID.
+                clearCache: &APP_PAGE_ID.
+            }
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Want to Add New Record?
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 100
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-arrow-circle-o-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 110
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: NEWRECORD
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 120
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-trash-o
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button fail (
+        buttonName: Fail
+        label: Fail
+        layout {
+            sequence: 60
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-down
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button flow (
+        buttonName: Flow
+        label: FLow
+        layout {
+            sequence: 70
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-workflow
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 162
+                items: {
+                    P162_TNO: &P71_TNO.
+                }
+                clearCache: 162
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button getsalary (
+        buttonName: GetSalary
+        label: Get Salary
+        layout {
+            sequence: 10
+            region: @detail
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button pass (
+        buttonName: Pass
+        label: Pass
+        layout {
+            sequence: 50
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-up
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        advanced {
+            htmlDomId: PASS
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button print (
+        buttonName: PRINT_1
+        label: Print
+        layout {
+            sequence: 90
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-print
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 130
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save-as
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button status (
+        buttonName: Status
+        label: &P682_STATUS.
+        layout {
+            sequence: 80
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-comments-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 164
+                clearCache: 164
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P682_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    dynamicAction delete-detail-data (
+        name: Delete detail data
+        execution {
+            sequence: 120
+        }
+        when {
+            event: ready
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    delete from salaryvoucherdetail a
+                        where not exists (
+                            select 1 from salaryvoucher  aa  
+                            where aa.tno = a.tno
+                        );
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction delete-unsaved-data (
+        name: Delete unsaved data
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    delete from salaryvoucherdetail a
+                        where not exists (
+                            select 1 from salaryvoucher  aa  
+                            where aa.tno = a.tno
+                        );
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction disable-delete-update-if-status-is-active (
+        name: DISABLE DELETE UPDATE IF STATUS IS ACTIVE
+        execution {
+            sequence: 70
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.DELETEPRIVILEGE= 'NO'
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: item=value
+                item: P682_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.DELETEPRIVILEGE= 'YES'
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-print-button (
+        name: Disable Print Button
+        execution {
+            sequence: 100
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.PRINTPRIVILEGE= 'NO'
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.PRINTPRIVILEGE= 'YES'
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-save-button-for-updateprivillege (
+        name: DISABLE SAVE BUTTON FOR UPDATEPRIVILLEGE
+        execution {
+            sequence: 80
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'NO'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.UPDATEPRIVILEGE = 'NO'
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 50
+            }
+            serverSideCondition {
+                type: item=value
+                item: P682_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'YES'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.UPDATEPRIVILEGE = 'YES'
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-status-button (
+        name: Disable Status Button
+        execution {
+            sequence: 90
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.STATUSPRIVILEGE = 'NO'
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       And a.companycode = :GLOBAL_COMPANYCODE
+                       AND A.STATUSPRIVILEGE = 'YES'
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction documentstatus (
+        name: DocumentStatus
+        execution {
+            sequence: 30
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @status
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item=value
+                item: P682_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item!=value
+                item: P682_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    SetDocumentStatusCode(GetModuleCodeForPageNo(:APP_PAGE_ID),:P682_TNO,:P682_STATUS);
+                    
+                    if :P682_STATUS = 'ACTIVE' then
+                        POSTSALARYVOUCHER(:P682_TNO);
+                    end if;
+                    ```
+                itemsToSubmit: [
+                    P682_STATUS
+                    P682_TNO
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $('#STATUS span').text('');
+                    $('#STATUS').text($v('P682_STATUS'));
+                    
+                    
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code-2 (
+            action: executeJsCode
+            settings {
+                jsCode: location.reload()
+            }
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P164_DOCUMENTSTATUSCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P682_STATUS
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction enable-disable-pass-fail-flow (
+        name: Enable Disable Pass/Fail/Flow
+        execution {
+            sequence: 60
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 10
+            }
+            clientSideCondition {
+                type: item=value
+                item: P682_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            clientSideCondition {
+                type: item=value
+                item: P682_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 30
+            }
+            clientSideCondition {
+                type: item=value
+                item: P682_MODULEFLOW
+                value: NO
+            }
+        )
+
+    )
+
+    dynamicAction fail (
+        name: Fail
+        execution {
+            sequence: 20
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @fail
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    		cursor cPassFail is
+                    				select
+                    						a.TNo,
+                    						a.TokenNo										
+                    				from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    				where a.ModuleFlowTNo = b.TNo
+                    						and b.TNo = c.TNo
+                    						and a.BossUserCode = c.BossUserCode
+                    						and c.BossUserCode = d.BossUserCode
+                    						and a.ModuleTNo = ':P'||to_char(:APP_PAGE_ID)||'_TNo'
+                    						and d.LoginName = User
+                    						and a.isPass is null
+                    						and a.IsFail is null
+                    						and a.IsForwarded is null
+                    						and a.IsRebounded is null																				
+                    		;
+                    		vPassFail cPassFail%rowtype;
+                        
+                        tTokenNo NUMBER;
+                        TMP VARCHAR2(100) := :P60_TNO;
+                    begin
+                    		open cPassFail;
+                    		fetch cPassFail into vPassFail;
+                    		if cPassFail%FOUND then
+                    				tTokenNo := vPassFail.TokenNo;
+                    				close cPassFail;
+                    
+                               	
+                    				update PassFail a
+                    				set a.IsFail = 'YES',
+                    						a.remark = ':P'||to_char(:APP_PAGE_ID)||'_PASSFAILREMARK'
+                    				where a.TNo = vPassFail.TNo;
+                    				
+                    				SendBackPassFail(tTokenNo , TMP );
+                    		    		
+                    				
+                    				commit;
+                    		else
+                    				close cPassFail;
+                    		end if;
+                    
+                    	
+                    end;
+                    ```
+                itemsToSubmit: P682_PURCHASEORDERNO
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P682_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction generatepdf (
+        name: GeneratePDF
+        execution {
+            sequence: 180
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @print
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction get-month (
+        name: GET_MONTH
+        execution {
+            sequence: 160
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P682_FORMONTH
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    BEGIN
+                        SELECT 
+                           TO_CHAR(TO_DATE(:P682_SALARYFROMDATE,'DD-MM-RRRR'),'Mon-YYYY'),
+                           LAST_DAY(TO_DATE(:P682_SALARYFROMDATE,'DD-MM-RRRR'))-TRUNC(TO_DATE(:P682_SALARYTODATE,'DD-MM-RRRR'),'MM')+1
+                        INTO :P682_FORMONTH,:P682_TOTALDAYS
+                        --,:P682_TOTALDAYS
+                        FROM DUAL;
+                    
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P682_SALARYFROMDATE
+                    P682_SALARYTODATE
+                ]
+                itemsToReturn: [
+                    P682_FORMONTH
+                    P682_TOTALDAYS
+                ]
+                showProcessing: true
+            }
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: itemIsNotNull
+                item: P682_SALARYFROMDATE
+            }
+        )
+
+    )
+
+    dynamicAction get-salary (
+        name: Get Salary
+        execution {
+            sequence: 170
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @getsalary
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    tslno number := 0;
+                    begin
+                    
+                        if GetNatureDocTypeCode('SALARYVOUCHER', :P682_DocTypeCode) = 'ARREAR' and :P682_ArrearDate is null then
+                        	
+                        		raise_application_Error(-20000,'Please enter Arrear Date');
+                        end if;
+                    
+                        delete from salaryvoucherdetail where tno = :P682_TNO;
+                    
+                        for vSalary 
+                        in (
+                        		select
+                        				distinct a.TNO,
+                        				a.SalaryNo,
+                        				a.SalaryDate,
+                        				to_char(a.SalaryFromDate, 'MON, RRRR') AS FORMONTH,
+                        				b.EmployeeName || ' ( ' || substr(getEmployeeEmployeeID(a.EmployeeCode, a.SalaryDate) || ' )', 1, 300) as EmployeeName
+                        		from Salary a, Employee b
+                        		where a.EmployeeCode = b.EmployeeCode
+                        				---------------------------- --
+                        				-- 14-sep-2023 
+                        				and a.CompanyCode = :global_CompanyCode
+                        				/*and (
+                        						:P682_DepartmentCode is null
+                        						or 
+                        						getEmployeeDepartmentCode(a.EmployeeCode, a.SalaryDate) = :P682_DepartmentCode 
+                        				)*/
+                        				---------------------------- --
+                        				and (
+                        						:P682_StaffTypeCode is null
+                        						or 
+                        						getEmployeeStaffTypeCode(a.EmployeeCode, a.SalaryDate) = :P682_StaffTypeCode										
+                        				)
+                        				/*and (
+                        				  :P682_WorkCentrecode is null
+                        				  or
+                        				  a.workcentrecode = :P682_WorkCentrecode
+                        				) */
+                        				-- removed on demand ('Praveen )
+                        --						and a.SalaryDate <= :P682_SalaryVoucherDate 
+                        				and a.locationcode = :P682_locationcode 
+                        				and a.SalaryFromDate = :P682_SalaryFromDate
+                        				and a.SalaryToDate = :P682_SalaryToDate
+                        				and (
+                        						not exists(
+                        								select
+                        								    aa.tno
+                        								from SalaryVoucherDetail aa
+                        								where aa.SalaryTNo = a.TNo
+                        				    )
+                        				    or (
+                        				    		getNatureDocTypeCode('SALARYVOUCHER', :P682_DocTypeCode) = 'ARREAR'
+                        				    		and a.ArrearDate is not null 
+                        				    		and not exists(
+                        				    				select
+                        				    						aa.TNo
+                        				    				from SalaryVoucherDetail aa, SalaryVoucher bb
+                        				    				where aa.SalaryTNo = a.TNo
+                        				    						and aa.TNo = bb.TNo
+                        				    						and bb.ArrearDate = :P682_ArrearDate
+                        				    						and getNatureDocTypeCode('SALARYVOUCHER', bb.DocTypeCode) = 'ARREAR'
+                        				    		) and (
+                        				    				a.ArrearDate = :P682_ArrearDate
+                        				    				or
+                        				    				exists(
+                        				    						select
+                        				    								aa.TNo
+                        				    						from SalaryArrear aa
+                        				    						where aa.SalaryTNo = a.TNo
+                        				    								and aa.ArrearDate = :P682_ArrearDate
+                        				    				)								    				
+                        				    		)
+                        				    )
+                        				)				
+                        )
+                        loop
+                        tslno := nvl(tslno,0) + 1;
+                        insert into salaryvoucherdetail
+                        (
+                            tno,
+                            sno,
+                            serialno,
+                            salarytno
+                        )
+                        values(
+                            :P682_TNO,
+                            globaltno.nextval,
+                            tslno,
+                            vSalary.tno
+                        );
+                        end loop;
+                    end;
+                    
+                    ```
+                itemsToSubmit: [
+                    P682_DOCTYPECODE
+                    P682_ARREARDATE
+                    P682_STAFFTYPECODE
+                    P682_SALARYVOUCHERDATE
+                    P682_LOCATIONCODE
+                    P682_SALARYVOUCHERNO
+                    P682_SALARYFROMDATE
+                    P682_SALARYTODATE
+                    P682_TNO
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @detail
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction go-back-to-called-form (
+        name: Go Back To Called Form
+        execution {
+            sequence: 50
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P682_CALLEDFROMPAGE').getValue();
+                    var y = apex.item('P682_CALLEDFROMTNO').getValue();
+                    
+                    //var url = "f?p=#APP_ID#:80:#SESSION#::NO:RP,80:P156_TNO,P156_CALLEDFROMPAGE,P156_FORMSTATUS:#P156_TNO#,#P156_CALLEDFROMPAGE#,#P156_FORMSTATUS#";
+                    
+                    
+                    var url = "f?p=#APP_ID#:#2002#:#SESSION#::NO:RP,#2002#:P#2002#_TNO:#P2002_TNO#";
+                    //:P2002_TNO:#P2002_TNO#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    
+                    url = url.replace("#P2002_TNO#", y);
+                    //window.alert(x);
+                    //window.alert(y);
+                    //window.alert(url);
+                    
+                    
+                    //call
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction hide-nav (
+        name: hide nav
+        execution {
+            sequence: 110
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction pass (
+        name: Pass
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @pass
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                      tModuleCode  Varchar2(30);
+                      TMP          vARCHAR2(100) ;--:= :P80_PICKUPREQUESTNO;
+                    cursor cPassFail is
+                    		select
+                    				a.TNo
+                    		from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    		where a.ModuleFlowTNo = b.TNo
+                    				and b.TNo = c.TNo
+                    				and a.BossUserCode = c.BossUserCode
+                    				and c.BossUserCode = d.BossUserCode
+                    				and a.ModuleTNo = ':P'||:APP_PAGE_ID||'_TNo'
+                    				and d.LoginName = User
+                    				and a.isPass is null
+                    				and a.IsFail is null
+                    				and a.IsForwarded is null
+                    				and a.IsRebounded is null										
+                    ;
+                    vPassFail cPassFail%rowtype;
+                    BEGIN
+                    
+                        select
+                        	d.ModuleCode, ':P'||:APP_PAGE_ID||'_'||labelcolumnname 
+                                    into tModuleCode,tmp
+                        from Location a, ModuleLocationDetail b , ModuleLocation c, Module d 
+                        where a.LocationCode = b.LocationCode
+                        	and b.tno = c.tno
+                        	and c.ModuleCode = d.ModuleCode --'DELIVERYCHALLANRETURN'
+                        	and c.CompanyCode = :global_CompanyCode
+                            and d.EntryPageNo = :APP_PAGE_ID
+                            ;
+                    
+                    			
+                    	open cPassFail;
+                    	fetch cPassFail into vPassFail;
+                    	if cPassFail%FOUND then
+                    			
+                    		
+                    			update PassFail a
+                    			set a.IsPass = 'YES',
+                    				a.remark = ':P'||:APP_PAGE_ID||'_PASSFAILREMARK'
+                    			where a.TNo = vPassFail.TNo;
+                    			
+                    			close cPassFail;
+                    			
+                    			
+                    			SendPassFailForward(tModuleCode, ':P'||:APP_PAGE_ID||'_TNo' , TMP, :global_CompanyCode );
+                    
+                                 if :P682_STATUS = 'ACTIVE' then
+                            
+                                    CREATEPAYMENTADVICEFORPO(:P682_TNO);
+                    
+                                  end if;
+                    
+                        end if;
+                    END;
+                    ```
+                itemsToSubmit: P682_STATUS
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P682_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-detail-sno (
+        name: Set detail sno
+        execution {
+            sequence: 140
+        }
+        when {
+            event: region/interactiveGrid/apexbeginrecordedit
+            selectionType: region
+            region: @detail
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlFunctionBody
+                plsqlFunctionBody:
+                    ```plsql
+                    Declare
+                    mysno number;
+                    Begin
+                    If :SNO is null then
+                        Select GlobalTNo.nextval into mysno from dual;
+                    else MYSNO := :SNO;
+                    end if;
+                    return mysno;
+                    end;
+                    ```
+                itemsToSubmit: SNO
+            }
+            affectedElements {
+                selectionType: columns
+                columns: SNO
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process detail-save-interactive-grid-data (
+        name: Detail - Save Interactive Grid Data
+        type: interactiveGridAutoRowProcessing
+        editableRegion: @detail
+        execution {
+            sequence: 60
+        }
+        advanced {
+            executionMappingIdentifier: 42065371460208344
+        }
+    )
+
+    process get-document-no (
+        name: Get Document No
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+                    tmp         number ;
+                begin
+                     if :P682_Tno is null then
+                        Select GlobalTno.NextVal into :P682_Tno From Dual;
+                     end if;
+                    ----
+                    if :P682_SALARYVOUCHERNO is null then
+                            SetDocNoNext(
+                					tModuleCode,
+                					:global_CompanyCode,
+                					:global_FinancialYearCode,
+                					:P682_LocationCode,
+                					:P682_DocTypeCode,
+                					NULL,
+                					TO_DATE(:P682_SALARYVOUCHERDATE, 'DD-MM-RRRR')
+                				);
+                        :P682_SALARYVOUCHERNO := GetDocNo(
+                                    tModuleCode,
+                                    :global_CompanyCode,
+                                    :global_FinancialYearCode,
+                                    :P682_LocationCode,
+                                    :P682_DocTypeCode,
+                                    NULL,
+                                    TO_DATE(:P682_SALARYVOUCHERDATE, 'DD-MM-RRRR')
+                                    );
+                    end if;
+                    
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 41420176270872816
+        }
+    )
+
+    process get-tno (
+        name: Get TNo
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                If :P682_TNO is null then
+                    :P682_TNO := GlobalTNo.nextval;
+                    :P682_FORMSTATUS := 'NEWRECORD';
+                  
+                else
+                    :P682_FORMSTATUS := 'EDITRECORD';
+                   
+                End if;
+                
+                :P682_STATUS := nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P682_TNO), 'Status');
+                
+                begin
+                select TNO into :P682_VOUCHERTNO from voucher 
+                        where moduletno = :P682_TNO
+                          AND MODULECODE='SALARYVOUCHER';
+                exception when others then 
+                    null;
+                end;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 41069005063893287
+        }
+    )
+
+    process getonthetable (
+        name: GetOnTheTable
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                tmp  number;
+                tmp1 number;
+                begin
+                 -------- Checking Module Flow Prepared Or Not 
+                   select count(*) into tmp1 from moduleflow where modulecode = getModuleCodeForPageNo(:APP_PAGE_ID) and getdocumentstatuscode('MODULEFLOW',TNO)='ACTIVE';
+                   if nvl(tmp1,0) > 0 then
+                       :P682_MODULEFLOW := 'YES';
+                   else
+                       :P682_MODULEFLOW := 'NO';
+                   end if;
+                  
+                  ----- Checking On The Table 
+                   select count(*) into tmp from onthetable_apex where moduletno = :P682_TNO and loginname = :GLOBAL_LOGINNAME;
+                   if nvl(tmp,0) > 0 then
+                      :P682_ONTHETABLE := 'YES' ;
+                   else
+                       :P682_ONTHETABLE := 'NO';
+                   end if;
+                end;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 41069371725894424
+        }
+    )
+
+    process initialize-form-salary-voucher (
+        name: Initialize form Salary Voucher
+        type: formInitialization
+        formRegion: @salary-voucher
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 41048882804728134
+        }
+    )
+
+    process process-form-salary-voucher (
+        name: Process form Salary Voucher
+        type: formAutoRowProcessing
+        formRegion: @salary-voucher
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 41049133623728139
+        }
+    )
+
+    process send-pass-fail (
+        name: "Send Pass Fail "
+        type: executeCode
+        source {
+            plsqlCode: sendpassfailforward(getModuleCodeForPageNo(:APP_PAGE_ID) , :P682_TNO, :P682_SALARYVOUCHERNO||' :', :GLOBAL_COMPANYCODE);
+        }
+        execution {
+            sequence: 70
+        }
+        advanced {
+            executionMappingIdentifier: 41088423869955627
+        }
+        serverSideCondition {
+            whenButtonPressed: @create
+        }
+    )
+
+    branch (
+        name: Go To Page 681
+        execution {
+            sequence: 1
+        }
+        behavior {
+            target: {
+                page: 681
+            }
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+)
+

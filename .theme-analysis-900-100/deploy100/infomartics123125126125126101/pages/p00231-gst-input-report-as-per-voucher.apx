@@ -1,0 +1,1873 @@
+page 231 (
+    name: GST Input Report As Per Voucher
+    alias: GST-INPUT-REPORT-AS-PER-VOUCHER
+    title: GST Input Report As Per Voucher
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            #MYID1 .t-fht-thead{
+              overflow: auto !important;
+            }
+            
+            .m-10::before {
+                content: url(#APP_IMAGES#smallinfomaticslogo.png);
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region gst-input-report (
+        name: GST Input Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                       row_number() over(order by a.VOUCHERDATE) SerialNo,
+                       getlocationname(A.locationcode) AS NAMEOFSITE,
+                       getlocationattributevalue(A.LOCATIONCODE, 'LOCATIONSTATE') AS STATEOFSITE,
+                       CO.COMPANYNAME,
+                       A.entryno,
+                       getmodulename(A.ModuleCode) as module,
+                       A.Voucherno,
+                       A.VOUCHERDATE,
+                       NULL AS DRACCOUNTINERP,
+                       A.PARTYNAME AS CRACCOUNTINERP,
+                       NULL AS CONSIDEREDINGSTR3B,
+                       NULL AS ACTUALMONTHOFGSTR3B,
+                       NULL AS SHOWNINGSTR2A,
+                       NULL AS ACTUALMONTHOFGSTR2A,
+                       TG.TAXREGISTRATIONTYPENAME AS DEALERTYPE,
+                       TG.TAXMECHANISM AS TYPEOFREGISTRATION,
+                       NS.NatureOfSupplyName AS GSTRATEAPPLICABILITY,
+                       a.FooterNatureName as ITCAVAILABILITY,
+                       A.PartyName AS NAMEOFSUPPLIER,
+                       getpartyaddress(A.PARTYCODE) AS SUPPLIERADDRESS,
+                       A.StateName AS SUPPLIERSTATE,
+                       A.gststatecode,
+                       getpartyattributevalue(A.PARTYCODE, 'GSTINNO') AS SUPPLIERGSTIN,
+                       getpartyattributevalue(A.PARTYCODE, 'PANNO') AS SUPPLIERPANNO,
+                       --A.GRNNO,
+                       --A.GRNDATE,
+                       A.Quantity1 AS QUANTITY,
+                       I.MEASURINGUNITCODE1 AS UNIT,
+                       A.BillNo AS INVOICENO,
+                       A.BILLDATE AS INVOICEDATE,
+                       NULL AS APPLICABILITYOFWAYBILL,
+                       NULL AS EWAYBILLNO,
+                       decode(a.ByModuleCode, 'MISCELLANEOUSEXPENSE', getPartyName(a.ItemCode),  NVL(GETITEMNAME(A.ITEMCODE), getjobtypename(A.JOBTYPECODE))) AS PARTICULAROFITEMJOB,
+                       NULL AS BRODGROUPNAME,
+                       NVL(A.HSN, A.SAC) AS HSNSAC,
+                       A.TransactionTypeCode,
+                       A.footerpercent AS GSTTAXRATE,
+                       round(A.TaxableAmount,2) AS TAXABLEVALUEBEFORETAX,
+                       v.igst * decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * round(A.IGST,2) as IGST,
+                       v.cgst * decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * ROUND(A.CGST,2) AS CGST,
+                       v.sgst * decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * ROUND(A.SGST,2) AS SGST,
+                        decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * 
+                            ROUND(
+                                v.igst * NVL(A.IGST, 0) 
+                                + v.cgst * NVL(A.CGST, 0) 
+                                + v.sgst * NVL(A.SGST, 0),
+                                2
+                            ) 
+                        AS TOTALTAX,
+                       decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * ROUND(NVL(A.billamount, 0) -
+                       decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * NVL(nvl(a.taxableamount,0) + (NVL(v.igst * A.IGST, 0) + NVL(v.cgst * A.CGST, 0) + NVL(v.sgst * A.SGST, 0)), 0),2) AS OTHERINCIDENTALAMOUNT,
+                       decode(a.ModuleCode, 'DEBITNOTE', -1, 1) * ROUND(A.billamount,2) AS INVOICEAMOUNT,
+                       NULL AS REASONFORNONITCAVAILABLE,
+                       NULL AS ORIGINALINVOICEYESNO,
+                       A.PURCHASEACCOUNTNAME,
+                       A.PURCHASEGROUPNAME,
+                       K.GSTINNO,
+                       LO.LOCATIONNAME
+                  from gsttaxinoutdetail a,
+                       PARTY P,
+                       COMPANY CO,
+                       LOCATION LO,
+                       TAXREGISTRATIONTYPE TG,
+                       NATUREOFSUPPLY NS,
+                       ITEM I,
+                       JOBTYPE J,
+                       LOCATIONGSTINDETAIL K,
+                        --------------------------- --
+                        -- 03-may-2024
+                        (
+                            select 
+                                  aa.tno,
+                                  nvl(sum(decode(aa.AccountCode, '233', 1,'247',1, 0 )),0) as CGST,
+                                  nvl(sum(decode(aa.AccountCode, '253', 1,'249',1, 0 )),0) as SGST,
+                                  nvl(sum(decode(aa.AccountCode, '241', 1,'248',1, 0 )),0) as IGST,
+                                  sum(decode(aa.AccountCode, '2814', 1, 0 )) as CESS
+                            from VoucherDetail aa, Voucher bb 
+                            where aa.tno = bb.tno 
+                                and bb.ModuleTNo is not null
+                            group by aa.tno
+                            union all
+                            select 
+                                  aa.tno,
+                                  1 as CGST,
+                                  1 as SGST,
+                                  1 as IGST,
+                                  1 as CESS
+                            from Voucher aa
+                            where aa.ModuleTNo is null
+                        ) v
+                        --------------------------- --
+                 where 1=1
+                   AND EXISTS(
+                      SELECT 
+                          AA.TNO 
+                      FROM VOUCHERDETAIL AA 
+                      WHERE AA.ACCOUNTCODE IN ('233','253','241','247','248','249')--('2805', '2807', '2808', '2814')
+                          AND AA.TNO = A.VOUCHERTNO
+                   )
+                   AND A.PARTYCODE = P.PARTYCODE(+)
+                   and A.COMPANYCODE = CO.COMPANYCODE(+)
+                   AND A.LOCATIONCODE = LO.LOCATIONCODE(+)
+                   AND P.TAXREGISTRATIONTYPECODE = TG.TAXREGISTRATIONTYPECODE(+)
+                   AND A.NatureOfSupplyCode = NS.NATUREOFSUPPLYCODE(+)
+                   AND A.ITEMCODE = I.ITEMCODE(+)
+                   and A.JOBTYPECODE = J.JOBTYPECODE(+)
+                   AND A.LOCATIONCODE = K.LOCATIONCODE(+)
+                   and a.VoucherTNo = v.tno
+                   and ( :P231_COMPANY IS NULL OR instr(':'||:P231_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+                   and a.VoucherDate between :P231_FROMDATE and :P231_TODATE 
+                   and ( :P231_LOCATION IS NULL OR instr(':'||:P231_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                   and ( :P231_PARTY IS NULL OR instr(':'||:P231_PARTY||':',':'||a.PartyCode||':') > 0 ) 
+                   and ( :P231_MODULECODE IS NULL OR instr(':'||:P231_MODULECODE||':',':'||a.MODULECODE||':') > 0 )  
+                   and ( :P231_COMPANYGSTIN IS NULL OR instr(':'||:P231_COMPANYGSTIN||':',':'||K.GSTINNO||':') > 0 ) 
+                   AND ( 
+                      ( NVL(A.IGST,0)   > 0 AND :P231_SER = 'IGST' )
+                      OR 
+                      (  NVL(A.SGST,0) <= 0 AND :P231_SER = 'SGST' )
+                      OR 
+                      :P231_SER IS NULL
+                  )
+                  AND A.TYPE='INWARD'
+                 /*  AND ( NVL(A.IGST,0) > 0 OR NVL(A.CGST,0) > 0)*/
+                 -- 
+                /*  and a.ModuleCode like  nvl(:P231_BANK,'%')*/
+                ;
+                ```
+            pageItemsToSubmit: [
+                P231_COMPANY
+                P231_FROMDATE
+                P231_TODATE
+                P231_LOCATION
+                P231_PARTY
+                P231_MODULECODE
+                P231_COMPANYGSTIN
+                P231_SER
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P231_FROMDATE
+        }
+        componentAppearance {
+            showNullValuesAs: 0
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            compute: false
+            chart: false
+            groupBy: false
+            flashback: false
+            saveReport: false
+            reset: false
+            subscription: false
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 673947431537086229
+        }
+
+        column ACTUALMONTHOFGSTR2A (
+            type: plainText
+            heading {
+                heading: ACTUAL MONTH OF GSTR2A
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:110px">#ACTUALMONTHOFGSTR2A#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column ACTUALMONTHOFGSTR3B (
+            type: plainText
+            heading {
+                heading: ACTUAL MONTH OF GSTR3B
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#ACTUALMONTHOFGSTR3B#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column APPLICABILITYOFWAYBILL (
+            type: plainText
+            heading {
+                heading: APPLICABILITY OF WAYBILL
+                alignment: center
+            }
+            layout {
+                sequence: 400
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#APPLICABILITYOFWAYBILL#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column BRODGROUPNAME (
+            type: plainText
+            heading {
+                heading: BROD GROUP NAME
+                alignment: center
+            }
+            layout {
+                sequence: 430
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#BRODGROUPNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BB
+            }
+        )
+
+        column CGST (
+            type: plainText
+            heading {
+                heading: CGST
+                alignment: center
+            }
+            layout {
+                sequence: 490
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CGST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: COMPANY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 600
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#COMPANYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BS
+            }
+        )
+
+        column CONSIDEREDINGSTR3B (
+            type: plainText
+            heading {
+                heading: CONSIDEREDIN GSTR3B
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:120px">#CONSIDEREDINGGSTR3B#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column CRACCOUNTINERP (
+            type: plainText
+            heading {
+                heading: CR ACCOUNT IN ERP
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:110px">#CRACCOUNTINERP#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column DEALERTYPE (
+            type: plainText
+            heading {
+                heading: DEALER TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 240
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DEALERTYPE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column DRACCOUNTINERP (
+            type: plainText
+            heading {
+                heading: DR ACCOUNT IN ERP
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:110px">#DRACCOUNTINERP#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column ENTRYNO (
+            type: plainText
+            heading {
+                heading: ENTRY NO
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#ENTRYNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column EWAYBILLNO (
+            type: plainText
+            heading {
+                heading: EWAYBILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 410
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#EWAYBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column GSTINNO (
+            type: plainText
+            heading {
+                heading: COMPANY GSTIN NO
+                alignment: center
+            }
+            layout {
+                sequence: 630
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#GSTINNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BW
+            }
+        )
+
+        column GSTRATEAPPLICABILITY (
+            type: plainText
+            heading {
+                heading: GST RATE APPLICABILITY
+                alignment: center
+            }
+            layout {
+                sequence: 260
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#GSTRATEAPPLICABILITY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column GSTSTATECODE (
+            type: plainText
+            heading {
+                heading: GST STATE CODE
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#GSTSTATECODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column GSTTAXRATE (
+            type: plainText
+            heading {
+                heading: GST TAX RATE
+                alignment: center
+            }
+            layout {
+                sequence: 460
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#GSTTAXRATE#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BE
+            }
+        )
+
+        column HSNSAC (
+            type: plainText
+            heading {
+                heading: HSN/SAC
+                alignment: center
+            }
+            layout {
+                sequence: 440
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#HSNSAC#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BC
+            }
+        )
+
+        column IGST (
+            type: plainText
+            heading {
+                heading: IGST
+                alignment: center
+            }
+            layout {
+                sequence: 480
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#IGST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column INVOICEAMOUNT (
+            type: plainText
+            heading {
+                heading: INVOICE AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 530
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#INVOICEAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BL
+            }
+        )
+
+        column INVOICEDATE (
+            type: plainText
+            heading {
+                heading: INVOICE DATE
+                alignment: center
+            }
+            layout {
+                sequence: 390
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#INVOICEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column INVOICENO (
+            type: plainText
+            heading {
+                heading: INVOICE NO
+                alignment: center
+            }
+            layout {
+                sequence: 380
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#INVOICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column ITCAVAILABILITY (
+            type: plainText
+            heading {
+                heading: ITC AVAILABILITY
+                alignment: center
+            }
+            layout {
+                sequence: 270
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#ITCAVAILABILITY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION NAME
+                alignment: center
+            }
+            layout {
+                sequence: 620
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#LOCATIONNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BU
+            }
+        )
+
+        column MODULE (
+            type: plainText
+            heading {
+                heading: MODULE
+            }
+            layout {
+                sequence: 650
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:140px">#MODULE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BY
+            }
+        )
+
+        column NAMEOFSITE (
+            type: plainText
+            heading {
+                heading: BRANCH
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#NAMEOFSITE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column NAMEOFSUPPLIER (
+            type: plainText
+            heading {
+                heading: NAME OF SUPPLIER
+                alignment: center
+            }
+            layout {
+                sequence: 280
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:260px">#NAMEOFSUPPLIER#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column ORIGINALINVOICEYESNO (
+            type: plainText
+            heading {
+                heading: ORIGINAL INVOICE YES/NO
+                alignment: center
+            }
+            layout {
+                sequence: 570
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#ORIGNALINVOICEYESNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BP
+            }
+        )
+
+        column OTHERINCIDENTALAMOUNT (
+            type: plainText
+            heading {
+                heading: OTHER INCIDENTAL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 520
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#OTHERINCIDENTALAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        column PARTICULAROFITEMJOB (
+            type: plainText
+            heading {
+                heading: PARTICULAR OF ITEM JOB
+                alignment: center
+            }
+            layout {
+                sequence: 420
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#PARTICULAROFITEMJOB#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column PURCHASEACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: EXPENSE ACCOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 580
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#PURCHASEACCOUNTNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BQ
+            }
+        )
+
+        column PURCHASEGROUPNAME (
+            type: plainText
+            heading {
+                heading: EXPENSE GROUP
+                alignment: center
+            }
+            layout {
+                sequence: 590
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#PURCHASEGROUPNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BR
+            }
+        )
+
+        column QUANTITY (
+            type: plainText
+            heading {
+                heading: QUANTITY
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#QUANTITY#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column REASONFORNONITCAVAILABLE (
+            type: plainText
+            heading {
+                heading: REASON FOR NON-ITC AVAILABLE
+                alignment: center
+            }
+            layout {
+                sequence: 560
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#REASONFORNONITCAVAILABLE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BO
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 640
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BX
+            }
+        )
+
+        column SGST (
+            type: plainText
+            heading {
+                heading: SGST
+                alignment: center
+            }
+            layout {
+                sequence: 500
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#SGST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column SHOWNINGSTR2A (
+            type: plainText
+            heading {
+                heading: SHOWNIN GSTR2A
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#SHOWNINGSTR2A#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column STATEOFSITE (
+            type: plainText
+            heading {
+                heading: STATE OF SITE
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#STATEOFSITE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column SUPPLIERADDRESS (
+            type: plainText
+            heading {
+                heading: SUPPLIER ADDRESS
+                alignment: center
+            }
+            layout {
+                sequence: 290
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#SUPPLIERADDRESS#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column SUPPLIERGSTIN (
+            type: plainText
+            heading {
+                heading: SUPPLIER GSTIN
+                alignment: center
+            }
+            layout {
+                sequence: 320
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#SUPPLIERGSTIN#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column SUPPLIERPANNO (
+            type: plainText
+            heading {
+                heading: SUPPLIER PANNO
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#SUPPLIERPANNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column SUPPLIERSTATE (
+            type: plainText
+            heading {
+                heading: SUPPLIER STATE
+                alignment: center
+            }
+            layout {
+                sequence: 300
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#SUPPLIERSTATE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column TAXABLEVALUEBEFORETAX (
+            type: plainText
+            heading {
+                heading: TAXABLE VALUE BEFORE TAX
+                alignment: center
+            }
+            layout {
+                sequence: 470
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#TAXABLEVALUEBEFORETAX#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column TOTALTAX (
+            type: plainText
+            heading {
+                heading: TOTAL TAX
+                alignment: center
+            }
+            layout {
+                sequence: 510
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#TOTALTAX#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column TRANSACTIONTYPECODE (
+            type: plainText
+            heading {
+                heading: TRANSACTION TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 450
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#TRANSACTIONTYPECODE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BD
+            }
+        )
+
+        column TYPEOFREGISTRATION (
+            type: plainText
+            heading {
+                heading: TYPE OF REGISTRATION
+                alignment: center
+            }
+            layout {
+                sequence: 250
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#TYPEOFREGISTRATION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column UNIT (
+            type: plainText
+            heading {
+                heading: UNIT
+                alignment: center
+            }
+            layout {
+                sequence: 370
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#UNIT#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: VOUCHER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VOUCHERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: VOUCHER NO
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#VOUCHERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: GST Input Report
+        }
+
+        savedReport 129683 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100
+            }
+
+            displayColumn CGST (
+                sequence: 26
+            )
+
+            displayColumn DEALERTYPE (
+                sequence: 7
+            )
+
+            displayColumn ENTRYNO (
+                sequence: 6
+            )
+
+            displayColumn GSTRATEAPPLICABILITY (
+                sequence: 9
+            )
+
+            displayColumn GSTSTATECODE (
+                sequence: 13
+            )
+
+            displayColumn GSTTAXRATE (
+                sequence: 23
+            )
+
+            displayColumn HSNSAC (
+                sequence: 19
+            )
+
+            displayColumn IGST (
+                sequence: 25
+            )
+
+            displayColumn INVOICEAMOUNT (
+                sequence: 30
+            )
+
+            displayColumn INVOICEDATE (
+                sequence: 17
+            )
+
+            displayColumn INVOICENO (
+                sequence: 16
+            )
+
+            displayColumn ITCAVAILABILITY (
+                sequence: 10
+            )
+
+            displayColumn MODULE (
+                sequence: 5
+            )
+
+            displayColumn NAMEOFSITE (
+                sequence: 2
+            )
+
+            displayColumn NAMEOFSUPPLIER (
+                sequence: 11
+            )
+
+            displayColumn OTHERINCIDENTALAMOUNT (
+                sequence: 29
+            )
+
+            displayColumn PARTICULAROFITEMJOB (
+                sequence: 18
+            )
+
+            displayColumn QUANTITY (
+                sequence: 20
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SGST (
+                sequence: 27
+            )
+
+            displayColumn SUPPLIERGSTIN (
+                sequence: 14
+            )
+
+            displayColumn SUPPLIERPANNO (
+                sequence: 15
+            )
+
+            displayColumn SUPPLIERSTATE (
+                sequence: 12
+            )
+
+            displayColumn TAXABLEVALUEBEFORETAX (
+                sequence: 24
+            )
+
+            displayColumn TOTALTAX (
+                sequence: 28
+            )
+
+            displayColumn TRANSACTIONTYPECODE (
+                sequence: 22
+            )
+
+            displayColumn TYPEOFREGISTRATION (
+                sequence: 8
+            )
+
+            displayColumn UNIT (
+                sequence: 21
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 4
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 3
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: VOUCHERDATE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: QUANTITY
+            )
+
+            aggregate (
+                column: IGST
+            )
+
+            aggregate (
+                column: CGST
+            )
+
+            aggregate (
+                column: SGST
+            )
+
+            aggregate (
+                column: TOTALTAX
+            )
+
+            aggregate (
+                column: OTHERINCIDENTALAMOUNT
+            )
+
+            aggregate (
+                column: TAXABLEVALUEBEFORETAX
+            )
+
+            aggregate (
+                column: INVOICEAMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    region gst-input-report-as-per-voucher (
+        name: GST Input Report As Per Voucher
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent15
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P231_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select 
+                     b.CompanyName d,
+                     b.CompanyCode r
+                  From Company b
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Company
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P231_COMPANYGSTIN (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company GSTIN
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select getcompanyattributevalue(A.COMPANYCODE, 'GSTINNO') d,
+                getcompanyattributevalue(A.COMPANYCODE, 'GSTINNO') r
+                 From COMPANY a
+                /*Select
+                       Distinct
+                       p.GSTINNO d,
+                       p.GSTINNO r
+                From LOCATIONGSTINDETAIL p
+                Order By 1
+                */
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P231_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 52
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P231_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PAYMENTADVICE'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P231_MODULECODE (
+        type: selectList
+        label {
+            label: Module
+            alignment: left
+        }
+        settings {
+            pageActionOnSelection: submitPage
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                        Distinct
+                        A.modulecode as modulename,
+                        A.modulecode
+                From gsttaxinoutdetail a
+                Where a.Type ='INWARD'
+                ```
+            nullDisplayValue: --Select Module--
+        }
+        layout {
+            sequence: 80
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P231_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From PaymentAdvice a, Party p
+                Where a.PartyCode = p.PartyCode
+                Order By 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Party Name
+        }
+    )
+
+    pageItem P231_SER (
+        type: selectList
+        label {
+            label: Only GST
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:IGST;IGST,SGST;SGST
+            displayExtraValues: false
+            nullDisplayValue: -Select List-
+        }
+        layout {
+            sequence: 110
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            height: 1
+        }
+    )
+
+    pageItem P231_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 52
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 120
+            region: @gst-input-report-as-per-voucher
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

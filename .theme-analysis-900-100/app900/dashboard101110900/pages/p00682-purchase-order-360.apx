@@ -1,0 +1,1187 @@
+page 682 (
+    name: Purchase Order 360
+    alias: PURCHASE-ORDER-360
+    title: Purchase Order 360
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText:
+            ```html
+            PURCHASE ORDER 360 — data contract.
+            
+            A TERMINAL LEAF, DELIBERATELY. Sole key P682_TNO. There is no filter bar, no
+            button and no outbound drill: this is the end of the chain, reached from the
+            Orders report on Supplier 360. Everything on the page describes ONE order, so
+            there is nothing to filter and nowhere further to go. Use the browser's back
+            control to return.
+            
+            PROGRESS IS READ FROM THE ORDER LINE, NEVER INFERRED FROM A JOIN.
+            Received quantity comes from PurchaseOrderDetail.ReceivedQuantity1, which this
+            ERP maintains per line. One order can feed several receipts, so counting through
+            a join to GRN would double-count the same quantity. The linked-receipts region
+            below lists the GRNs for context, but it is NOT what drives the progress figures.
+            
+            RECEIPT COMPLETION IS UNIT-FREE. It is reported as the proportion of order LINES
+            fully received, not as a quantity ratio. A quantity ratio would add incompatible
+            units across the lines of a mixed-unit order and produce a meaningless number.
+            
+            LEAST() GUARDS OVER-RECEIPT. Where more was received than ordered,
+            LEAST(ReceivedQuantity1, Quantity1) caps the line so completion cannot exceed
+            100% and pending value cannot go negative.
+            
+            PENDING VALUE IS PRO-RATED ARITHMETIC. This ERP stores no pending-value column,
+            so it is computed within each line as
+                Amount * (Quantity1 - LEAST(ReceivedQuantity1, Quantity1)) / Quantity1
+            That is an estimate derived from the line, not a figure the ERP holds. The card
+            tooltip says so.
+            
+            HSPL DIVERGENCES FROM THE BLUEPRINT (docs/Purchase-Dashboard-FRD.md).
+            
+            1. NO BILLED % CARD. The blueprint reads PurchaseOrderDetail.PurchaseBillQuantity1.
+               That column is not corroborated anywhere in this application, so billing is
+               reported as a COUNT of bills and their value instead of a percentage of
+               ordered quantity.
+            
+            2. HEADER CARRIES ~13 FACTS, NOT ~16. Department, buyer and credit days are
+               omitted: DepartmentCode, EmployeeCode and CreditDays are not corroborated on
+               PurchaseOrder in this application. GSTIN and PAN are included because
+               GetPartyAttributeValue is confirmed in 11 pages.
+            
+            3. INDENT AND QUOTATION ARE SHOWN AS LINKED / NOT LINKED rather than by document
+               number: PurchaseOrder.IndentTno and .QuotationTno are confirmed, but the
+               corresponding IndentNo and QuotationNo columns were not verified.
+            
+            PANEL SECURITY. The panel predicate sits on the HEADER query itself, so an
+            out-of-panel order renders "Order not found" rather than leaking its existence.
+            
+            READ-ONLY. Every region is a SELECT.
+            ```
+    }
+
+    region command-header (
+        name: Purchase Order 360
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  '<div class="ds-purchase-head">'
+                  || '<div class="ds-purchase-head-eyebrow">Purchase Order 360</div>'
+                  || '<h1 class="ds-purchase-head-title">Order '
+                     || apex_escape.html(o.PurchaseOrderNo) || '</h1>'
+                  || '<p class="ds-purchase-head-sub">The complete record of one order &mdash; '
+                  || 'what was ordered, how much has arrived, and what has been billed '
+                  || 'against it.</p>'
+                  || '<div class="ds-purchase-head-context">'
+                  || '<span class="ds-purchase-head-chip">Order date <b>'
+                     || apex_escape.html(to_char(o.PurchaseOrderDate,'DD-Mon-RRRR'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Supplier <b>'
+                     || apex_escape.html(nvl(GetPartyName(o.PartyCode),'not recorded'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">GSTIN <b>'
+                     || apex_escape.html(nvl(GetPartyAttributeValue(o.PartyCode,'GSTINNO'),
+                                             'Not on file'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">PAN <b>'
+                     || apex_escape.html(nvl(GetPartyAttributeValue(o.PartyCode,'PANNO'),
+                                             'Not on file'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Company <b>'
+                     || apex_escape.html(nvl(GetCompanyName(o.CompanyCode),'not recorded'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Location <b>'
+                     || apex_escape.html(nvl(GetLocationName(o.LocationCode),'not recorded'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Doc type <b>'
+                     || apex_escape.html(
+                          nvl((Select dt.DocTypeName From DocType dt
+                                Where dt.DocTypeCode = o.DocTypeCode), o.DocTypeCode))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Delivery due <b>'
+                     || apex_escape.html(nvl(to_char(o.DeliveryDate,'DD-Mon-RRRR'),
+                                             'none recorded'))
+                     || '</b></span>'
+                  -- Shown as linked / not linked: the Tno columns are confirmed, the
+                  -- corresponding document-number columns are not.
+                  || '<span class="ds-purchase-head-chip">Indent <b>'
+                     || Case When o.IndentTno Is Not Null Then 'Linked'
+                             Else 'Not linked' End || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Quotation <b>'
+                     || Case When o.QuotationTno Is Not Null Then 'Linked'
+                             Else 'Not linked' End || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Sourcing route <b>'
+                     || Case When o.QuotationTno Is Not Null Then 'Tender'
+                             When o.IndentTno    Is Not Null Then 'Direct indent'
+                             Else 'Ad hoc' End || '</b></span>'
+                  -- Existence of a PurchaseOrderClose row means the order was short-closed.
+                  || '<span class="ds-purchase-head-chip">Status <b>'
+                     || Case When Exists (Select 1 From PurchaseOrderClose poc
+                                           Where poc.PurchaseOrderTNo = o.TNo)
+                             Then 'Short-closed' Else 'Open' End || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Panel <b>'
+                     || apex_escape.html(nvl(o.Panel,'not set')) || '</b></span>'
+                  || '</div></div>' As HEAD
+                From PurchaseOrder o
+                Where o.TNo = :P682_TNO
+                  -- Enforcement lives HERE. An out-of-panel order returns no row and the
+                  -- region renders its "not found" message.
+                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                       Or o.Panel = (Select GetUserPanelAB_apex() From dual))
+                ```
+            pageItemsToSubmit: P682_TNO
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-purchase-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: Order not found, or it lies outside the data panel your login may see.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Whole identity header as one HTML string. The panel predicate sits on this query so an out-of-panel order cannot be disclosed even as a title.
+            }
+        )
+
+    )
+
+    region kpi-strip (
+        name: Order Position
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Lines As (
+                  Select od.Quantity1 Qty,
+                         nvl(od.ReceivedQuantity1,0) Recd,
+                         od.Amount Amt
+                    From PurchaseOrderDetail od
+                    Join PurchaseOrder o On o.TNo = od.TNo
+                   Where o.TNo = :P682_TNO
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or o.Panel = (Select GetUserPanelAB_apex() From dual))),
+                Agg As (
+                  Select Count(*) Lines,
+                         Sum(Amt) OrderValue,
+                         -- Unit-free: proportion of LINES fully received. A quantity ratio
+                         -- would add incompatible units across a mixed-unit order.
+                         Sum(Case When Qty > 0 And Recd >= Qty Then 1 Else 0 End) LinesFull,
+                         -- LEAST guards over-receipt so pending cannot go negative.
+                         Sum(Case When nvl(Qty,0) > 0
+                                  Then Amt * (Qty - Least(Recd, Qty)) / Qty
+                                  Else 0 End) PendingValue
+                    From Lines),
+                Rec As (
+                  -- Context only. This does NOT drive the progress figures above.
+                  Select Count(Distinct g.TNo) Grns, Max(g.GrnDate) LastGrn
+                    From Grn g
+                   Where g.PurchaseOrderTNo = :P682_TNO
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or g.Panel = (Select GetUserPanelAB_apex() From dual))),
+                Bil As (
+                  Select Count(Distinct h.TNo) Bills, Sum(d.Amount) Billed
+                    From PurchaseBill h
+                    Join PurchaseBillDetail d On d.TNo = h.TNo
+                   Where h.PurchaseOrderTNo = :P682_TNO
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or h.Panel = (Select GetUserPanelAB_apex() From dual))),
+                Pss As (
+                  Select Sum(p.PBPassAmount) Passed, Sum(p.PaidAmount) PaidAdv
+                    From PBPass p
+                    Join PurchaseBill h On h.TNo = p.PurchaseBillTNo
+                   Where h.PurchaseOrderTNo = :P682_TNO
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or h.Panel = (Select GetUserPanelAB_apex() From dual)))
+                Select
+                  '<div class="ds-kpi ds-kpi--value" title="SUM(PurchaseOrderDetail.Amount). '
+                  || 'Committed value, excluding footer tax carried on the order header.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-inr"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Order Value</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.OrderValue,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(a.OrderValue/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(a.OrderValue,0) >= 100000
+                             Then 'Rs ' || to_char(Round(a.OrderValue/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(a.OrderValue,0),'FM99G99G990D00') End
+                     || '</span>'
+                  || '<span class="ds-kpi-sub">' || to_char(nvl(a.Lines,0),'FM999G999')
+                     || ' order lines</span>'
+                  || '</span></div>' As KPI1,
+                  '<div class="ds-kpi ds-kpi--ok" title="Proportion of order LINES fully '
+                  || 'received, read from PurchaseOrderDetail.ReceivedQuantity1. Deliberately '
+                  || 'unit-free — a quantity ratio would add incompatible units across the '
+                  || 'lines of a mixed-unit order.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-truck"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Lines Fully Received</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.Lines,0) > 0
+                             Then to_char(Round(100 * a.LinesFull / a.Lines,1),'FM99999990D0') || '%'
+                             Else 'n/a' End || '</span>'
+                  || '<span class="ds-kpi-sub">' || to_char(nvl(a.LinesFull,0),'FM999G999')
+                     || ' of ' || to_char(nvl(a.Lines,0),'FM999G999')
+                     || ' lines complete</span>'
+                  || '</span></div>' As KPI2,
+                  '<div class="ds-kpi ds-kpi--risk" title="Amount * (Quantity1 - LEAST('
+                  || 'ReceivedQuantity1, Quantity1)) / Quantity1, summed over the lines. '
+                  || 'PRO-RATED ARITHMETIC — this ERP stores no pending-value column, so this '
+                  || 'is derived from the line, not a figure the ERP holds.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-hourglass-half"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Pending Value</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.PendingValue,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(a.PendingValue/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(a.PendingValue,0) >= 100000
+                             Then 'Rs ' || to_char(Round(a.PendingValue/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(a.PendingValue,0),'FM99G99G990D00') End
+                     || '</span>'
+                  || '<span class="ds-kpi-sub">pro-rated within the line, not stored</span>'
+                  || '</span></div>' As KPI3,
+                  '<div class="ds-kpi ds-kpi--input" title="COUNT(DISTINCT Grn.TNo) where '
+                  || 'Grn.PurchaseOrderTNo is this order. Context only — the progress figures '
+                  || 'come from the order line, because one order can feed several receipts '
+                  || 'and a join would double-count.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-sign-in"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Receipts</span>'
+                  || '<span class="ds-kpi-n">' || to_char(nvl(r.Grns,0),'FM999G999') || '</span>'
+                  || '<span class="ds-kpi-sub">'
+                     || nvl('last on ' || to_char(r.LastGrn,'DD-Mon-RRRR'),
+                            'nothing received yet') || '</span>'
+                  || '</span></div>' As KPI4,
+                  -- The blueprint's Billed % is absent: PurchaseBillQuantity1 is not
+                  -- corroborated in this application, so billing is reported as count and
+                  -- value rather than as a percentage of ordered quantity.
+                  '<div class="ds-kpi ds-kpi--bill" title="Bills carrying PurchaseOrderTNo = '
+                  || 'this order, valued at SUM(PurchaseBillDetail.Amount). Reported as count '
+                  || 'and value rather than as a percentage of ordered quantity, because '
+                  || 'PurchaseOrderDetail.PurchaseBillQuantity1 is not present in this '
+                  || 'application.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-file-text-o"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Billed Against Order</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(b.Billed,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(b.Billed/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(b.Billed,0) >= 100000
+                             Then 'Rs ' || to_char(Round(b.Billed/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(b.Billed,0),'FM99G99G990D00') End
+                     || '</span>'
+                  || '<span class="ds-kpi-sub">' || to_char(nvl(b.Bills,0),'FM999G999')
+                     || ' bills booked against this order</span>'
+                  || '</span></div>' As KPI5,
+                  '<div class="ds-kpi ds-kpi--suppl" title="SUM(PBPass.PBPassAmount) on the '
+                  || 'bills against this order. Paid is the Payment Advice basis only, as '
+                  || 'everywhere this column is used.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-check-square-o"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Passed</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(p.Passed,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(p.Passed/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(p.Passed,0) >= 100000
+                             Then 'Rs ' || to_char(Round(p.Passed/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(p.Passed,0),'FM99G99G990D00') End
+                     || '</span>'
+                  || '<span class="ds-kpi-sub">Rs '
+                     || to_char(nvl(p.PaidAdv,0),'FM99G99G99G990D00')
+                     || ' settled <span class="ds-muted">(advice basis)</span></span>'
+                  || '</span></div>' As KPI6
+                From Agg a Cross Join Rec r Cross Join Bil b Cross Join Pss p
+                ```
+            pageItemsToSubmit: P682_TNO
+        }
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: No position available for this order.
+        }
+
+        column KPI1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Order value from the order lines. Excludes footer tax carried on the header.
+            }
+        )
+
+        column KPI2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Receipt completion as a proportion of LINES — unit-free by construction, so it stays valid on a mixed-unit order.
+            }
+        )
+
+        column KPI3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Pending value, pro-rated within the line and guarded by LEAST so over-receipt cannot make it negative. The sub-line states it is derived, not stored.
+            }
+        )
+
+        column KPI4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Receipt count for context only. Progress deliberately does not come from this join — one order can feed several receipts.
+            }
+        )
+
+        column KPI5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Billing as count and value. The blueprint's Billed % is absent because PurchaseBillQuantity1 is not present in this application.
+            }
+        )
+
+        column KPI6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Passed value on the bills against this order, with settled shown on the advice basis and labelled as such.
+            }
+        )
+
+    )
+
+    region linked-bills (
+        name: Bills Against This Order
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  h.PartyBillNo As SUPPLIER_BILL_NO,
+                  h.PartyBillDate As SUPPLIER_BILL_DATE,
+                  h.PurchaseBillDate As BOOKED_ON,
+                  Count(d.SNo) As LINES,
+                  Sum(d.Amount) As LINE_VALUE,
+                  p.PBPassAmount As PASSED,
+                  p.PaidAmount As PAID_VIA_ADVICE,
+                  '<span class="ds-pill ds-pill--'
+                  || Case
+                       When p.PurchaseBillTNo Is Null Then 'warn'
+                       When nvl(p.PaidAmount,0) = 0 Then 'info'
+                       When nvl(p.PaidAmount,0) >= nvl(p.PBPassAmount,0) Then 'good'
+                       Else 'accent'
+                     End
+                  || '">'
+                  || Case
+                       When p.PurchaseBillTNo Is Null Then 'Not passed'
+                       When nvl(p.PaidAmount,0) = 0 Then 'No advice settlement'
+                       When nvl(p.PaidAmount,0) >= nvl(p.PBPassAmount,0) Then 'Settled'
+                       Else 'Part settled'
+                     End
+                  || '</span>' As POSITION
+                From PurchaseBill h
+                Join PurchaseBillDetail d On d.TNo = h.TNo
+                Left Join PBPass p On p.PurchaseBillTNo = h.TNo
+                Where h.PurchaseOrderTNo = :P682_TNO
+                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                       Or h.Panel = (Select GetUserPanelAB_apex() From dual))
+                Group By h.PartyBillNo, h.PartyBillDate, h.PurchaseBillDate,
+                         p.PurchaseBillTNo, p.PBPassAmount, p.PaidAmount
+                Order By h.PurchaseBillDate, h.PartyBillNo
+                ```
+            pageItemsToSubmit: P682_TNO
+        }
+        layout {
+            sequence: 36
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZWithPagination
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No bill has been booked against this order yet.
+        }
+
+        column BOOKED_ON (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Booked On
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY
+            }
+            comments {
+                comments: PurchaseBillDate — the date the period filters elsewhere in the suite work on.
+            }
+        )
+
+        column LINES (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Lines
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            comments {
+                comments: Bill line count at the value grain.
+            }
+        )
+
+        column LINE_VALUE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Line Value
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: SUM(PurchaseBillDetail.Amount) — the value grain. Summing this column reproduces the Billed Against Order card.
+            }
+        )
+
+        column PAID_VIA_ADVICE (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Paid (via advice)
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: PBPass.PaidAmount. The heading names the basis because this column is only written for the Payment Advice route — a blank does not prove the bill is unpaid.
+            }
+        )
+
+        column PASSED (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Passed
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: PBPass.PBPassAmount. Blank where the bill has not been passed.
+            }
+        )
+
+        column POSITION (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Position
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Settlement pill. "No advice settlement" rather than "Unpaid", because the underlying column covers only one settlement route.
+            }
+        )
+
+        column SUPPLIER_BILL_DATE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Bill Date
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY
+            }
+            comments {
+                comments: Date on the supplier's invoice, which may differ from the booking date.
+            }
+        )
+
+        column SUPPLIER_BILL_NO (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Supplier Bill No
+            }
+            layout {
+                sequence: 10
+            }
+            comments {
+                comments: The supplier's OWN bill number. Internal document keys are never displayed anywhere in this suite.
+            }
+        )
+
+    )
+
+    region linked-grn (
+        name: Receipts Against This Order
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  g.GrnNo As GRN_NO,
+                  g.GrnDate As GRN_DATE,
+                  GetLocationName(g.LocationCode) As LOCATION,
+                  Count(gd.SNo) As LINES,
+                  Sum(nvl(gd.ReceivedQuantity1,0)) As RECEIVED_QTY,
+                  Sum(nvl(gd.RejectedQuantity1,0)) As REJECTED_QTY,
+                  Case When Sum(nvl(gd.RejectedQuantity1,0)) > 0
+                       Then '<span class="ds-pill ds-pill--bad">Rejection recorded</span>'
+                       Else '<span class="ds-pill ds-pill--good">Accepted</span>'
+                  End As STATUS
+                From Grn g
+                Join GrnDetail gd On gd.TNo = g.TNo
+                Where g.PurchaseOrderTNo = :P682_TNO
+                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                       Or g.Panel = (Select GetUserPanelAB_apex() From dual))
+                Group By g.GrnNo, g.GrnDate, g.LocationCode
+                Order By g.GrnDate, g.GrnNo
+                ```
+            pageItemsToSubmit: P682_TNO
+        }
+        layout {
+            sequence: 35
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZWithPagination
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Nothing has been received against this order yet.
+        }
+
+        column GRN_DATE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Date
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY
+            }
+            comments {
+                comments: Receipt date. The earliest of these is what the on-time delivery measure on page 683 compares against the promised date.
+            }
+        )
+
+        column GRN_NO (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: GRN No
+            }
+            layout {
+                sequence: 10
+            }
+            comments {
+                comments: The receipt's own business number. These are long strings, which is why this region takes the full width.
+            }
+        )
+
+        column LINES (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Lines
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            comments {
+                comments: Receipt line count.
+            }
+        )
+
+        column LOCATION (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 30
+            }
+            comments {
+                comments: Where the goods were received.
+            }
+        )
+
+        column RECEIVED_QTY (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Received Qty
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            comments {
+                comments: From GrnDetail.ReceivedQuantity1 — GrnDetail has no plain quantity column. May cross units within one receipt, so do not read the total as a single figure.
+            }
+        )
+
+        column REJECTED_QTY (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Rejected Qty
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            comments {
+                comments: Quality rejection at receipt. Any non-zero value is worth investigating regardless of size.
+            }
+        )
+
+        column STATUS (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Flags any receipt carrying a rejected quantity. GRNs carry no value in this ERP, so there is deliberately no value column here.
+            }
+        )
+
+    )
+
+    region order-lines (
+        name: Order Lines
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  od.SNo As LINE_NO,
+                  nvl((Select i.ItemName From Item i Where i.ItemCode = od.ItemCode),
+                      od.ItemCode) As ITEM,
+                  nvl((Select s.ItemSpecificationName From ItemSpecification s
+                        Where s.ItemSpecificationCode = od.ItemSpecificationCode),
+                      '<span class="ds-muted">no specification</span>') As SPECIFICATION,
+                  od.Quantity1 As ORDERED,
+                  nvl(od.ReceivedQuantity1,0) As RECEIVED,
+                  -- GREATEST(...,0) so an over-receipt reads as nothing outstanding, never
+                  -- as a negative pending quantity.
+                  Greatest(od.Quantity1 - nvl(od.ReceivedQuantity1,0), 0) As PENDING,
+                  od.Rate As RATE,
+                  od.DiscountRate As DISCOUNT_RATE,
+                  od.Amount As AMOUNT,
+                  '<span class="ds-pill ds-pill--'
+                  || Case
+                       When nvl(od.Quantity1,0) = 0 Then 'muted'
+                       When nvl(od.ReceivedQuantity1,0) >= od.Quantity1 Then 'good'
+                       When nvl(od.ReceivedQuantity1,0) > 0 Then 'warn'
+                       Else 'bad'
+                     End
+                  || '">'
+                  || Case
+                       When nvl(od.Quantity1,0) = 0 Then 'No quantity'
+                       When nvl(od.ReceivedQuantity1,0) >= od.Quantity1 Then 'Complete'
+                       When nvl(od.ReceivedQuantity1,0) > 0 Then 'Part received'
+                       Else 'Awaited'
+                     End
+                  || '</span>' As STATUS
+                From PurchaseOrderDetail od
+                Join PurchaseOrder o On o.TNo = od.TNo
+                Where o.TNo = :P682_TNO
+                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                       Or o.Panel = (Select GetUserPanelAB_apex() From dual))
+                Order By od.SNo
+                ```
+            pageItemsToSubmit: P682_TNO
+        }
+        layout {
+            sequence: 25
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZWithPagination
+        }
+        messages {
+            whenNoDataFound: This order has no lines, or it lies outside the data panel your login may see.
+        }
+
+        column AMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: Line value. Summing this column reproduces the Order Value card.
+            }
+        )
+
+        column DISCOUNT_RATE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Discount
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: Discount rate on the line, where one was applied.
+            }
+        )
+
+        column ITEM (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 20
+            }
+            comments {
+                comments: Item name, falling back to the code where the master row is missing.
+            }
+        )
+
+        column LINE_NO (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Line
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            comments {
+                comments: The line's own serial on the order. Also the sort key, so it stays projected.
+            }
+        )
+
+        column ORDERED (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Ordered
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            comments {
+                comments: Ordered quantity in the line's own unit. Do not total this column — lines of one order may use different units.
+            }
+        )
+
+        column PENDING (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Pending
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            comments {
+                comments: Floored at zero with GREATEST so an over-receipt shows as nothing outstanding rather than a negative.
+            }
+        )
+
+        column RATE (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Rate
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: The rate as stored on the order line. This is the agreed rate, not the realised rate reported on Item 360 — those come from bills.
+            }
+        )
+
+        column RECEIVED (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Received
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            comments {
+                comments: Read from PurchaseOrderDetail.ReceivedQuantity1 — the ERP's own running figure, never recomputed from a join to GRN.
+            }
+        )
+
+        column SPECIFICATION (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Renders "no specification" in the muted style where none was recorded, rather than an empty cell that reads as missing data.
+            }
+        )
+
+        column STATUS (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Per-line pill derived from received against ordered. A line with no quantity is called out rather than being silently treated as awaited.
+            }
+        )
+
+    )
+
+    region rule-lines (
+        name: Order Lines
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Order Lines</h2>
+                  <p>What was ordered and how much of each line has arrived. Pending quantity
+                     is capped at the ordered quantity, so an over-receipt shows as complete
+                     rather than as a negative outstanding.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-linked (
+        name: Linked Documents
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Documents Against This Order</h2>
+                  <p>The receipts and bills booked against this order. These are shown for
+                     traceability &mdash; they are <em>not</em> what drives the progress
+                     figures above, which come from the order line itself.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P682_TNO (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @command-header
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: The order's internal key, arriving from the Orders report on Supplier 360. It is never displayed — the order is identified on screen by its own business number.
+        }
+    )
+
+)
+

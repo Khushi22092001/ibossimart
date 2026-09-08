@@ -1,0 +1,2005 @@
+page 275 (
+    name: Cost Centre Ledger With Account
+    alias: COST-CENTRE-LEDGER-WITH-ACCOUNT
+    title: Cost Centre Ledger With Account
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P11_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/AccountLedger.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P11_FROMDATE').val());
+              var toDate = new Date($('#P11_TODATE').val());
+              var companycode ,global_companycode;
+              
+             
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+                 global_companycode='&GLOBAL_COMPANYCODE.';
+              } 
+            
+            var reportParams = 
+                  '&P_FROMDATE='+ $('#P11_FROMDATE').val()+
+                  '&P_TODATE=' + $('#P11_TODATE').val() +
+                  '&P_LOCATION=' +$('#P11_LOCATION').val() +  
+                  '&P_PARTY=' +$('#P11_PARTY').val() +
+                  '&GLOBAL_COMPANYCODE=' +global_companycode
+                  ;
+             
+            //alert($v('P11_PARTY'));
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P11_BIREPORTURL').val()
+              var reportName =  'AccountLedger.xdo';
+              var outputFormat = 'pdf';
+            var companycode ,global_companycode;
+              
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+                 global_companycode='&GLOBAL_COMPANYCODE.';
+              } 
+            
+            
+            //   var reportParams = 
+            //     '"_paramsP_TNO":"' + $('#P11_TNO').val() 
+            //       ;
+            
+            var reportParams = 
+                     '"_paramsP_FROMDATE":"' +$('#P11_FROMDATE').val() + '",' + 
+                     '"_paramsP_TODATE":"' +$('#P11_TODATE').val() + '",' + 
+            	 '"_paramsP_LOCATION":"' + $('#P11_LOCATION').val() + '",' + 
+            	 '"_paramsP_PARTY":"' + $('#P11_PARTY').val() + '",' + 
+                     '"_paramsGLOBAL_COMPANYCODE":"' +global_companycode;
+                 
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    security {
+        authentication: public
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region account-ledger (
+        name: "Account Ledger "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: fullWidthContent
+        }
+        appearance {
+            template: @/content-block
+            templateOptions: [
+                #DEFAULT#
+                t-ContentBlock--h3
+                t-Region--removeHeader js-removeLandmark
+                t-Form--slimPadding
+                margin-bottom-sm
+            ]
+        }
+    )
+
+    region new (
+        name: New
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT X.TNO,
+                       X.VOUCHERDATE,
+                       getlocationname(X.LOCATIONCODE) LocationCode,
+                       X.ACCOUNTNAME,
+                       X.VOUCHERNO,
+                       :P275_PARTY as party,
+                       ( SELECT DOCTYPECODE FROM VOUCHER WHERE TNO = X.TNO) AS VOUCHERTYPE,
+                      -- 'DETAIL' AS VRDETAIL,
+                       --'NARRATION' AS NARRATION,
+                       X.NARRATION AS NARRATION,
+                       abs(X.AMOUNT) as amount,
+                       CASE WHEN X.VOUCHERNO = 'CLOSING' THEN 
+                               0
+                            ELSE           
+                               X.DRAMOUNT
+                       END DRAMOUNT,
+                      CASE WHEN X.VOUCHERNO = 'CLOSING' THEN 
+                               0
+                            ELSE            
+                               X.CRAMOUNT
+                       END CRAMOUNT,
+                       CASE
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) < 0 AND
+                              X.VOUCHERNO != 'CLOSING' THEN
+                          ROUND((SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)), 0) * -1
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) < 0 AND
+                              X.VOUCHERNO = 'CLOSING' THEN
+                          DECODE(X.AMOUNT + ABS(X.AMOUNT), 0, ROUND(X.AMOUNT * -1, 0))
+                         ELSE
+                          0
+                       END DRCLOSING,
+                       CASE
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) > 0 AND
+                              X.VOUCHERNO != 'CLOSING' THEN
+                          ROUND((SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)), 0)
+                         WHEN (SUM(X.Amount) OVER(ORDER BY VOUCHERDATE, TNO)) > 0 AND
+                              X.VOUCHERNO = 'CLOSING' THEN
+                          DECODE(X.AMOUNT + ABS(X.AMOUNT), 2 * X.AMOUNT, ROUND(X.AMOUNT, 0))
+                         ELSE
+                          0
+                       END CRCLOSING,
+                       'VOUCHER' AS VOUCHER,
+                     CASE WHEN NVL(X.BILLATTACHED,'NO')='YES' THEN
+                        getmodulename(X.MODULECODE)
+                        ELSE
+                          NULL
+                    END MODULEODE,
+                     --X.MODULETNO,
+                
+                	  abs(Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding)) As ClosingAmount,
+                    /*  Case When Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding) > 0 Then
+                    	         Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding)
+                    			Else 
+                                Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding) * -1
+                     End ClosingAmt,
+                */
+                     Case When Sum(x.Amount) over(Order By VOUCHERDATE, TNO rows unbounded preceding) > 0 Then
+                    	         'Cr'
+                    			Else 'Dr'
+                     End ClosingType
+                      
+                  FROM (SELECT 1 AS TNO,
+                               TO_DATE(:P275_FROMDATE,'DD-MM-RRRR') AS VOUCHERDATE,
+                               NULL AS LOCATIONCODE,
+                               'OPENING' AS ACCOUNTNAME,
+                               'OPENING' AS VOUCHERNO,
+                               NULL AS NARRATION,
+                               (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE <= TO_DATE(:P275_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P275_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (&P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P275_PARTY
+                                    And a.locationcode = :P275_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE))) As AMOUNT,
+                               CASE
+                                 WHEN (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE <= TO_DATE(:P275_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P275_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (&P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P275_PARTY
+                                    And a.locationcode = :P275_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE)))  < 0 THEN
+                                  (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE <= TO_DATE(:P275_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P275_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P275_PARTY
+                                    And a.locationcode = :P275_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE)))  * -1
+                                 ELSE
+                                  0
+                               END DRAMOUNT,
+                               CASE
+                                 WHEN (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE <= TO_DATE(:P275_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P275_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P275_PARTY
+                                    And a.locationcode = :P275_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE)))  > 0 THEN
+                                  (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE <= TO_DATE(:P275_FROMDATE, 'DD-MM-RRRR')
+                                    And
+                                        instr(':' || :P275_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P275_PARTY
+                                    And a.locationcode = :P275_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE)))
+                                 ELSE
+                                  0
+                               END CRAMOUNT,
+                               (Select Sum(AMOUNT)
+                          From ((Select Sum(x.AMOUNT) As AMOUNT
+                                   From VOUCHERDETAIL X
+                                  Where X.VOUCHERDATE <= TO_DATE(:P275_FROMDATE, 'DD-MM-RRRR')
+                                    And 
+                                        instr(':' || :P275_PARTY || ':',
+                                              ':' || X.ACCOUNTCODE || ':') > 0
+                                    And (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0)
+                                 Union All
+                                 Select Sum(openingamount)
+                                   From accountopening a
+                                  Where a.accountcode = :P275_PARTY
+                                    And a.locationcode = :P275_LOCATION
+                                    And A.COMPANYCODE = :GLOBAL_COMPANYCODE)))  AS CLOSING,
+                                NULL AS MODULECODE,
+                                --'OPENING' AS MODULETNO,
+                        NULL AS BILLATTACHED
+                          FROM DUAL
+                        UNION ALL
+                        
+                        SELECT X.TNO,
+                               
+                               X.VOUCHERDATE,
+                               X.LOCATIONCODE,
+                               getpartyname(X.ACCOUNTCODE) AS ACCOUNTNAME,
+                               X.VOUCHERNO,
+                               X.NARRATION,
+                               X.AMOUNT,
+                               DECODE(X.AMOUNT + ABS(X.AMOUNT), 0, ROUND(X.AMOUNT * -1, 0)) AS DRAMOUNT,
+                               DECODE(X.AMOUNT + ABS(X.AMOUNT), 2 * X.AMOUNT, ROUND(X.AMOUNT, 0)) AS CRAMOUNT,
+                               (SUM(X.Amount) OVER(ORDER BY X.VOUCHERDATE, X.TNO)) CLOSING,
+                               nvl(Y.MODULECODE,y.referencemodulecode) as modulecode,
+                              /* case when nvl(Y.MODULECODE,y.referencemodulecode)='PBPASS' then
+                                      ( 
+                                         select A.tno from purchasebill a, pbpass b
+                                          where a.tno = b.purchasebilltno
+                                            and b.tno = nvl(Y.MODULETNO,y.referencetno)
+                                      )
+                                    when nvl(Y.MODULECODE,y.referencemodulecode)='JBPASS' then
+                                     ( 
+                                         select A.tno from jobbill a, jbpass b
+                                          where a.tno = b.jobbilltno
+                                            and b.tno = nvl(Y.MODULETNO,y.referencetno)
+                                      )
+                                    else
+                                        nvl(Y.MODULETNO,y.referencetno) 
+                               end moduletno ,
+                               */
+                         NULL AS BILLATTACHED
+                         --X.BILLATTACHED
+                            FROM CostCentreLedger X, Voucher y
+                         WHERE X.TNO = y.tno
+                           AND X.VOUCHERDATE BETWEEN TO_DATE(:P275_FROMDATE,'DD-MM-RRRR') AND TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                           AND X.CREATOR = '&APP_USER.'
+                           --AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                           AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                        UNION ALL
+                        SELECT 99999999999 AS TNO,
+                               TO_DATE(:P275_TODATE,'DD-MM-RRRR') AS VOUCHERDATE,
+                               NULL AS LOCATIONCODE,
+                               'CLOSING' AS ACCOUNTNAME,
+                               'CLOSING' AS VOUCHERNO,
+                               NULL AS NARRATION,
+                               0 AS AMOUNT,
+                               CASE
+                                 WHEN (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND  instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) < 0 THEN
+                                  0
+                                 ELSE
+                                  0
+                               END DRAMOUNT,
+                               CASE
+                                 WHEN (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) > 0 THEN
+                                  0               
+                                 ELSE
+                                  0
+                               END CRAMOUNT,
+                               0 AS CLOSING,
+                               NULL AS MODULECODE,
+                               --NULL AS MODULETNO,
+                         NULL AS BILLATTACHED
+                        
+                          FROM DUAL
+                        
+                       /* ------- CLOSING
+                        UNION ALL
+                        SELECT 99999999999 AS TNO,
+                               TO_DATE(:P275_TODATE,'DD-MM-RRRR') AS VOUCHERDATE,
+                               NULL AS LOCATIONCODE,
+                               'CLOSING' AS ACCOUNTNAME,
+                               'CLOSING' AS VOUCHERNO,
+                               NULL AS NARRATION,
+                               (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) AS AMOUNT,
+                               CASE
+                                 WHEN (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) < 0 THEN
+                                  (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) * -1
+                                 ELSE
+                                  0
+                               END DRAMOUNT,
+                               CASE
+                                 WHEN (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) > 0 THEN
+                                  (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               )
+                                 ELSE
+                                  0
+                               END CRAMOUNT,
+                               (SELECT ROUND(SUM(AMOUNT), 0)
+                                  FROM VOUCHERDETAIL X
+                                 WHERE X.VOUCHERDATE <= TO_DATE(:P275_TODATE,'DD-MM-RRRR')
+                                   AND instr(':'||:P275_PARTY||':',':'||X.ACCOUNTCODE||':') > 0
+                                   AND (:P275_LOCATION IS NULL OR instr(':'||:P275_LOCATION||':',':'||X.LocationCode||':') > 0)
+                               ) AS CLOSING,
+                               NULL AS MODULECODE,
+                               --NULL AS MODULETNO,
+                         NULL AS BILLATTACHED
+                        
+                          FROM DUAL
+                        */
+                
+                         ORDER BY VOUCHERDATE
+                        
+                 
+                        
+                        ) X
+                
+                ```
+            pageItemsToSubmit: [
+                P275_FROMDATE
+                P275_TODATE
+                P275_NARRATION
+                P275_PRINTDRCR
+                P275_LOCATION
+                P275_PARTY_1
+                P275_REPORTTITLE
+                P275_BIREPORTURL
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            savePublicReport: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 776602688906785128
+        }
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: ACCOUNT NAME
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CLOSINGAMOUNT (
+            type: plainText
+            heading {
+                heading: CLOSING AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column CLOSINGTYPE (
+            type: plainText
+            heading {
+                heading: DR/CR
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column CRAMOUNT (
+            type: plainText
+            heading {
+                heading: CR AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column CRCLOSING (
+            type: plainText
+            heading {
+                heading: CR CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DRAMOUNT (
+            type: plainText
+            heading {
+                heading: DR AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DRCLOSING (
+            type: plainText
+            heading {
+                heading: DR CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: LOCATION CODE
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column MODULEODE (
+            type: link
+            heading {
+                heading: MODULE CODE
+            }
+            layout {
+                sequence: 160
+            }
+            link {
+                target: {
+                    page: 58
+                    items: {
+                        P58_TNO: #MODULETNO#
+                    }
+                    clearCache: 58
+                }
+                linkText: #MODULEODE#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column NARRATION (
+            type: plainText
+            heading {
+                heading: NARRATION
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PARTY (
+            type: plainText
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VOUCHER (
+            type: plainText
+            heading {
+                heading: VOUCHER
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: VOUCHER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column VOUCHERNO (
+            type: link
+            heading {
+                heading: VOUCHER NO
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            link {
+                target: {
+                    page: 156
+                    items: {
+                        P156_TNO: #TNO#
+                        P156_CALLEDFROMPAGE: 11
+                        P156_FORMSTATUS: CALLED
+                        P156_CALLEDFROMTNO: #TNO#
+                        P156_PARTYCODE: #PARTY#
+                    }
+                }
+                linkText: #VOUCHERNO#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column VOUCHERTYPE (
+            type: plainText
+            heading {
+                heading: VOUCHER TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: New
+        }
+
+        savedReport 690993 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 100000
+            }
+
+            displayColumn ACCOUNTNAME (
+                sequence: 3
+            )
+
+            displayColumn CLOSINGAMOUNT (
+                sequence: 8
+            )
+
+            displayColumn CLOSINGTYPE (
+                sequence: 9
+            )
+
+            displayColumn CRAMOUNT (
+                sequence: 7
+            )
+
+            displayColumn DRAMOUNT (
+                sequence: 6
+            )
+
+            displayColumn LOCATIONCODE (
+                sequence: 2
+            )
+
+            displayColumn NARRATION (
+                sequence: 10
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 1
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 4
+            )
+
+            displayColumn VOUCHERTYPE (
+                sequence: 5
+            )
+
+            aggregate (
+                column: DRAMOUNT
+            )
+
+            aggregate (
+                column: CRAMOUNT
+            )
+
+        )
+
+    )
+
+    pageItem P275_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 140
+            region: @account-ledger
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P275_CREDITAMOUNT (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 180
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_CREDITCLOSING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 230
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_CREDITOPENING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 210
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_DEBITAMOUNT (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 160
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_DEBITCLOSING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 220
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_DEBITOPENING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 200
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-RRRR
+            width: 40
+            valuePlaceholder: From Date
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                SELECT
+                FINANCIALYEARBEGIN
+                FROM FINANCIALYEAR
+                WHERE TRUNC(SYSDATE) BETWEEN FINANCIALYEARBEGIN AND FINANCIALYEAREND
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P275_LEDGERFOR (
+        type: radioGroup
+        label {
+            label: Ledger For
+            alignment: left
+        }
+        settings {
+            noOfCols: 2
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:COSTCENTRE;COSTCENTRE,ACCOUNT;ACCOUNT
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P275_LEDGERTYPE (
+        type: radioGroup
+        label {
+            label: Ledger For
+            alignment: left
+        }
+        settings {
+            noOfCols: 2
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:DETAIL;DETAIL,SUMMARY;SUMMARY
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    pageItem P275_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select distinct 
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = getmodulecodeforpageno(:APP_PAGE_ID)
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            nullDisplayValue: - Select -
+        }
+        layout {
+            sequence: 60
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+    )
+
+    pageItem P275_MYBALANCE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 260
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_NARRATION (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @account-ledger
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P275_OPENING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 270
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_PARTY (
+        type: popupLov
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select
+                	a.CostCentreName as AccountName,
+                	a.CostCentreCode as AccountCode
+                from CostCentre a
+                where :P275_LEDGERFOR = 'COSTCENTRE'
+                union all
+                select
+                	a.PartyName as AccountName,
+                	a.PartyCode as AccountCode
+                from Party a
+                where :P275_LEDGERFOR = 'ACCOUNT'
+                	and a.PartyTypeCode != 'ACCOUNTGROUP'
+                order by 1
+                ```
+            displayExtraValues: false
+        }
+        cascadingLov {
+            parentItems: P275_LEDGERFOR
+            itemsToSubmit: P275_LEDGERFOR
+            parentRequired: false
+        }
+        layout {
+            sequence: 80
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P275_PARTY_1 (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @account-ledger
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+    )
+
+    pageItem P275_PRINTDRCR (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @account-ledger
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        default {
+            type: static
+            staticValue: STATE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P275_REPORTTITLE (
+        type: hidden
+        layout {
+            sequence: 130
+            region: @account-ledger
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: Account Ledger
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P275_SUMOFCREDITAMOUNT (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 250
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_SUMOFDEBITAMOUNT (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 240
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_SUMOFDRCR (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 280
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 150
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    pageItem P275_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @account-ledger
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-RRRR
+            width: 40
+            valuePlaceholder: To Date
+        }
+        source {
+            used: always
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT TRUNC(SYSDATE) FROM DUAL;
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P275_TOTALINCLUDEOPENING (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 290
+            region: @account-ledger
+            slot: regionBody
+        }
+    )
+
+    button new (
+        buttonName: New
+        label: Preview
+        layout {
+            sequence: 120
+            region: @account-ledger
+            slot: regionBody
+            startNewRow: false
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:window.open('http://65.1.227.214:9502/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/LOGICBOX/REPORT/AccountLedgerRevisedwithattachment.xdo&nQUser=weblogic&nQPassword=webboss123&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1","_paramsP304_FROMDATE":"&P275_FROMDATE.","_paramsP304_TODATE":"&P275_TODATE.","_paramsP304_LOCATION":"&P275_LOCATION.","_paramsP304_PARTY":"&P275_PARTY.","_paramsP304_USER":"&APP_USER."}');
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button print (
+        buttonName: PRINT
+        label: PDF
+        layout {
+            sequence: 10
+            region: @new
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconLeft
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 110
+            region: @account-ledger
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+            executeValidations: false
+        }
+        advanced {
+            htmlDomId: REFRESH
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @print
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P275_FROMDATE,:P275_TODATE,:P275_LOCATION,:P275_PARTY FROM DUAL
+                itemsToSubmit: [
+                    P275_FROMDATE
+                    P275_TODATE
+                    P275_LOCATION
+                    P275_PARTY
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P275_FROMDATE
+                    P275_TODATE
+                    P275_LOCATION
+                    P275_PARTY
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+                stopExecutionOnError: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    APEX_UTIL.SET_SESSION_STATE ('P275_PARTY',:P275_PARTY);
+                    APEX_UTIL.SET_SESSION_STATE ('P275_FROMDATE',:P275_FROMDATE);
+                    APEX_UTIL.SET_SESSION_STATE ('P275_TODATE',:P275_TODATE);
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-execute-plsql-code-2 (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                    	OpeningAmount Number;
+                    	DebitAmount Number;
+                    	CreditAmount Number;
+                    	ClosingAmount Number;
+                    BEGIN
+                    	CreateCostCentreLedger(:P275_PARTY, :p275_LedgerFor, :p275_FromDate, :p275_ToDate, :global_CompanyCode);    		
+                    		select
+                    			sum(a.Amount) into OpeningAmount
+                    	from CostCentreLedger a
+                    	where (
+                    						( a.CostCentreCode = :P275_PARTY and :P275_LedgerFor = 'COSTCENTRE' )
+                    						or
+                    						( a.AccountCode = :P275_PARTY and :P275_LedgerFor = 'ACCOUNT' )
+                    			)
+                    			and a.LedgerFor = :p275_LedgerFor
+                    			and a.VoucherDate < :p275_FromDate
+                    			and a.Creator = :GLOBAL_LOGINNAME
+                    			and a.CompanyCode = :global_CompanyCode
+                    			and a.LocationCode = nvl(:P275_LocationCode, a.LocationCode )
+                    			and (
+                    					a.ModuleCode = 'VOUCHER'
+                    					--or
+                    					--nvl(:Parameter.ApprovedOnly, 'NO') = 'NO'
+                    			);								   		
+                    		--:P275_CREDITOPENING
+                            :P275_MYBALANCE := OpeningAmount;		       		
+                    		if nvl(OpeningAmount,0) < 0 then
+                    				:P275_DebitOpening := abs(OpeningAmount);							
+                    		elsif nvl(OpeningAmount,0) > 0 then                     
+                    				:P275_CreditOpening := abs(OpeningAmount);
+                    		end if;
+                    		:P275_Opening := 'B/F';
+                    		:P275_SumOfDrCr := 'Total (Excluding Opening)';
+                    		:P275_TOTALINCLUDEOPENING := 'Total (Including Opening) ' ;       		
+                    		select 
+                    			sum(-1 * a.DrAmount) into DebitAmount
+                    		from CostCentreLedger a
+                    		where a.VoucherDate between :P275_FromDate and :P275_ToDate
+                    			and a.LedgerFor = :P275_LedgerFor
+                    			and (
+                    						( a.CostCentreCode = :P275_PARTY and :P275_LedgerFor = 'COSTCENTRE' )
+                    						or
+                    						( a.AccountCode = :P275_PARTY and :P275_LedgerFor = 'ACCOUNT' )
+                    			)
+                    			and a.Creator = :GLOBAL_LOGINNAME
+                    			and a.CompanyCode = :global_CompanyCode
+                    			and a.LedgerType = 'DETAIL'
+                    			and (
+                    					a.ModuleCode = 'VOUCHER'
+                    				--	or
+                    				--	nvl(:Parameter.ApprovedOnly, 'NO') = 'NO'
+                    			);
+                    		select 
+                    			sum(a.CrAmount) into CreditAmount
+                    		from CostCentreLedger a
+                    		where a.VoucherDate between :P275_FromDate and :P275_ToDate
+                    			and a.LedgerFor = :P275_LedgerFor
+                    			and (
+                    						( a.CostCentreCode = :P275_PARTY and :P275_LedgerFor = 'COSTCENTRE' )
+                    						or
+                    						( a.AccountCode = :P275_PARTY and :P275_LedgerFor = 'ACCOUNT' )
+                    			)
+                    			and a.Creator = :GLOBAL_LOGINNAME
+                    			and a.CompanyCode = :global_CompanyCode
+                    			and a.LedgerType = 'DETAIL'
+                    			and (
+                    					a.ModuleCode = 'VOUCHER'
+                    					--or
+                    					--nvl(:Parameter.ApprovedOnly, 'NO') = 'NO'
+                    			);		
+                    		:P275_MyBalance := OpeningAmount;
+                    		if nvl(OpeningAmount,0) < 0 then
+                    				:P275_DebitOpening := abs(OpeningAmount);				
+                    		elsif nvl(OpeningAmount,0) > 0 then                     
+                    				:P275_CreditOpening := abs(OpeningAmount);
+                    		end if;
+                    		if nvl(abs(Debitamount),0) > 0  then
+                    				:P275_Debitamount := abs(Debitamount);
+                    		end if;       		
+                    		if nvl(abs(Creditamount),0) > 0  then
+                    				:P275_CreditAmount := abs(CreditAmount);
+                    		end if;        		
+                    		if nvl(OpeningAmount ,0) < 0 then
+                    				:P275_Debitamount := abs(nvl(Debitamount, 0)) + abs(nvl(OpeningAmount ,0)) ;
+                    		elsif nvl(OpeningAmount ,0) > 0 then                                         
+                    				:P275_CreditAmount := abs(nvl(CreditAmount, 0)) + abs(nvl(OpeningAmount ,0));
+                    		end if;
+                     		if nvl(abs(Debitamount),0) > 0  then
+                    				:P275_SumOfDebitamount := abs(Debitamount) ;
+                    		end if;        		
+                    		if nvl(abs(Creditamount),0) > 0  then
+                    				:P275_SumOfCreditAmount := abs(CreditAmount);
+                    		end if;
+                    		ClosingAmount := NVL(OpeningAmount, 0) + NVL(DebitAmount, 0) + NVL(CreditAmount, 0);        		
+                    		if nvl(abs(Closingamount),0) !=  0 then       			
+                    			if ClosingAmount < 0 then
+                    					:P275_DebitClosing := abs(ClosingAmount);
+                    			else
+                    					:P275_CreditClosing := abs(ClosingAmount);
+                    			end if;       				
+                    		end if;		
+                    END;
+                    
+                    ```
+                itemsToSubmit: [
+                    P275_FROMDATE
+                    P275_TODATE
+                    P275_LOCATION
+                    P275_PARTY_1
+                    P275_PARTY
+                    P275_MYBALANCE
+                    P275_OPENING
+                    P275_LEDGERFOR
+                    P275_DEBITAMOUNT
+                    P275_CREDITAMOUNT
+                    P275_DEBITOPENING
+                    P275_CREDITOPENING
+                    P275_SUMOFDRCR
+                    P275_TOTALINCLUDEOPENING
+                    P275_SUMOFDEBITAMOUNT
+                    P275_SUMOFCREDITAMOUNT
+                    P275_DEBITCLOSING
+                    P275_CREDITCLOSING
+                ]
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P275_FROMDATE,:P275_TODATE,:P275_LOCATION, :P275_PARTY FROM DUAL
+                itemsToSubmit: [
+                    P275_FROMDATE
+                    P275_TODATE
+                    P275_LOCATION
+                    P275_PARTY_1
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P275_FROMDATE
+                    P275_TODATE
+                    P275_LOCATION
+                    P275_PARTY_1
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 30
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                     var button = document.getElementById('REFRESH');
+                        button.click();
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new-3 (
+        name: New_2
+        execution {
+            sequence: 40
+        }
+        when {
+            selectionType: items
+            items: P275_PARTY_1
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P275_PARTY_1 FROM DUAL
+                itemsToSubmit: P275_PARTY_1
+            }
+            affectedElements {
+                selectionType: items
+                items: P275_PARTY
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process loading-event (
+        name: loading event
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                pappuser varchar2(100);
+                PPARTYCODE VARCHAR2(30);
+                BEGIN
+                  DELETE FROM TrialbalancerevisedLOCATION;
+                  INSERT INTO TrialbalancerevisedLOCATION
+                    (TNO, LOCATIONCODE, CREATOR )
+                    (select globaltno.nextval,
+                           X.locationcode,
+                           v('APP_USER')
+                     FROM LOCATION X
+                     WHERE (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0))
+                                    
+                    --values ( globaltno.nextval,:P275_LOCATION,V('APP_USER'))
+                    
+                    ;
+                commit;
+                
+                   if :P275_LOCATION is not null then
+                            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                          /* raise_application_error(
+                                  -20000,
+                                  :P275_PARTY||'-'||:P275_FROMDATE||'-'||:P275_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P275_LOCATION||'-'||V('APP_USER')
+                                );   
+                           */ 
+                           GenerateAccountLedgerRevised(:P275_PARTY,
+                                                         TO_DATE(:P275_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P275_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         vLocation.LocationCode,
+                                                         'NO',
+                                                         vLocation.Creator);
+                            
+                
+                         END LOOP;
+                    else
+                        GenerateAccountLedgerRevised(:P275_PARTY,
+                                                         TO_DATE(:P275_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P275_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         :P275_LOCATION,
+                                                         'NO',
+                                                         V('APP_USER'));
+                    end if;
+                
+                COMMIT;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 17575950331465774
+        }
+    )
+
+    process new (
+        name: New_1
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                pappuser varchar2(100);
+                PPARTYCODE VARCHAR2(30);
+                BEGIN
+                  DELETE FROM TrialbalancerevisedLOCATION;
+                  INSERT INTO TrialbalancerevisedLOCATION
+                    (TNO, LOCATIONCODE, CREATOR )
+                    (select globaltno.nextval,
+                           X.locationcode,
+                           v('APP_USER')
+                     FROM LOCATION X
+                     WHERE (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0))
+                                    
+                    --values ( globaltno.nextval,:P275_LOCATION,V('APP_USER'))
+                    
+                    ;
+                commit;
+                
+                   if :P275_LOCATION is not null then
+                            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                          /* raise_application_error(
+                                  -20000,
+                                  :P275_PARTY||'-'||:P275_FROMDATE||'-'||:P275_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P275_LOCATION||'-'||V('APP_USER')
+                                );   
+                           */ 
+                           GenerateAccountLedgerRevised(:P275_PARTY,
+                                                         TO_DATE(:P275_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P275_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         vLocation.LocationCode,
+                                                         'NO',
+                                                         vLocation.Creator);
+                            
+                
+                         END LOOP;
+                    else
+                        GenerateAccountLedgerRevised(:P275_PARTY,
+                                                         TO_DATE(:P275_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P275_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         :P275_LOCATION,
+                                                         'NO',
+                                                         V('APP_USER'));
+                    end if;
+                
+                COMMIT;
+                END;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: afterHeader
+        }
+        advanced {
+            executionMappingIdentifier: 17575552107465774
+        }
+    )
+
+    process new-2 (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                pappuser varchar2(100);
+                PPARTYCODE VARCHAR2(30);
+                BEGIN
+                  DELETE FROM TrialbalancerevisedLOCATION;
+                  INSERT INTO TrialbalancerevisedLOCATION
+                    (TNO, LOCATIONCODE, CREATOR )
+                    (select globaltno.nextval,
+                           X.locationcode,
+                           v('APP_USER')
+                     FROM LOCATION X
+                     WHERE (:P275_LOCATION Is Null Or
+                                        instr(':' || :P275_LOCATION || ':',
+                                               ':' || X.LocationCode || ':') > 0))
+                                    
+                    --values ( globaltno.nextval,:P275_LOCATION,V('APP_USER'))
+                    
+                    ;
+                commit;
+                
+                   if :P275_LOCATION is not null then
+                            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+                          /* raise_application_error(
+                                  -20000,
+                                  :P275_PARTY||'-'||:P275_FROMDATE||'-'||:P275_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P275_LOCATION||'-'||V('APP_USER')
+                                );   
+                           */ 
+                           GenerateAccountLedgerRevised(:P275_PARTY,
+                                                         TO_DATE(:P275_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P275_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         vLocation.LocationCode,
+                                                         'NO',
+                                                         vLocation.Creator);
+                            
+                
+                         END LOOP;
+                    else
+                        GenerateAccountLedgerRevised(:P275_PARTY,
+                                                         TO_DATE(:P275_FROMDATE,'DD-MM-RRRR'),
+                                                         TO_DATE(:P275_TODATE,'DD-MM-RRRR'),
+                                                         :GLOBAL_COMPANYCODE,
+                                                         :P275_LOCATION,
+                                                         'NO',
+                                                         V('APP_USER'));
+                    end if;
+                
+                COMMIT;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: afterSubmit
+        }
+        advanced {
+            executionMappingIdentifier: 17575125995465773
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    process set-party (
+        name: set party
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                if :P156_PARTYCODE is not null then
+                    :P275_PARTY_1 := :P156_PARTYCODE;
+                    :P275_PARTY := :P156_PARTYCODE;
+                    :P156_PARTYCODE:=null;
+                end if;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 17574731645465773
+        }
+    )
+
+)
+

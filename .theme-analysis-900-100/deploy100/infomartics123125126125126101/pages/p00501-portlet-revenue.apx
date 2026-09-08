@@ -1,0 +1,2714 @@
+page 501 (
+    name: Portlet Revenue
+    alias: PORTLET-REVENUE
+    title: Portlet Revenue
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    css {
+        inline:
+            ```css
+            #R161123375362759032_jet{
+                margin-top: 2rem;
+            }
+            #R161123533390759034_jet{
+                margin-top: 2rem;
+            }
+            #R158247033530484815_jet{
+                margin-top: 2rem;
+            }
+            #R160542601609573604_jet{
+                margin-top: 2rem;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region brand-cutsomer-revenue (
+        name: Brand Cutsomer Revenue
+        type: chart
+        layout {
+            sequence: 150
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P501_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P501_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    A.LOCATIONCODE AS LOCATIONCODE,A.PARTYCODE, GETPARTYNAME(A.PARTYCODE) AS PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                       And (:P501_ITEMGROUP Is Null
+                        Or X.ROOT_ID = :P501_ITEMGROUP)
+                       And (:P501_ITEM Is Null
+                        Or NVL(X.PARENTCODE,X.ITEMCODE) = :P501_ITEM)
+                       And (:P501_BRAND IS NULL OR A.ITEMCODE = :P501_BRAND)
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By a.PARTYcode,A.LOCATIONCODE
+                    order by 6 desc
+                    ```
+                pageItemsToSubmit: P501_BRAND
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 174
+                    items: {
+                        P174_COMPANY: &GLOBAL_COMPANYCODE.
+                        P174_STATUS: ACTIVE
+                        P174_LOCATION: &LOCATIONCODE.
+                        P174_FROMDATE: &FROMDATE.
+                        P174_TODATE: &TODATE.
+                        P174_ITEM: &P501_BRAND.
+                        P174_PARTY: &PARTYCODE.
+                    }
+                    clearCache: 174
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region brand-revenue (
+        name: Brand Revenue
+        type: chart
+        layout {
+            sequence: 140
+            parentRegion: @revenue
+            slot: subRegions
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series brand-revenue-bar-chart (
+            name: Brand Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select A.ITEMCODE As ITEMCODE,
+                           getitemNAME(A.ITEMCODE) As ItemName,
+                           Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                       And (:P501_ITEMGROUP Is Null
+                        Or X.ROOT_ID = :P501_ITEMGROUP)
+                       And (:P501_ITEM Is Null
+                        Or NVL(X.PARENTCODE,X.ITEMCODE) = :P501_ITEM)
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By a.itemcode
+                    
+                    ```
+                pageItemsToSubmit: P501_BRAND
+            }
+            columnMapping {
+                label: ITEMNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_BRAND',&ITEMCODE.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region item-cutomer-revenue (
+        name: Item Cutomer Revenue
+        type: chart
+        layout {
+            sequence: 130
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueAsc
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-customer-revenue-bar-chart (
+            name: Item Customer Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P501_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P501_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    A.LOCATIONCODE AS LOCATIONCODE,B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           PARTY B,
+                           BI_DateTime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       And A.PARTYCODE = B.PARTYCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                       And (:P501_ITEMGROUP Is Null    Or X.ROOT_ID = :P501_ITEMGROUP)
+                       And (:P501_ITEM Is Null Or NVL(X.PARENTCODE,X.ITEMCODE) = :P501_ITEM)
+                     Group By B.PARTYCODE, B.PARTYNAME,A.LOCATIONCODE
+                     order by 6 desc
+                    ```
+                pageItemsToSubmit: [
+                    P501_ITEM
+                    P501_MONTH
+                    P501_QUARTER
+                ]
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 174
+                    items: {
+                        P174_COMPANY: &GLOBAL_COMPANYCODE.
+                        P174_LOCATION: &LOCATIONCODE.
+                        P174_STATUS: ACTIVE
+                        P174_FROMDATE: &FROMDATE.
+                        P174_TODATE: &TODATE.
+                        P174_PARTY: &PARTYCODE.
+                    }
+                    clearCache: 174
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region item-revenue (
+        name: Item Revenue
+        type: chart
+        layout {
+            sequence: 120
+            parentRegion: @revenue
+            slot: subRegions
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P501_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P501_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    A.LOCATIONCODE AS LOCATIONCODE, 
+                    Nvl(X.PARENTCODE, X.ITEMCODE) As PARENTCODE,
+                           getitemname(Nvl(X.PARENTCODE, X.ITEMCODE)) As RootName,
+                           Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                       And (:P501_ITEMGROUP Is Null
+                        Or X.ROOT_ID = NVL(:P501_ITEMGROUP,:P501_SUBGROUP))
+                    
+                     Group By Nvl(X.PARENTCODE, X.ITEMCODE), A.LOCATIONCODE
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P501_ITEM
+                    P501_ITEMGROUP
+                ]
+            }
+            columnMapping {
+                seriesName: ROOTNAME
+                label: ROOTNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_ITEM',&PARENTCODE.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region item-spec-customer-revenue (
+        name: item spec Customer Revenue
+        type: chart
+        layout {
+            sequence: 170
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartLayout {
+            height: 400
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select '01-'||NVL(TO_CHAR(to_date(:P501_MONTH,'YYYYMM'),'MM-RRRR'),TO_CHAR(SYSDATE,'MM-RRRR')) AS FromDate,
+                    TO_CHAR(last_day(to_date(:P501_MONTH,'YYYYMM')),'DD-MM-RRRR') as ToDate,
+                    A.LOCATIONCODE AS LOCATIONCODE,B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           PARTY B,
+                           BI_DateTime c
+                     Where  A.PARTYCODE = B.PARTYCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                       and (:P501_ITEMSPECIFICATION IS NULL OR A.ITEMSPECIFICATIONCODE = :P501_ITEMSPECIFICATION)
+                     Group By B.PARTYCODE, B.PARTYNAME, A.LOCATIONCODE
+                     order by 6 desc
+                    ```
+                pageItemsToSubmit: [
+                    P501_BRAND
+                    P501_ITEMSPECIFICATION
+                ]
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 174
+                    items: {
+                        P174_COMPANY: &GLOBAL_COMPANYCODE.
+                        P174_STATUS: ACTIVE
+                        P174_LOCATION: &LOCATIONCODE.
+                        P174_FROMDATE: &FROMDATE.
+                        P174_TODATE: &TODATE.
+                        P174_ITEMSPECIFICATION: &P501_ITEMSPECIFICATION.
+                        P174_DOCTYPE: CHALANCUMINVOICE
+                    }
+                    clearCache: 174
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region item-specification-revenue (
+        name: Item Specification Revenue
+        type: chart
+        layout {
+            sequence: 160
+            parentRegion: @revenue
+            slot: subRegions
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select A.ITEMSPECIFICATIONCODE As ITEMSPECIFICATIONCODE,
+                           getitemSPECIFICATIONNAME(A.ITEMCODE, A.ITEMSPECIFICATIONCODE) As ItemSpecificationName,
+                           Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                       And (:P501_ITEMGROUP Is Null
+                        Or X.ROOT_ID = :P501_ITEMGROUP)
+                       And (:P501_ITEM Is Null
+                        Or X.ITEMCODE = :P501_BRAND OR X.PARENTCODE = :P501_BRAND )
+                     
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By a.itemcode, a.itemspecificationcode
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P501_BRAND
+                    P501_ITEMGROUP
+                    P501_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ITEMSPECIFICATIONNAME
+                label: ITEMSPECIFICATIONNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_ITEMSPECIFICATION',&ITEMSPECIFICATIONCODE.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region main-group-customer-revenue (
+        name: Main Group Customer Revenue
+        type: chart
+        layout {
+            sequence: 90
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            column: 5
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        chartAppearance {
+            stack: true
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueAsc
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(:P501_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P501_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    A.LOCATIONCODE AS LOCATIONCODE,
+                    B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           PARTY B,
+                           BI_DateTime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       And A.PARTYCODE = B.PARTYCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                       And (:P501_ITEMGROUP Is Null  Or X.ROOT_ID = :P501_ITEMGROUP)
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By B.PARTYCODE, B.PARTYNAME,A.LOCATIONCODE
+                    order by 6 desc
+                    /*
+                    Select
+                          b.PartyCode,
+                          GetPartyName(b.PartyCode) PartyName,
+                          sum(b.TotalAmount)Amount
+                    From  BI_DateTime a, BI_SRevenue b
+                    Where a.Fin_Date = b.CCInvoiceDate
+                      and b.ItemCode like nvl(:P501_ITEM,'%')
+                      and To_Char(b.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                      and a.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                      and replace(a.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    Group by b.PartyCode
+                    */
+                    ```
+                pageItemsToSubmit: [
+                    P501_ITEM
+                    P501_MONTH
+                    P501_QUARTER
+                ]
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 174
+                    items: {
+                        P174_COMPANY: &GLOBAL_COMPANYCODE.
+                        P174_LOCATION: &LOCATIONCODE.
+                        P174_FROMDATE: &FROMDATE.
+                        P174_TODATE: &TODATE.
+                        P174_PARTY: &PARTYCODE.
+                        P174_STATUS: ACTIVE
+                    }
+                    clearCache: 174
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region main-group-revenue (
+        name: Main Group Revenue
+        type: chart
+        layout {
+            sequence: 60
+            parentRegion: @revenue
+            slot: subRegions
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-group-revenue-bar-chart (
+            name: Item Group Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select x.root_id,
+                           getitemname(x.root_id) As RootName,
+                           Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode Is Null
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                    --   And :P501_ITEMGROUP Is Null
+                    --    Or X.ROOT_ID = &P501_ITEMGROUP
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By x.root_id
+                    ```
+                pageItemsToSubmit: [
+                    P501_ITEMGROUP
+                    P501_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ROOTNAME
+                label: ROOTNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_ITEMGROUP',&ROOT_ID.);javascript:$s('P501_ITEMGROUPNAME',&ROOT_NAME.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region revenue (
+        name: Revenue
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--showIcon
+                t-Region--accent14
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+                margin-top-none
+                margin-bottom-sm
+                margin-left-sm
+                margin-right-sm
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region revenue-by-halfyearly (
+        name: Revenue by HalfYearly
+        type: chart
+        layout {
+            sequence: 30
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--accent3
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: pie
+        }
+        chartLayout {
+            height: 250
+        }
+        dataCursor {
+            cursor: true
+            behavior: smooth
+        }
+        settings {
+            pieSelectionEffect: highlightAndExplode
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+        }
+
+        series halfyear-pie-chart (
+            name: HalfYear Pie Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select a.FIN_HALF_YEAR_NAME, 
+                           a.FIN_HALF_YEAR, 
+                    	   Sum(c.TotalAmount) Amount
+                      From BI_DateTime a, BI_Srevenue c
+                     Where a.Fin_Date = c.CCInvoiceDate
+                       And Replace(a.Fin_Year, '-', '') Like nvl(:P501_FINYEAR, '%')
+                     Group By a.FIN_HALF_YEAR_NAME, a.FIN_HALF_YEAR
+                     Order By 2
+                    ```
+                pageItemsToSubmit: P501_FINYEAR
+            }
+            columnMapping {
+                label: FIN_HALF_YEAR_NAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_FIN_HALFYEAR',&FIN_HALF_YEAR.);
+            }
+            label {
+                show: true
+                position: outsideSlice
+                displayAs: percentageValue
+                fontSize: 10
+            }
+        )
+
+    )
+
+    region revenue-by-months (
+        name: Revenue by Months
+        type: chart
+        source {
+            pageItemsToSubmit: [
+                P501_MONTH
+                P501_FIN_HALFYEAR
+                P501_FINYEAR
+                P501_ITEM
+            ]
+        }
+        layout {
+            sequence: 50
+            parentRegion: @revenue
+            slot: subRegions
+            column: 1
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent1
+                t-Region--hiddenOverflow
+            ]
+        }
+        chartAppearance {
+            stack: true
+            stackLabel: true
+        }
+        chartLayout {
+            height: 400
+        }
+        settings {
+            timeAxisType: auto
+        }
+        legend {
+            hideAndShowBehavior: noRescaling
+        }
+
+        series by-product (
+            name: By Product
+            execution {
+                sequence: 20
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(xx.month,'MON-YYYY'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(xx.month,'MON-YYYY')),'DD-MON-RRRR') as ToDate,
+                    'CO' AS LOCATIONCODE,xx.*
+                      From (Select b.Fin_Qtr,
+                                   b.Fin_Month,
+                                   x.root_id,
+                                   getitemname(x.root_id) As item,
+                                   To_Char(a.CCInvoiceDate, 'MON-YYYY') As Month,
+                                   To_Char(a.CCInvoiceDate, 'YYYYMM') As Monthyy,
+                                   Sum(a.TotalAmount) Amount
+                              From BI_SRevenue a,
+                                   BI_DateTime b,
+                                   (Select ITEMCODE,
+                                           parentcode,
+                                           RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                           Level,
+                                           CONNECT_BY_ROOT itemcode As root_id,
+                                           --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                           CONNECT_BY_ISLEAF As leaf
+                                      From item a
+                                     Start With parentcode Is Null
+                                    Connect By parentcode = Prior itemcode
+                                     Order Siblings By itemcode) x
+                             Where A.ITEMCODE = X.ITEMCODE
+                               And a.CCInvoiceDate = b.Fin_date
+                            --and b.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                            --and b.Fin_year like nvl(:P501_FINYEAR,'%')
+                               and (b.Fin_Qtr = :P501_FIN_QTR or :P501_FIN_QTR is null)
+                              and (replace(b.Fin_year,'-','') = :P501_FINYEAR or :P501_FINYEAR is null)
+                            
+                             Group By b.Fin_Qtr,
+                                      b.Fin_Month,
+                                      To_Char(a.CCInvoiceDate, 'MON-YYYY'),
+                                      To_Char(a.CCInvoiceDate, 'YYYYMM'),
+                                      getitemname(x.root_id),
+                                      x.root_id
+                             Order By To_Char(a.CCInvoiceDate, 'YYYYMM')) xx
+                    where root_id='217'
+                     Order By root_id
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P501_MONTH
+                    P501_FIN_HALFYEAR
+                    P501_FINYEAR
+                    P501_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ITEM
+                label: MONTHYY
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_MONTH',&MONTHYY.);
+            }
+            label {
+                show: true
+            }
+        )
+
+        series finished-goods (
+            name: Finished Goods
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select --APEX_UTIL.PREPARE_URL
+                    --('f?p=&APP_ID.:56:&APP_SESSION.::::P56_COMPANY,P56_FROMDATE,P56_TODATE:1,' || to_date(xx.month,'MON-YYYY')|| ',' ||LAST_DAY(to_date(xx.month,'MON-YYYY'))) AS LINK ,
+                    TO_CHAR(to_date(xx.month,'MON-YYYY'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(xx.month,'MON-YYYY')),'DD-MON-RRRR') as ToDate,
+                    'CO' AS LOCATIONCODE,
+                    xx.*
+                      From (Select b.Fin_Qtr,
+                                   b.Fin_Month,
+                                   x.root_id,
+                                   getitemname(x.root_id) As item,
+                                   To_Char(a.CCInvoiceDate, 'MON-YYYY') As Month,
+                                   To_Char(a.CCInvoiceDate, 'YYYYMM') As Monthyy,
+                                   Sum(a.TotalAmount) Amount
+                              From BI_SRevenue a,
+                                   BI_DateTime b,
+                                   (Select ITEMCODE,
+                                           parentcode,
+                                           RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                           Level,
+                                           CONNECT_BY_ROOT itemcode As root_id,
+                                           --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                           CONNECT_BY_ISLEAF As leaf
+                                      From item a
+                                     Start With parentcode Is Null
+                                    Connect By parentcode = Prior itemcode
+                                     Order Siblings By itemcode) x
+                             Where A.ITEMCODE = X.ITEMCODE
+                               And a.CCInvoiceDate = b.Fin_date
+                            --and b.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                            --and b.Fin_year like nvl(:P501_FINYEAR,'%')
+                               and (b.Fin_Qtr = :P501_FIN_QTR or :P501_FIN_QTR is null)
+                              and (replace(b.Fin_year,'-','') = :P501_FINYEAR or :P501_FINYEAR is null)
+                            
+                             Group By b.Fin_Qtr,
+                                      b.Fin_Month,
+                                      To_Char(a.CCInvoiceDate, 'MON-YYYY'),
+                                      To_Char(a.CCInvoiceDate, 'YYYYMM'),
+                                      getitemname(x.root_id),
+                                      x.root_id
+                    
+                             Order By To_Char(a.CCInvoiceDate, 'YYYYMM')) xx
+                    --where root_id='223'
+                    -- Order By XX.MONTHYY --root_id
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P501_FIN_HALFYEAR
+                    P501_MONTH
+                    P501_FIN_HALFYEAR
+                    P501_FINYEAR
+                    P501_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ITEM
+                label: MONTHYY
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_MONTH',&MONTHYY.);
+            }
+            label {
+                show: true
+                position: outsideBarEdge
+                fontSize: 10
+            }
+        )
+
+        series waste-scrap (
+            name: Waste & Scrap
+            execution {
+                sequence: 30
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select TO_CHAR(to_date(xx.month,'MON-YYYY'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(xx.month,'MON-YYYY')),'DD-MON-RRRR') as ToDate,
+                    'CO' AS LOCATIONCODE, xx.*
+                      From (Select b.Fin_Qtr,
+                                   b.Fin_Month,
+                                   x.root_id,
+                                   getitemname(x.root_id) As item,
+                                   To_Char(a.CCInvoiceDate, 'MON-YYYY') As Month,
+                                   To_Char(a.CCInvoiceDate, 'YYYYMM') As Monthyy,
+                                   Sum(a.TotalAmount) Amount
+                              From BI_SRevenue a,
+                                   BI_DateTime b,
+                                   (Select ITEMCODE,
+                                           parentcode,
+                                           RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                           Level,
+                                           CONNECT_BY_ROOT itemcode As root_id,
+                                          -- '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                           CONNECT_BY_ISLEAF As leaf
+                                      From item a
+                                     Start With parentcode Is Null
+                                    Connect By parentcode = Prior itemcode
+                                     Order Siblings By itemcode) x
+                             Where A.ITEMCODE = X.ITEMCODE
+                               And a.CCInvoiceDate = b.Fin_date
+                            --and b.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                            --and b.Fin_year like nvl(:P501_FINYEAR,'%')
+                               and (b.Fin_Qtr = :P501_FIN_QTR or :P501_FIN_QTR is null)
+                              and (replace(b.Fin_year,'-','') = :P501_FINYEAR or :P501_FINYEAR is null)
+                            
+                             Group By b.Fin_Qtr,
+                                      b.Fin_Month,
+                                      To_Char(a.CCInvoiceDate, 'MON-YYYY'),
+                                      To_Char(a.CCInvoiceDate, 'YYYYMM'),
+                                      getitemname(x.root_id),
+                                      x.root_id
+                             Order By To_Char(a.CCInvoiceDate, 'YYYYMM')) xx
+                    where root_id='235'
+                     Order By root_id
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P501_MONTH
+                    P501_FIN_HALFYEAR
+                    P501_FINYEAR
+                    P501_ITEM
+                ]
+            }
+            columnMapping {
+                seriesName: ITEM
+                label: MONTHYY
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P116_MONTH',&MONTHYY.);
+            }
+        )
+
+        axis x (
+            name: x
+            showAxis: false
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            showAxis: false
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region revenue-by-quarters (
+        name: Revenue by Quarters
+        type: chart
+        layout {
+            sequence: 40
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--accent5
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: pie
+        }
+        chartLayout {
+            height: 250
+        }
+        dataCursor {
+            cursor: true
+            behavior: smooth
+        }
+        settings {
+            pieSelectionEffect: highlightAndExplode
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+        }
+
+        series quater-pie-chart (
+            name: Quater Pie Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select
+                          a.Fin_Qtr_Name,
+                          a.Fin_Qtr,
+                          sum(c.TotalAmount)Amount
+                    From  BI_DateTime a, BI_Srevenue c
+                    Where a.Fin_Date = c.CCInvoiceDate
+                      and replace(a.Fin_Year,'-','') like nvl(:P501_FINYEAR,'%')
+                      and (:P501_FIN_HALFYEAR IS NULL OR A.FIN_HALF_YEAR = :P501_FIN_HALFYEAR)
+                    Group by a.Fin_Qtr_Name,
+                             a.Fin_Qtr
+                    Order by 2
+                    ```
+                pageItemsToSubmit: P501_FINYEAR
+            }
+            columnMapping {
+                label: FIN_QTR_NAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_FIN_QTR',&FIN_QTR.);
+            }
+            label {
+                show: true
+                position: outsideSlice
+                displayAs: percentageValue
+                fontSize: 10
+            }
+        )
+
+    )
+
+    region sub-group-customer-revenue (
+        name: Sub Group Customer Revenue
+        type: chart
+        layout {
+            sequence: 110
+            parentRegion: @revenue
+            slot: subRegions
+            startNewRow: false
+            column: 5
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent10
+                t-Region--hiddenOverflow
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        serverSideCondition {
+            type: itemIsZero
+            item: P501_FINYEAR
+        }
+        chartAppearance {
+            stack: true
+        }
+        chartLayout {
+            height: 400
+        }
+        multiSeriesChartData {
+            sortOrder: valueDesc
+        }
+        tooltip {
+            showSeriesName: false
+        }
+        legend {
+            show: false
+        }
+
+        series item-revenue-bar-chart (
+            name: Item Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select  TO_CHAR(to_date(:P501_MONTH,'YYYYMM'),'DD-MON-RRRR') AS FromDate,
+                    TO_CHAR(last_day(to_date(:P501_MONTH,'YYYYMM')),'DD-MON-RRRR') as ToDate,
+                    A.LOCATIONCODE AS LOCATIONCODE,B.PARTYCODE, B.PARTYNAME, Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           PARTY B,
+                           BI_DateTime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode IS NULL
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       And A.PARTYCODE = B.PARTYCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                    
+                       And  (:P501_SUBGROUP IS NULL OR ( X.root_id = :P501_ITEMGROUP) OR (X.PARENTCODE = :P501_SUBGROUP )  )
+                            
+                       
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By B.PARTYCODE, B.PARTYNAME, A.LOCATIONCODE
+                     order by 6 desc
+                    
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P501_ITEM
+                    P501_MONTH
+                    P501_QUARTER
+                    P501_SUBGROUP
+                    P501_ITEMGROUP
+                ]
+            }
+            columnMapping {
+                label: PARTYNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 174
+                    items: {
+                        P174_COMPANYCODE: &GLOBAL_COMPANYCODE.
+                        P174_LOCATION: &LOCATIONCODE.
+                        P174_STATUS: ACTIVE
+                        P174_PARTY: &PARTYCODE.
+                        P174_FROMDATE: &FROMDATE.
+                        P174_TODATE: &TODATE.
+                    }
+                    clearCache: 174
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region sub-group-revenue (
+        name: Sub Group  Revenue
+        type: chart
+        layout {
+            sequence: 100
+            parentRegion: @revenue
+            slot: subRegions
+            column: 1
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-showMaximizeButton
+                t-Region--accent9
+                t-Region--hiddenOverflow
+            ]
+        }
+        serverSideCondition {
+            type: itemIsZero
+            item: P501_FINYEAR
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 400
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+            fontSize: 8
+        }
+
+        series item-group-revenue-bar-chart (
+            name: Item Group Revenue Bar Chart
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select x.root_id,
+                           getitemname(x.root_id) As RootName,
+                           Sum(a.totalamount) Amount
+                      From bi_srevenue a,
+                           bi_datetime c,
+                           (Select ITEMCODE,
+                                   parentcode,
+                                   RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                                   Level,
+                                   CONNECT_BY_ROOT itemcode As root_id,
+                                   --'-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                                   CONNECT_BY_ISLEAF As leaf
+                              From item a
+                             Start With parentcode IS NULL --= NVL(:P501_SUBGROUP,:P501_ITEMGROUP)
+                            Connect By parentcode = Prior itemcode
+                             Order Siblings By itemcode) x
+                     Where A.ITEMCODE = X.ITEMCODE
+                       and a.CCInvoiceDate = c.Fin_Date  
+                       and To_Char(a.CCInvoiceDate,'YYYYMM') like nvl(:P501_MONTH,'%')
+                       and c.Fin_Qtr like nvl(:P501_FIN_QTR,'%')
+                       and replace(c.Fin_year,'-','') like nvl(:P501_FINYEAR,'%')
+                       And  (:P501_SUBGROUP IS NULL OR ( X.root_id = :P501_ITEMGROUP) OR (X.PARENTCODE = :P501_SUBGROUP )  )
+                            
+                    --   And :P501_ITEMGROUP Is Null
+                    --    Or X.ROOT_ID = &P501_ITEMGROUP
+                    --   And (&P501_ITEMGROUP Is Null Or
+                    --instr(':' || &P501_ITEMGROUP || ':', ':' || X.PATH || ':') > 0)
+                     Group By x.root_id
+                    ```
+                pageItemsToSubmit: [
+                    P501_SUBGROUP
+                    P501_ITEMGROUP
+                    P501_MONTH
+                ]
+            }
+            columnMapping {
+                seriesName: ROOTNAME
+                label: ROOTNAME
+                value: AMOUNT
+            }
+            link {
+                type: redirectUrl
+                targetUrl: javascript:$s('P501_SUBGROUP',&ROOT_ID.);
+            }
+            label {
+                show: true
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    region yearly-revenue (
+        name: Yearly Revenue
+        type: chart
+        layout {
+            sequence: 10
+            parentRegion: @revenue
+            slot: subRegions
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--accent1
+                t-Region--hiddenOverflow
+            ]
+        }
+        chart {
+            type: pie
+        }
+        chartLayout {
+            height: 250
+        }
+        value {
+            format: decimal
+            decimalPlaces: 0
+            formatScaling: none
+        }
+        legend {
+            position: top
+        }
+
+        series yearly-revenue (
+            name: Yearly Revenue
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select
+                          a.Fin_Year FYNAME,
+                          REPLACE(a.Fin_Year,'-','') FYCODE,
+                          sum(TotalAmount)Amount
+                    From  BI_DateTime a, BI_SRevenue b
+                    Where a.Fin_Date = b.CCInvoiceDate
+                    Group by a.Fin_Year
+                    ```
+            }
+            columnMapping {
+                label: FYNAME
+                value: AMOUNT
+                customTooltip: FYNAME
+            }
+            link {
+                type: redirectUrl
+                targetUrl: JavaScript:$s('P501_FINYEAR' ,&FYCODE. );
+            }
+            label {
+                show: true
+                position: outsideSlice
+                displayAs: percentageValue
+            }
+        )
+
+    )
+
+    pageItem P501_BRAND (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @brand-revenue
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_BRANDNAME (
+        type: displayOnly
+        label {
+            label: Brandname
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @brand-cutsomer-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_FINYEAR (
+        type: textField
+        label {
+            label: F.Year
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @yearly-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_FIN_HALFYEAR (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @revenue-by-halfyearly
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_FIN_QTR (
+        type: textField
+        label {
+            label: Quarter
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @revenue-by-quarters
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_ITEM (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @item-revenue
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_ITEMGROUP (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @main-group-revenue
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_ITEMGROUPNAME (
+        type: displayOnly
+        label {
+            label: New
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @main-group-customer-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_ITEMNAME (
+        type: displayOnly
+        label {
+            label: Itemname
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @item-cutomer-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_ITEMSPECIFICATION (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @item-specification-revenue
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_ITEMSPECIFICATIONNAME (
+        type: displayOnly
+        label {
+            label: Itemspecificationname
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @item-spec-customer-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_MONTH (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @revenue-by-months
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_QUARTER (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @revenue-by-months
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_SELECTEDMONTH (
+        type: displayOnly
+        label {
+            label: Selectedmonth
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @main-group-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_SUBGROUP (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @sub-group-revenue
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P501_SUBGROUPNAME (
+        type: displayOnly
+        label {
+            label: Subgroupname
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @sub-group-customer-revenue
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/hidden
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    dynamicAction change-brand (
+        name: CHANGE BRAND
+        execution {
+            sequence: 190
+        }
+        when {
+            selectionType: items
+            items: P501_BRAND
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P501_BRANDNAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @brand-cutsomer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-specification-revenue
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-3 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-customer-revenue
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT ITEMNAME FROM ITEM WHERE ITEMCODE = :P501_BRAND ;
+                itemsToSubmit: P501_BRAND
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_BRANDNAME
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction change-item-specification (
+        name: CHANGE ITEM SPECIFICATION
+        execution {
+            sequence: 200
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMSPECIFICATION
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P501_ITEMSPECIFICATIONNAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-customer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT ITEMSPECIFICATIONNAME FROM ITEMSPECIFICATION WHERE ITEMSPECIFICATIONCODE = :P501_ITEMSPECIFICATION;
+                itemsToSubmit: P501_ITEMSPECIFICATION
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_ITEMSPECIFICATIONNAME
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction change-month (
+        name: Change Month
+        execution {
+            sequence: 50
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P501_MONTH
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: [
+                    P501_ITEM
+                    P501_ITEMGROUP
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @main-group-revenue
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-customer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-3 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-revenue
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-4 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @brand-revenue
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT TO_CHAR(TO_DATE(:P501_MONTH,'YYYYMM'),'MON-RRRR') FROM DUAL;
+                itemsToSubmit: P501_MONTH
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_SELECTEDMONTH
+            }
+            execution {
+                sequence: 60
+            }
+        )
+
+    )
+
+    dynamicAction clear (
+        name: CLEAR
+        execution {
+            sequence: 60
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMGROUP
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P501_SUBGROUP
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT ITEMNAME FROM ITEM WHERE ITEMCODE=:P501_ITEMGROUP;
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_ITEMGROUPNAME
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction click-subgroup (
+        name: CLICK SUBGROUP
+        execution {
+            sequence: 160
+        }
+        when {
+            selectionType: items
+            items: P501_SUBGROUP
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P501_SUBGROUPNAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @sub-group-customer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-revenue
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-3 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-cutomer-revenue
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT ITEMNAME FROM ITEM WHERE ITEMCODE=:P501_SUBGROUP;
+                itemsToSubmit: P501_SUBGROUP
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_SUBGROUPNAME
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction hide-menu (
+        name: Hide Menu
+        execution {
+            sequence: 220
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+                    //$("#t_Body_nav").hide();
+                    //$(this).treeView("collapse", n$)
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 210
+        }
+        when {
+            selectionType: items
+            items: P501_ITEM
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: P501_ITEMNAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-cutomer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @brand-revenue
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-3 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @brand-cutsomer-revenue
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-4 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-specification-revenue
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-5 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-customer-revenue
+            }
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT ITEMNAME FROM ITEM WHERE ITEMCODE = :P501_ITEM;
+                itemsToSubmit: P501_ITEM
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_ITEMNAME
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction refresh-item-customer (
+        name: "Refresh item Customer "
+        execution {
+            sequence: 110
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-cutomer-revenue
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-customer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: select null FROM DUAL;
+                itemsToSubmit: P501_ITEM
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_ITEM
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh-item-region (
+        name: Refresh item Region
+        execution {
+            sequence: 100
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-revenue
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @main-group-customer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: select null FROM DUAL;
+                itemsToSubmit: P501_ITEM
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_ITEM
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT ITEMNAME FROM ITEM WHERE ITEMCODE=:P501_ITEMGROUP;
+            }
+            affectedElements {
+                selectionType: items
+                items: P501_ITEMGROUPNAME
+            }
+            execution {
+                sequence: 40
+            }
+        )
+
+    )
+
+    dynamicAction refresh-item-specification-region (
+        name: Refresh  Item Specification Region
+        execution {
+            sequence: 140
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @brand-revenue
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-month-chart (
+        name: Refresh Month Chart
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P501_FIN_HALFYEAR
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: [
+                    P501_MONTH
+                    P501_ITEM
+                    P501_FIN_QTR
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @revenue-by-quarters
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-2 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @revenue-by-months
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-3 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-revenue
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh-4 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-spec-customer-revenue
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-quarter-chart (
+        name: Refresh Quarter Chart
+        execution {
+            sequence: 30
+        }
+        when {
+            selectionType: items
+            items: P501_FINYEAR
+        }
+
+        action native-clear (
+            action: clear
+            affectedElements {
+                selectionType: items
+                items: [
+                    P501_FIN_HALFYEAR
+                    P501_MONTH
+                    P501_ITEM
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @revenue-by-halfyearly
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-sub-group-customer (
+        name: Refresh Sub Group Customer
+        execution {
+            sequence: 120
+            eventScope: dynamic
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @sub-group-customer-revenue
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-subgroup (
+        name: REFRESH SUBGROUP
+        execution {
+            sequence: 90
+        }
+        when {
+            selectionType: items
+            items: P501_ITEMGROUP
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @sub-group-revenue
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

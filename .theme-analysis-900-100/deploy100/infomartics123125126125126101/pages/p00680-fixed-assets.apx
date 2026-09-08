@@ -1,0 +1,751 @@
+page 680 (
+    name: Fixed Assets
+    alias: FIXED-ASSETS
+    title: Fixed Assets
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Breadcrumb
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region dummy (
+        name: dummy
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region fixed-assets (
+        name: Fixed Assets
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                 row_number() over(order by a.PARTYCODE) SerialNo,
+                A.PARTYNAME,
+                A.PARTYCODE,
+                (-1) * getAccountOpening(A.PartyCode, to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy'), :P680_LOCATIONCODE, :Global_CompanyCode) As NBOPENING,
+                (-1) * getAccountOpening(A.PartyCode, to_date(:P680_ASONDATE, 'dd-mm-yyyy'), :P680_LOCATIONCODE, :Global_CompanyCode) As NBCLOSING,
+                GetAccountGBCloseRevised(A.PartyCode,
+                                        :P680_LOCATIONCODE,
+                                        :Global_CompanyCode,
+                                        to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy') - 1) As GBOPENING,
+                GetAccountGBCloseRevised(A.PartyCode, :P680_LOCATIONCODE, :Global_CompanyCode, to_date(:P680_ASONDATE, 'dd-mm-yyyy')) As GBCLOSING,
+                GetAccountGBAdditionRevised(A.PartyCode,
+                                           :P680_LOCATIONCODE,
+                                           :Global_CompanyCode,
+                                           to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy'),
+                                           to_date(:P680_ASONDATE, 'dd-mm-yyyy')) As GBADDITION,
+                GetAccountGBDepreciation(A.PartyCode, :P680_LOCATIONCODE, :Global_CompanyCode, to_date(:P680_ASONDATE, 'dd-mm-yyyy')) As DEPRECIATIONCLOSING,
+                GetAccountGBDepreciation(A.PartyCode, :P680_LOCATIONCODE, :Global_CompanyCode, to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy')-1) As DEPRECIATIONOPENING,
+                nvl(GetAccountGBCloseRevised(A.PartyCode,
+                                            :P680_LOCATIONCODE,
+                                            :Global_CompanyCode,
+                                            to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy') - 1),
+                   0) +
+                nvl(GetAccountGBAdditionRevised(A.PartyCode,
+                                               :P680_LOCATIONCODE,
+                                               :Global_CompanyCode,
+                                               to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy'),
+                                               to_date(:P680_ASONDATE, 'dd-mm-yyyy')),
+                   0) -
+                nvl(GetAccountGBCloseRevised(A.PartyCode, :P680_LOCATIONCODE, :Global_CompanyCode, to_date(:P680_ASONDATE, 'dd-mm-yyyy')),
+                   0) As GBDeduction,
+                GetAccountGBDepreciation(A.PartyCode, :P680_LOCATIONCODE, :Global_CompanyCode, to_date(:P680_ASONDATE, 'dd-mm-yyyy')) -
+                GetAccountGBDepreciation(A.PartyCode, :P680_LOCATIONCODE, :Global_CompanyCode, to_date(:P680_FINANCIALYEARBEGIN, 'dd-mm-yyyy')-1) As DepreciationAddition
+                
+                From PARTY A
+                Where A.PARTYTYPECODE = 'ASSET'
+                
+                ```
+            pageItemsToSubmit: [
+                P680_ASONDATE
+                P680_LOCATIONCODE
+                P680_FINANCIALYEARBEGIN
+                P680_FINANCIALYEARCODE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 8191513324246747
+        }
+
+        savedReport 84944 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    width: 92.156
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    width: 205
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @PARTYCODE
+                layout {
+                    show: false
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @NBOPENING
+                layout {
+                    width: 146.163
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @NBCLOSING
+                layout {
+                    width: 142.7814542236328
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @GBOPENING
+                layout {
+                    width: 142.986
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @GBCLOSING
+                layout {
+                    width: 138.191
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @GBADDITION
+                layout {
+                    width: 145.16
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @DEPRECIATIONCLOSING
+                layout {
+                    width: 160.18099999999998
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @DEPRECIATIONOPENING
+                layout {
+                    width: 134.15300000000002
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @GBDEDUCTION
+                layout {
+                    width: 152.167
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @DEPRECIATIONADDITION
+                layout {
+                    width: 141.163
+                    sequence: 9
+                }
+            )
+
+            aggregate sum (
+                column: @DEPRECIATIONCLOSING
+            )
+
+            aggregate sum-2 (
+                column: @GBADDITION
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @GBDEDUCTION
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @GBCLOSING
+                showGrandTotal: true
+            )
+
+            aggregate sum-5 (
+                column: @DEPRECIATIONOPENING
+                showGrandTotal: true
+            )
+
+            aggregate sum-6 (
+                column: @DEPRECIATIONADDITION
+                showGrandTotal: true
+            )
+
+            aggregate sum-7 (
+                column: @NBOPENING
+                showGrandTotal: true
+            )
+
+            aggregate sum-8 (
+                column: @NBCLOSING
+                showGrandTotal: true
+            )
+
+        )
+
+        columnGroup depreciation (
+            heading: Depreciation
+        )
+
+        columnGroup gross-block (
+            heading: Gross Block
+        )
+
+        columnGroup net-block (
+            heading: Net Block
+        )
+
+        column DEPRECIATIONADDITION (
+            type: numberField
+            heading {
+                heading: Addition
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+                group: @depreciation
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: DEPRECIATIONADDITION
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DEPRECIATIONCLOSING (
+            type: numberField
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+                group: @depreciation
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: DEPRECIATIONCLOSING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DEPRECIATIONOPENING (
+            type: numberField
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+                group: @depreciation
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: DEPRECIATIONOPENING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column GBADDITION (
+            type: numberField
+            heading {
+                heading: Addition
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+                group: @gross-block
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: GBADDITION
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column GBCLOSING (
+            type: numberField
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+                group: @gross-block
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: GBCLOSING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column GBDEDUCTION (
+            type: numberField
+            heading {
+                heading: Deduction
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+                group: @gross-block
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: GBDEDUCTION
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column GBOPENING (
+            type: numberField
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+                group: @gross-block
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: GBOPENING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column NBCLOSING (
+            type: numberField
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+                group: @net-block
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: NBCLOSING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column NBOPENING (
+            type: numberField
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+                group: @net-block
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            source {
+                databaseColumn: NBOPENING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PARTYCODE (
+            type: textField
+            heading {
+                heading: Partycode
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                valueRequired: true
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARTYNAME (
+            type: textField
+            heading {
+                heading: Party Name
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+    )
+
+    pageItem P680_ASONDATE (
+        type: datePicker
+        label {
+            label: As On Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @dummy
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P680_FINANCIALYEARBEGIN (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @dummy
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARBEGIN
+        }
+    )
+
+    pageItem P680_FINANCIALYEARCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @dummy
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARCODE
+        }
+    )
+
+    pageItem P680_LOCATIONCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @dummy
+            slot: regionBody
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 20
+            region: @dummy
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction pagination (
+        name: pagination
+        execution {
+            sequence: 30
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction refresh (
+        name: Refresh
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @fixed-assets
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-value (
+        name: set value
+        execution {
+            sequence: 10
+        }
+        when {
+            selectionType: items
+            items: P680_ASONDATE
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    select a.financialyearbegin, a.financialyearcode
+                    from financialyear a
+                    where :P680_ASONDATE between a.FINANCIALYEARBEGIN and a.financialyearend
+                    ;
+                    ```
+                itemsToSubmit: P680_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P680_FINANCIALYEARBEGIN
+                    P680_FINANCIALYEARCODE
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

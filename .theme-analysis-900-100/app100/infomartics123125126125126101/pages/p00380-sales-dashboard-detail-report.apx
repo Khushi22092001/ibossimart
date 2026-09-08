@@ -1,0 +1,6474 @@
+page 380 (
+    name: Sales Dashboard Detail Report
+    alias: SALES-DASHBOARD-DETAIL-REPORT
+    title: Sales Dashboard Detail Report
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        width: 1400
+        height: 700
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .ui-widget-overlay.clickable-overlay {
+                cursor: pointer;
+            }
+            
+            
+            .my-custom-tags {
+                max-width: 400px;
+                word-break: break-word;
+            }
+            .my-badge {
+                display: inline-block;
+                background-color: #f0f4f8;
+                color: #1a4f7c;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                border: 1px solid #d1e2f2;
+                line-height: 1.8;
+            }
+            
+            /* ==========================================================================
+               2. GLOBAL TABLE ROW HOVER STYLING
+               ========================================================================== */
+            tr:hover {
+                background-color: #fffacd !important;
+            }
+            
+            /* ==========================================================================
+               3. CLASSIC REPORT STYLING (.t-Report)
+               ========================================================================== */
+            .t-Report-colHead, 
+            .t-Report-colHead a {
+                background-color: #c3cad4;
+                color: #353d4b;
+                text-transform: uppercase;
+                padding: 6px;
+                letter-spacing: 0.5px;
+            }
+            
+            .t-Report-cell {
+                line-height: 1.2rem; 
+                padding-top: 2px !important; 
+                padding-bottom: 2px !important; 
+                letter-spacing: 0.5px;
+            }
+              
+            
+            /* ================================================ */
+            
+            #Parent .ui-dialog-titlebar {
+                background: #1a1a2e !important;
+                color: #ffffff !important;
+            }
+            
+            #Parent .ui-dialog-title {
+                color: #ffffff !important;
+                font-size: 16px !important;
+                font-weight: 500 !important;
+            }
+            
+            #Parent .ui-dialog-titlebar-close {
+                color: #ffffff !important;
+            }
+            
+            #Parent .ui-widget-header {
+                background: #1a1a2e !important;
+                border: none !important;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region cancelled-out-filters (
+        name: Cancelled Out Filters
+        type: smartFilters
+        source {
+            filteredRegion: @cancelled-out-report
+        }
+        layout {
+            sequence: 81
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_CANCELLED_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_CO_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            suggestions {
+                type: dynamic
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_CO_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_CO_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_CO_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region cancelled-out-report (
+        name: Cancelled Out Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    P.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE)   AS CITYNAME,
+                    GETSTATENAME(P.OFFICESTATECODE) AS STATENAME,
+                    P.PARTYNAME || ', ' || GETCITYNAME(P.OFFICECITYCODE) || ', ' || GETSTATENAME(P.OFFICESTATECODE) AS DTL_PARTYNAME,
+                    CAST(TRUNC(SO.SALESORDERDATE) AS DATE) AS SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    SOD.ITEMCODE,
+                    GETITEMNAME(SOD.ITEMCODE)                                       AS ITEMNAME,
+                    GETITEMSPECIFICATIONNAME(SOD.ITEMCODE, SOD.ITEMSPECIFICATIONCODE) AS SPECIFICATION,
+                    SOD.QUANTITY1                                                   AS ORDERED_QTY,
+                    NVL(DR.SUM_QTY, 0)                                             AS DISPATCHED_QTY,
+                    NVL(LR.SUM_QTY, 0)                                             AS LOADING_QTY,
+                    GREATEST(SOD.QUANTITY1 - NVL(DR.SUM_QTY, 0) - NVL(LR.SUM_QTY, 0), 0) AS CANCELLED_QTY
+                FROM SALESORDER SO
+                JOIN SALESORDERDETAIL SOD           ON SO.TNO = SOD.TNO
+                LEFT JOIN PARTY P                   ON P.PARTYCODE = SO.PARTYCODE
+                LEFT JOIN (
+                    SELECT DAD.ITEMCODE, DAD.ITEMSPECIFICATIONCODE, DA.REFERENCETNO, SUM(DAD.QUANTITY1) AS SUM_QTY
+                    FROM DESPATCHADVICEDETAIL DAD
+                    JOIN DESPATCHADVICE DA          ON DAD.TNO = DA.TNO
+                    GROUP BY DAD.ITEMCODE, DAD.ITEMSPECIFICATIONCODE, DA.REFERENCETNO
+                ) DR ON DR.REFERENCETNO = SO.TNO
+                    AND DR.ITEMCODE = SOD.ITEMCODE
+                    AND NVL(DR.ITEMSPECIFICATIONCODE, 'X') = NVL(SOD.ITEMSPECIFICATIONCODE, 'X')
+                LEFT JOIN (
+                    SELECT LAD.ITEMCODE, LAD.ITEMSPECIFICATIONCODE, LA.SALESORDERTNO, SUM(LAD.QUANTITY1) AS SUM_QTY
+                    FROM LOADINGADVICEDETAIL LAD
+                    JOIN LOADINGADVICE LA           ON LAD.TNO = LA.TNO
+                    GROUP BY LAD.ITEMCODE, LAD.ITEMSPECIFICATIONCODE, LA.SALESORDERTNO
+                ) LR ON LR.SALESORDERTNO = SO.TNO
+                    AND LR.ITEMCODE = SOD.ITEMCODE
+                    AND NVL(LR.ITEMSPECIFICATIONCODE, 'X') = NVL(SOD.ITEMSPECIFICATIONCODE, 'X')
+                WHERE TRUNC(SO.SALESORDERDATE) BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND GETDOCUMENTSTATUSCODE('SALESORDER', SO.TNO) = 'SHORTCLOSED'
+                  AND GREATEST(SOD.QUANTITY1 - NVL(DR.SUM_QTY, 0) - NVL(LR.SUM_QTY, 0), 0) > 0
+                  AND (:P380_PARTY             IS NULL OR INSTR(':'||:P380_PARTY||':',             ':'||SO.PARTYCODE||':')              > 0)
+                  AND (:P380_ITEM              IS NULL OR INSTR(':'||:P380_ITEM||':',              ':'||SOD.ITEMCODE||':')              > 0)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR INSTR(':'||:P380_ITEMSPECIFICATION||':', ':'||SOD.ITEMSPECIFICATIONCODE||':') > 0)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR INSTR(':'||:P380_SALES_EXECUTIVE||':',   ':'||SO.SALESEXECUTIVECODE||':')     > 0)
+                  AND (:P380_ITEM_CATEGORY     IS NULL OR EXISTS (
+                          SELECT 1 FROM V_ITEM_DETAILS VI
+                          WHERE VI.ITEMCODE = SOD.ITEMCODE
+                          AND INSTR(':'||:P380_ITEM_CATEGORY||':',':'||VI.ITEMCATEGORYCODE||':') > 0
+                      ))
+                ORDER BY SO.SALESORDERDATE DESC, SO.SALESORDERNO
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @cancelled-out-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CANCELLED_QTY (
+            reportColumnQueryId: 14
+            derivedColumn: N
+            heading {
+                heading: CANCELLED QTY
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DISPATCHED_QTY (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            heading {
+                heading: Dispatched Qty
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEMCODE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 150
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEMNAME (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: Itemname
+            }
+            layout {
+                sequence: 160
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column LOADING_QTY (
+            reportColumnQueryId: 13
+            derivedColumn: N
+            heading {
+                heading: Loading Qty
+                alignment: end
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ORDERED_QTY (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: Ordered Qty
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SPECIFICATION (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 170
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+    )
+
+    region category-wise-revenue-by-amount-filters (
+        name: Category Wise Revenue By Amount Filters
+        type: smartFilters
+        source {
+            filteredRegion: @category-wise-revenue-by-amount-report
+        }
+        layout {
+            sequence: 91
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: CATEGORY_WISE_AMOUNT
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_CWRBA_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_CWRBA_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_CWRBA_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_CWRBA_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region category-wise-revenue-by-amount-report (
+        name: Category Wise Revenue By Amount Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    NVL(ic.itemcategoryname, 'Uncategorized')                          AS item_category,
+                    NVL(ic.itemcategorycode, 'UNCAT')                                  AS item_category_code,
+                    p.partycode,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                       AS cityname,
+                    GETSTATENAME(p.officestatecode)                                     AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' || 
+                    GETSTATENAME(p.officestatecode)                                     AS dtl_partyname,
+                    CAST(TRUNC(so.salesorderdate) AS DATE)                             AS salesorderdate,
+                    so.salesorderno,
+                    sod.itemcode,
+                    GETITEMNAME(sod.itemcode)                                           AS itemname,
+                    GETITEMSPECIFICATIONNAME(sod.itemcode, sod.itemspecificationcode)   AS specification,
+                    GETMEASURINGUNITNAMEFROMITEM(sod.itemcode)                          AS uom,
+                    SUM(sod.quantity1)                                                  AS total_qty,
+                    SUM(sod.amount)                                                     AS total_amount
+                FROM salesorder so
+                JOIN salesorderdetail sod  ON so.tno = sod.tno
+                LEFT JOIN item it           ON it.itemcode = sod.itemcode
+                LEFT JOIN itemcategory ic   ON ic.itemcategorycode = it.itemcategorycode
+                LEFT JOIN party p           ON p.partycode = so.partycode
+                WHERE TRUNC(so.salesorderdate) BETWEEN TO_DATE(:P380_FROMDATE, 'DD-MM-YYYY')
+                                                   AND TO_DATE(:P380_TODATE,   'DD-MM-YYYY')
+                  AND (:P380_PARTY             IS NULL OR INSTR(':'||:P380_PARTY||':',             ':'||so.partycode||':')                > 0)
+                  AND (:P380_ITEM              IS NULL OR INSTR(':'||:P380_ITEM||':',              ':'||sod.itemcode||':')                > 0)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR INSTR(':'||:P380_ITEMSPECIFICATION||':', ':'||sod.itemspecificationcode||':')   > 0)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR INSTR(':'||:P380_SALES_EXECUTIVE||':',   ':'||so.salesexecutivecode||':')       > 0)
+                  AND (:P380_ITEM_CATEGORY     IS NULL OR INSTR(':'||:P380_ITEM_CATEGORY||':',     ':'||ic.itemcategorycode||':')         > 0)
+                GROUP BY
+                    ic.itemcategoryname,
+                    ic.itemcategorycode,
+                    p.partycode,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode),
+                    GETSTATENAME(p.officestatecode),
+                    CAST(TRUNC(so.salesorderdate) AS DATE),
+                    so.salesorderno,
+                    sod.itemcode,
+                    GETITEMNAME(sod.itemcode),
+                    GETITEMSPECIFICATIONNAME(sod.itemcode, sod.itemspecificationcode),
+                    GETMEASURINGUNITNAMEFROMITEM(sod.itemcode)
+                ORDER BY
+                    ic.itemcategoryname,
+                    total_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @category-wise-revenue-by-amount-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 170
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+            }
+            layout {
+                sequence: 190
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEMCODE (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 230
+            }
+        )
+
+        column ITEMNAME (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: ITEM
+            }
+            layout {
+                sequence: 240
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEM_CATEGORY (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 130
+            }
+        )
+
+        column ITEM_CATEGORY_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 140
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 150
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 160
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 210
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 200
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SPECIFICATION (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            heading {
+                heading: ITEM SPECIFICATION
+            }
+            layout {
+                sequence: 250
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 180
+            }
+        )
+
+        column TOTAL_AMOUNT (
+            reportColumnQueryId: 15
+            derivedColumn: N
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_QTY (
+            reportColumnQueryId: 14
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 270
+            }
+        )
+
+        column UOM (
+            reportColumnQueryId: 13
+            derivedColumn: N
+            heading {
+                heading: MEASURING UNIT
+            }
+            layout {
+                sequence: 260
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+    )
+
+    region category-wise-revenue-by-quantity-filters (
+        name: Category Wise Revenue By Quantity  Filters
+        type: smartFilters
+        source {
+            filteredRegion: @category-wise-revenue-by-quantity-report
+        }
+        layout {
+            sequence: 101
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: CATEGORY_WISE_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_CWRBQ_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_CWRBQ_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_CWRBQ_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_CWRBQ_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region category-wise-revenue-by-quantity-report (
+        name: Category Wise Revenue By Quantity Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    NVL(ic.itemcategoryname, 'Uncategorized')                          AS item_category,
+                    NVL(ic.itemcategorycode, 'UNCAT')                                  AS item_category_code,
+                    p.partycode,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                       AS cityname,
+                    GETSTATENAME(p.officestatecode)                                     AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' || 
+                    GETSTATENAME(p.officestatecode)                                     AS dtl_partyname,
+                    CAST(TRUNC(so.salesorderdate) AS DATE)                             AS salesorderdate,
+                    so.salesorderno,
+                    sod.itemcode,
+                    GETITEMNAME(sod.itemcode)                                           AS itemname,
+                    GETITEMSPECIFICATIONNAME(sod.itemcode, sod.itemspecificationcode)   AS specification,
+                    GETMEASURINGUNITNAMEFROMITEM(sod.itemcode)                          AS uom,
+                    SUM(sod.quantity1)                                                  AS total_qty,
+                    SUM(sod.amount)                                                     AS total_amount
+                FROM salesorder so
+                JOIN salesorderdetail sod  ON so.tno = sod.tno
+                LEFT JOIN item it           ON it.itemcode = sod.itemcode
+                LEFT JOIN itemcategory ic   ON ic.itemcategorycode = it.itemcategorycode
+                LEFT JOIN party p           ON p.partycode = so.partycode
+                WHERE TRUNC(so.salesorderdate) BETWEEN TO_DATE(:P380_FROMDATE, 'DD-MM-YYYY')
+                                                   AND TO_DATE(:P380_TODATE,   'DD-MM-YYYY')
+                  AND (:P380_PARTY             IS NULL OR INSTR(':'||:P380_PARTY||':',             ':'||so.partycode||':')                > 0)
+                  AND (:P380_ITEM              IS NULL OR INSTR(':'||:P380_ITEM||':',              ':'||sod.itemcode||':')                > 0)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR INSTR(':'||:P380_ITEMSPECIFICATION||':', ':'||sod.itemspecificationcode||':')   > 0)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR INSTR(':'||:P380_SALES_EXECUTIVE||':',   ':'||so.salesexecutivecode||':')       > 0)
+                  AND (:P380_ITEM_CATEGORY     IS NULL OR INSTR(':'||:P380_ITEM_CATEGORY||':',     ':'||ic.itemcategorycode||':')         > 0)
+                GROUP BY
+                    ic.itemcategoryname,
+                    ic.itemcategorycode,
+                    p.partycode,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode),
+                    GETSTATENAME(p.officestatecode),
+                    CAST(TRUNC(so.salesorderdate) AS DATE),
+                    so.salesorderno,
+                    sod.itemcode,
+                    GETITEMNAME(sod.itemcode),
+                    GETITEMSPECIFICATIONNAME(sod.itemcode, sod.itemspecificationcode),
+                    GETMEASURINGUNITNAMEFROMITEM(sod.itemcode)
+                ORDER BY
+                    ic.itemcategoryname,
+                    total_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @category-wise-revenue-by-quantity-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 50
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEMCODE (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 100
+            }
+        )
+
+        column ITEMNAME (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: ITEM
+            }
+            layout {
+                sequence: 110
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEM_CATEGORY (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column ITEM_CATEGORY_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 90
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 80
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SPECIFICATION (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            heading {
+                heading: ITEM SPECIFICATION
+            }
+            layout {
+                sequence: 120
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 60
+            }
+        )
+
+        column TOTAL_AMOUNT (
+            reportColumnQueryId: 15
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 150
+            }
+        )
+
+        column TOTAL_QTY (
+            reportColumnQueryId: 14
+            derivedColumn: N
+            heading {
+                heading: Total Qty
+            }
+            layout {
+                sequence: 140
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column UOM (
+            reportColumnQueryId: 13
+            derivedColumn: N
+            heading {
+                heading: MEASURING UNIT
+            }
+            layout {
+                sequence: 130
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+    )
+
+    region customer-wise-orders-filters (
+        name: Customer WIse Orders Filters
+        type: smartFilters
+        source {
+            filteredRegion: @customer-wise-orders-report
+        }
+        layout {
+            sequence: 161
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: CUSTOMER_WISE_ORDERS
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_CWO_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_CWO_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_CWO_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_CWO_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region customer-wise-orders-report (
+        name: Customer Wise Orders Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE (:P380_PARTY IS NULL OR so.partycode = :P380_PARTY)
+                GROUP BY
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    emp.employeename
+                ORDER BY
+                    so.salesorderdate DESC,
+                    total_base_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_SALES_EXECUTIVE
+                P380_STATE
+            ]
+        }
+        layout {
+            sequence: 30
+            parentRegion: @customer-wise-orders-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Party name
+            }
+            layout {
+                sequence: 30
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: "Sales Executive "
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: State Name
+            }
+            layout {
+                sequence: 40
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Total qty
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 9999999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 90
+            }
+        )
+
+    )
+
+    region dispatched-quantity-out-filters (
+        name: Dispatched Quantity Out Filters
+        type: smartFilters
+        source {
+            filteredRegion: @dispatched-quantity-out-report
+        }
+        layout {
+            sequence: 61
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_LOADINGADVICE_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_DQO_LA_DATE (
+            type: checkboxGroup
+            label {
+                label: Loading Advice Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: LOADINGADVICEDATE
+            }
+        )
+
+        filter P380_DQO_LA_NO (
+            type: checkboxGroup
+            label {
+                label: Loading Advice No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: LOADINGADVICENO
+            }
+        )
+
+        filter P380_DQO_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            suggestions {
+                type: dynamic
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_DQO_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+    )
+
+    region dispatched-quantity-out-report (
+        name: Dispatched Quantity Out Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT 
+                    P.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE)                                                                    AS CITYNAME,
+                    GETSTATENAME(P.OFFICESTATECODE)                                                                  AS STATENAME,
+                    P.PARTYNAME||', '||GETCITYNAME(P.OFFICECITYCODE)||', '||GETSTATENAME(P.OFFICESTATECODE)         AS DTL_PARTYNAME,
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    LA.LOADINGADVICEDATE,
+                    LA.LOADINGADVICENO,
+                    SUM(LAD.QUANTITY1)                                                                               AS DISPATCHEDQTYOUT,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => P.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS PARTY_LINK,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('LOADINGADVICE', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 155,
+                                p_items  => 'P155_TNO',
+                                p_values => LA.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS LA_LINK
+                FROM LOADINGADVICE LA
+                LEFT JOIN LOADINGADVICEDETAIL LAD ON LA.TNO = LAD.TNO
+                LEFT JOIN SALESORDER SO           ON SO.TNO = LA.SALESORDERTNO
+                LEFT JOIN PARTY P                 ON P.PARTYCODE = LA.SUPPLIERCODE
+                WHERE LA.LOADINGADVICEDATE BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY             IS NULL OR :P380_PARTY             = LA.SUPPLIERCODE)
+                  AND (:P380_ITEM              IS NULL OR :P380_ITEM              = LAD.ITEMCODE)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR :P380_ITEMSPECIFICATION = LAD.ITEMSPECIFICATIONCODE)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR :P380_SALES_EXECUTIVE   = SO.SALESEXECUTIVECODE)
+                GROUP BY
+                    P.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE),
+                    GETSTATENAME(P.OFFICESTATECODE),
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    LA.LOADINGADVICEDATE,
+                    LA.LOADINGADVICENO,
+                    P.TNO,
+                    LA.TNO
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @dispatched-quantity-out-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DISPATCHEDQTYOUT (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            heading {
+                heading: DISPATCHED QTY OUT
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <a href="#PARTY_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#PARTYNAME#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column LA_LINK (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 160
+            }
+        )
+
+        column LOADINGADVICEDATE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: LOADING ADVICE DATE
+            }
+            layout {
+                sequence: 100
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column LOADINGADVICENO (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: LOADING ADVICE NO
+            }
+            layout {
+                sequence: 110
+            }
+            columnFormatting {
+                htmlExpression: <a href="#LA_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#LOADINGADVICENO#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 150
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 130
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 140
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+    )
+
+    region month-wise-quantity-filters (
+        name: Month Wise Quantity Filters
+        type: smartFilters
+        source {
+            filteredRegion: @month-wise-report
+        }
+        layout {
+            sequence: 111
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: MONTH_WISE_ORDERS
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_MWQ_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_MWQ_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_MWQ_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_MWQ_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region month-wise-report (
+        name: Month Wise Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE TO_CHAR(so.salesorderdate, 'Mon YYYY', 'NLS_DATE_LANGUAGE = ENGLISH') = :P380_SELECTED_MONTH
+                  AND (:P380_PARTY           IS NULL OR :P380_PARTY           = so.partycode)
+                  AND (:P380_SALES_EXECUTIVE IS NULL OR :P380_SALES_EXECUTIVE = so.salesexecutivecode)
+                GROUP BY
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    emp.employeename
+                ORDER BY
+                    so.salesorderdate DESC,
+                    total_base_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_SALES_EXECUTIVE
+                P380_FROMDATE
+                P380_PARTY
+                P380_TODATE
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 121
+            parentRegion: @month-wise-quantity-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Sales Executive Name
+            }
+            layout {
+                sequence: 80
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Totalqty
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: Total Amount
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+    )
+
+    region p380-header-title (
+        name: &P380_HEADER_TITLE.
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noUI
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: Parent
+        }
+    )
+
+    region pending-quantity-out-filters (
+        name: Pending Quantity Out Filters
+        type: smartFilters
+        source {
+            filteredRegion: @pending-quantity-out-report
+        }
+        layout {
+            sequence: 71
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_LOADINGADVICE_PENDING_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_PQO_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            suggestions {
+                type: dynamic
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_PQO_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_PQO_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_PQO_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region pending-quantity-out-report (
+        name: Pending Quantity Out Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    SO.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE)                                                               AS CITYNAME,
+                    GETSTATENAME(P.OFFICESTATECODE)                                                             AS STATENAME,
+                    P.PARTYNAME||', '||GETCITYNAME(P.OFFICECITYCODE)||', '||GETSTATENAME(P.OFFICESTATECODE)    AS DTL_PARTYNAME,
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    SOD.ITEMCODE,
+                    GETITEMNAME(SOD.ITEMCODE)                                                                   AS ITEMNAME,
+                    SOD.ITEMSPECIFICATIONCODE                                                                   AS SPECIFICATION,
+                    SO.SALESEXECUTIVECODE,
+                    GETEMPLOYEENAME(SO.SALESEXECUTIVECODE)                                                      AS SALESEXECUTIVENAME,
+                    SUM(GREATEST(
+                        SOD.QUANTITY1
+                        - COALESCE(LR.SUM_QTY, 0)
+                        - COALESCE(DR.SUM_QTY, 0),
+                    0))                                                                                         AS PENDINGQTYOUT,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => P.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS PARTY_LINK,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('SALESORDER', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 171,
+                                p_items  => 'P171_TNO',
+                                p_values => SO.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS SO_LINK
+                FROM SALESORDER SO
+                LEFT JOIN SALESORDERDETAIL SOD ON SO.TNO = SOD.TNO
+                LEFT JOIN PARTY P              ON P.PARTYCODE = SO.PARTYCODE
+                LEFT JOIN (
+                    SELECT DA.REFERENCETNO, DAD.ITEMCODE, DAD.ITEMSPECIFICATIONCODE, SUM(DAD.QUANTITY1) AS SUM_QTY
+                    FROM DESPATCHADVICE DA
+                    JOIN DESPATCHADVICEDETAIL DAD ON DA.TNO = DAD.TNO
+                    GROUP BY DA.REFERENCETNO, DAD.ITEMCODE, DAD.ITEMSPECIFICATIONCODE
+                ) DR
+                    ON  DR.REFERENCETNO          = SO.TNO
+                    AND DR.ITEMCODE              = SOD.ITEMCODE
+                    AND DR.ITEMSPECIFICATIONCODE = SOD.ITEMSPECIFICATIONCODE
+                LEFT JOIN (
+                    SELECT LA.SALESORDERTNO, LAD.ITEMCODE, LAD.ITEMSPECIFICATIONCODE, SUM(LAD.QUANTITY1) AS SUM_QTY
+                    FROM LOADINGADVICE LA
+                    JOIN LOADINGADVICEDETAIL LAD ON LA.TNO = LAD.TNO
+                    GROUP BY LA.SALESORDERTNO, LAD.ITEMCODE, LAD.ITEMSPECIFICATIONCODE
+                ) LR
+                    ON  LR.SALESORDERTNO         = SO.TNO
+                    AND LR.ITEMCODE              = SOD.ITEMCODE
+                    AND LR.ITEMSPECIFICATIONCODE = SOD.ITEMSPECIFICATIONCODE
+                WHERE SO.SALESORDERDATE BETWEEN TO_DATE(:P380_FROMDATE, 'DD-MM-YYYY')
+                                             AND TO_DATE(:P380_TODATE,   'DD-MM-YYYY')
+                  AND (:P380_PARTY             IS NULL OR INSTR(':'||:P380_PARTY||':',             ':'||SO.PARTYCODE||':')              > 0)
+                  AND (:P380_ITEM              IS NULL OR INSTR(':'||:P380_ITEM||':',              ':'||SOD.ITEMCODE||':')              > 0)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR INSTR(':'||:P380_ITEMSPECIFICATION||':', ':'||SOD.ITEMSPECIFICATIONCODE||':') > 0)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR INSTR(':'||:P380_SALES_EXECUTIVE||':',   ':'||SO.SALESEXECUTIVECODE||':')    > 0)
+                  AND (:P380_ITEM_CATEGORY     IS NULL OR EXISTS (
+                          SELECT 1 FROM V_ITEM_DETAILS VI
+                          WHERE VI.ITEMCODE = SOD.ITEMCODE
+                            AND INSTR(':'||:P380_ITEM_CATEGORY||':', ':'||VI.ITEMCATEGORYCODE||':') > 0
+                  ))
+                GROUP BY
+                    SO.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE),
+                    GETSTATENAME(P.OFFICESTATECODE),
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    SOD.ITEMCODE,
+                    GETITEMNAME(SOD.ITEMCODE),
+                    SOD.ITEMSPECIFICATIONCODE,
+                    SO.SALESEXECUTIVECODE,
+                    GETEMPLOYEENAME(SO.SALESEXECUTIVECODE),
+                    P.TNO,
+                    SO.TNO
+                HAVING SUM(GREATEST(
+                    SOD.QUANTITY1
+                    - COALESCE(LR.SUM_QTY, 0)
+                    - COALESCE(DR.SUM_QTY, 0),
+                0)) > 0
+                ORDER BY SO.SALESORDERDATE, SO.SALESORDERNO
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEM
+                P380_ITEMSPECIFICATION
+                P380_SALES_EXECUTIVE
+                P380_ITEM_CATEGORY
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @pending-quantity-out-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 120
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <a href="#PARTY_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#PARTYNAME#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEMCODE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 200
+            }
+        )
+
+        column ITEMNAME (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 210
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 100
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 110
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 14
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 260
+            }
+        )
+
+        column PENDINGQTYOUT (
+            reportColumnQueryId: 13
+            derivedColumn: N
+            heading {
+                heading: PENDING QTY OUT
+                alignment: end
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALESEXECUTIVECODE (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 230
+            }
+        )
+
+        column SALESEXECUTIVENAME (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 240
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 150
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <a href="#SO_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#SALESORDERNO#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SO_LINK (
+            reportColumnQueryId: 15
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 270
+            }
+        )
+
+        column SPECIFICATION (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 250
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 130
+            }
+        )
+
+    )
+
+    region quantity-over-time-filters (
+        name: Quantity Over Time Filters
+        type: smartFilters
+        source {
+            filteredRegion: @quantity-over-time-report
+        }
+        layout {
+            sequence: 141
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: QUANTITY_OVER_TIME
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_QOT_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_QOT_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_QOT_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_QOT_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region quantity-over-time-report (
+        name: Quantity Over Time Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE TO_CHAR(so.salesorderdate, 'DD-Mon-YYYY', 'NLS_DATE_LANGUAGE = ENGLISH') = :P380_SELECTED_DAY
+                  AND (:P380_PARTY           IS NULL OR :P380_PARTY           = so.partycode)
+                  AND (:P380_SALES_EXECUTIVE IS NULL OR :P380_SALES_EXECUTIVE = so.salesexecutivecode)
+                GROUP BY
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    emp.employeename
+                ORDER BY
+                    so.salesorderdate DESC,
+                    total_base_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_SALES_EXECUTIVE
+                P380_FROMDATE
+                P380_PARTY
+                P380_TODATE
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @quantity-over-time-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Partyname
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: "Sales Executive "
+            }
+            layout {
+                sequence: 80
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Total qty
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: Total Amount
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+    )
+
+    region sales-executive-wise-quantity-filters (
+        name: Sales Executive Wise  Quantity  Filters
+        type: smartFilters
+        source {
+            filteredRegion: @sales-executive-wise-report
+        }
+        layout {
+            sequence: 131
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: SALES_PERSON_WISE
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_SEW_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_SEW_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_SEW_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_SEW_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region sales-executive-wise-report (
+        name: Sales Executive Wise Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    NVL(so.salesexecutivecode, 'UNASSIGNED')                           AS sales_executive_code,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE so.salesorderdate BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY           IS NULL OR :P380_PARTY = so.partycode)
+                  AND (
+                        :P380_SALES_EXECUTIVE IS NULL
+                        OR (:P380_SALES_EXECUTIVE = 'UNASSIGNED' AND so.salesexecutivecode IS NULL)
+                        OR :P380_SALES_EXECUTIVE = so.salesexecutivecode
+                      )
+                GROUP BY
+                    emp.employeename,
+                    so.salesexecutivecode,
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno
+                ORDER BY
+                    CASE WHEN NVL(emp.employeename, 'Unassigned') = 'Unassigned' THEN 2 ELSE 1 END ASC,
+                    so.salesorderdate DESC
+                ```
+            pageItemsToSubmit: [
+                P380_SALES_EXECUTIVE
+                P380_FROMDATE
+                P380_PARTY
+                P380_TODATE
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @sales-executive-wise-quantity-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 50
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 90
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 80
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 150
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Sales Executive Name
+            }
+            layout {
+                sequence: 100
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 60
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: Totalqty
+                alignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 160
+            }
+        )
+
+    )
+
+    region seller-category-wise-filters (
+        name: Seller Category Wise Filters
+        type: smartFilters
+        source {
+            filteredRegion: @seller-category-wise-report
+        }
+        layout {
+            sequence: 181
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: SELLER_CATEGORY_WISE
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_SECW_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_SECW_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_SECW_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_SECW_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region seller-category-wise-report (
+        name: Seller Category Wise Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    GETITEMCATEGORYNAME(vi.itemcategorycode)                           AS category_name,
+                    sod.itemcode,
+                    GETITEMNAME(sod.itemcode)                                          AS item_name,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN v_item_details vi    ON vi.itemcode = sod.itemcode
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE so.salesorderdate BETWEEN TO_DATE(:P380_FROMDATE, 'DD-MM-YYYY')
+                                            AND TO_DATE(:P380_TODATE,   'DD-MM-YYYY')
+                  AND (
+                        :P380_SALES_EXECUTIVE IS NULL
+                        OR (:P380_SALES_EXECUTIVE = 'UNASSIGNED' AND so.salesexecutivecode IS NULL)
+                        OR :P380_SALES_EXECUTIVE = so.salesexecutivecode
+                      )
+                  AND (:P380_ITEM_CATEGORY IS NULL OR vi.itemcategorycode = :P380_ITEM_CATEGORY)
+                GROUP BY
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    emp.employeename,
+                    vi.itemcategorycode,
+                    sod.itemcode,
+                    GETITEMNAME(sod.itemcode)
+                ORDER BY
+                    so.salesorderdate DESC,
+                    total_base_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_SALES_EXECUTIVE
+                P380_STATE
+                P380_CITY
+            ]
+        }
+        layout {
+            sequence: 50
+            parentRegion: @seller-category-wise-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CATEGORY_NAME (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Item Category
+            }
+            layout {
+                sequence: 80
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column CITYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Party name
+            }
+            layout {
+                sequence: 30
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ITEMCODE (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 110
+            }
+        )
+
+        column ITEM_NAME (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 120
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: "Sales Executive "
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: State Name
+            }
+            layout {
+                sequence: 40
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: Total qty
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 100
+            }
+        )
+
+    )
+
+    region seller-city-wise-filters (
+        name: Seller City Wise Filters
+        type: smartFilters
+        source {
+            filteredRegion: @seller-city-wise-report
+        }
+        layout {
+            sequence: 171
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: SELLER_CITY_WISE
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_SCW_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_SCW_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_SCW_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_SCW_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region seller-city-wise-report (
+        name: Seller City Wise Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE so.salesorderdate BETWEEN TO_DATE(:P380_FROMDATE, 'DD-MM-YYYY')
+                                            AND TO_DATE(:P380_TODATE,   'DD-MM-YYYY')
+                  AND (
+                        :P380_SALES_EXECUTIVE IS NULL
+                        OR (:P380_SALES_EXECUTIVE = 'UNASSIGNED' AND so.salesexecutivecode IS NULL)
+                        OR :P380_SALES_EXECUTIVE = so.salesexecutivecode
+                      )
+                  AND (:P380_STATE IS NULL OR p.officestatecode = :P380_STATE)
+                  AND (:P380_CITY  IS NULL OR p.officecitycode  = :P380_CITY)
+                GROUP BY
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    emp.employeename
+                ORDER BY
+                    so.salesorderdate DESC,
+                    total_base_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_SALES_EXECUTIVE
+                P380_STATE
+                P380_CITY
+            ]
+        }
+        layout {
+            sequence: 40
+            parentRegion: @seller-city-wise-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: City
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Party
+            }
+            layout {
+                sequence: 30
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Sales Executive
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: State
+            }
+            layout {
+                sequence: 40
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Total qty
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 90
+            }
+        )
+
+    )
+
+    region seller-state-wise-filters (
+        name: Seller State Wise Filters
+        type: smartFilters
+        source {
+            filteredRegion: @seller-state-wise-report
+        }
+        layout {
+            sequence: 151
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: SELLER_STATE_WISE
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_SSW_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_SSW_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_SSW_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_SSW_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region seller-state-wise-report (
+        name: Seller State Wise Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE so.salesorderdate BETWEEN TO_DATE(:P380_FROMDATE, 'DD-MM-YYYY')
+                                            AND TO_DATE(:P380_TODATE,   'DD-MM-YYYY')
+                  AND (
+                        :P380_SALES_EXECUTIVE IS NULL
+                        OR (:P380_SALES_EXECUTIVE = 'UNASSIGNED' AND so.salesexecutivecode IS NULL)
+                        OR TO_CHAR(:P380_SALES_EXECUTIVE) = TO_CHAR(so.salesexecutivecode)
+                      )
+                  AND (:P380_STATE IS NULL OR p.officestatecode = :P380_STATE)
+                GROUP BY
+                    emp.employeename,
+                    so.salesexecutivecode,
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno
+                ORDER BY
+                    so.salesorderdate DESC,
+                    total_base_amount DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_SALES_EXECUTIVE
+            ]
+        }
+        layout {
+            sequence: 20
+            parentRegion: @seller-state-wise-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Partyname
+            }
+            layout {
+                sequence: 30
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Sales Executive Name
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: State Name
+            }
+            layout {
+                sequence: 40
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Totalqty
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 90
+            }
+        )
+
+    )
+
+    region total-amount-filters (
+        name: Total Amount Filters
+        type: smartFilters
+        source {
+            filteredRegion: @total-amount-report
+        }
+        layout {
+            sequence: 51
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_AMOUNT
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_TA_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            suggestions {
+                type: dynamic
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_TA_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_TA_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_TA_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region total-amount-report (
+        name: Total Amount Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                    P.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE)                                                                    AS CITYNAME,
+                    GETSTATENAME(P.OFFICESTATECODE)                                                                  AS STATENAME,
+                    P.PARTYNAME||', '||GETCITYNAME(P.OFFICECITYCODE)||', '||GETSTATENAME(P.OFFICESTATECODE)         AS DTL_PARTYNAME,
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    SUM(SOD.QUANTITY1)                                                                               AS TOTALQTY,
+                    SUM(SOD.AMOUNT)                                                                                  AS TOTALAMOUNT,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => P.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS PARTY_LINK,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('SALESORDER', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 171,
+                                p_items  => 'P171_TNO',
+                                p_values => SO.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS SO_LINK
+                FROM SALESORDER SO
+                LEFT JOIN SALESORDERDETAIL SOD ON SO.TNO = SOD.TNO
+                LEFT JOIN PARTY P              ON P.PARTYCODE = SO.PARTYCODE
+                WHERE SO.SALESORDERDATE BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY             IS NULL OR :P380_PARTY             = SO.PARTYCODE)
+                  AND (:P380_ITEM              IS NULL OR :P380_ITEM              = SOD.ITEMCODE)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR :P380_ITEMSPECIFICATION = SOD.ITEMSPECIFICATIONCODE)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR :P380_SALES_EXECUTIVE   = SO.SALESEXECUTIVECODE)
+                GROUP BY
+                    P.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE),
+                    GETSTATENAME(P.OFFICESTATECODE),
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    P.TNO,
+                    SO.TNO
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @total-amount-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <a href="#PARTY_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#PARTYNAME#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 110
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+            }
+            layout {
+                sequence: 80
+            }
+            columnFormatting {
+                htmlExpression: <a href="#SO_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#SALESORDERNO#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SO_LINK (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 120
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTALAMOUNT (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999999999999999999999999999999999990.99
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: TOTAL QUANTITY
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+    )
+
+    region total-clients-filters (
+        name: Total Clients Filters
+        type: smartFilters
+        source {
+            filteredRegion: @total-clients-report
+        }
+        layout {
+            sequence: 1
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: SID_SMART_FILTER
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_CLIENTS
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_TC_AMOUNT (
+            type: range
+            label {
+                label: "Amount "
+            }
+            layout {
+                sequence: 40
+            }
+            appearance {
+                icon: fa-money
+            }
+            source {
+                databaseColumn: TOTAL_BASE_AMOUNT
+                dataType: number
+            }
+        )
+
+        filter P380_TC_PARTY (
+            type: checkboxGroup
+            label {
+                label: Party Name
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            listEntries {
+                computeCounts: false
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_TC_QTY (
+            type: range
+            label {
+                label: Qty
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-cubes
+            }
+            source {
+                databaseColumn: TOTALQTY
+                dataType: number
+            }
+        )
+
+        filter P380_TC_SEARCH (
+            type: search
+            label {
+                label: Tc Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, TOTALQTY, TOTAL_BASE_AMOUNT
+            }
+        )
+
+    )
+
+    region total-clients-report (
+        name: Total Clients Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT 
+                    SO.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE)                                                                    AS CITYNAME,
+                    GETSTATENAME(P.OFFICESTATECODE)                                                                  AS STATENAME,
+                    P.PARTYNAME||', '||GETCITYNAME(P.OFFICECITYCODE)||', '||GETSTATENAME(P.OFFICESTATECODE)         AS DTL_PARTYNAME,
+                    SUM(SOD.QUANTITY1)                                                                               AS TOTALQTY,
+                    SUM(SOD.AMOUNT)                                                                                  AS TOTAL_BASE_AMOUNT,
+                    P.TNO                                                                                            AS PARTY_TNO,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => P.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS PARTY_LINK
+                FROM SALESORDER SO
+                LEFT JOIN SALESORDERDETAIL SOD ON SO.TNO = SOD.TNO
+                LEFT JOIN PARTY P              ON P.PARTYCODE = SO.PARTYCODE
+                WHERE SO.SALESORDERDATE BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY             IS NULL OR :P380_PARTY             = SO.PARTYCODE)
+                  AND (:P380_ITEM              IS NULL OR :P380_ITEM              = SOD.ITEMCODE)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR :P380_ITEMSPECIFICATION = SOD.ITEMSPECIFICATIONCODE)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR :P380_SALES_EXECUTIVE   = SO.SALESEXECUTIVECODE)
+                GROUP BY
+                    SO.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE),
+                    GETSTATENAME(P.OFFICESTATECODE),
+                    P.TNO
+                ORDER BY SUM(SOD.AMOUNT) DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @total-clients-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--noBorders
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#PARTY_LINK#" class="t-Button t-Button--link" title="Click to view Party Details">
+                       <span class="fa fa-user u-color-7-text" aria-hidden="true" style="margin-right: 5px;"></span>#PARTYNAME#
+                    </a>
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 90
+            }
+        )
+
+        column PARTY_TNO (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Party Tno
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: TOTAL QTY
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D000
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region total-dispatched-quantity (
+        name: Total Dispatched Quantity
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                      P.PARTYCODE,
+                      P.PARTYNAME,
+                      GETCITYNAME(P.OFFICECITYCODE) AS CITYNAME,
+                      GETSTATENAME(P.OFFICESTATECODE) AS STATENAME,
+                      P.PARTYNAME||', '||GETCITYNAME(P.OFFICECITYCODE)||', '||GETSTATENAME(P.OFFICESTATECODE) AS DTL_PARTYNAME,
+                      TRUNC(DA.DESPATCHADVICEDATE) AS DESPATCHADVICEDATE,
+                      DA.DESPATCHADVICENO,
+                      SUM(DAD.QUANTITY1) AS TOTALDISPATCHEDQTY
+                FROM DESPATCHADVICE DA
+                LEFT JOIN DESPATCHADVICEDETAIL DAD ON DA.TNO = DAD.TNO
+                LEFT JOIN PARTY P ON P.PARTYCODE = DA.PARTYCODE
+                LEFT JOIN SALESORDER SO ON SO.TNO = DA.REFERENCETNO
+                WHERE TRUNC(DA.DESPATCHADVICEDATE) BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY             IS NULL OR :P380_PARTY             = DA.PARTYCODE)
+                  AND (:P380_ITEM              IS NULL OR :P380_ITEM              = DAD.ITEMCODE)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR :P380_ITEMSPECIFICATION = DAD.ITEMSPECIFICATIONCODE)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR :P380_SALES_EXECUTIVE   = SO.SALESEXECUTIVECODE)
+                GROUP BY
+                      P.PARTYCODE,
+                      P.PARTYNAME,
+                      GETCITYNAME(P.OFFICECITYCODE),
+                      GETSTATENAME(P.OFFICESTATECODE),
+                      TRUNC(DA.DESPATCHADVICEDATE),
+                      DA.DESPATCHADVICENO
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @total-dispatched-quantity-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DESPATCHADVICEDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: DESPATCH ADVICE DATE
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column DESPATCHADVICENO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: DESPATCH ADVICE NO
+            }
+            layout {
+                sequence: 70
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTALDISPATCHEDQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: TOTAL DISPATCHED QTY
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+    )
+
+    region total-dispatched-quantity-filters (
+        name: Total Dispatched Quantity Filters
+        type: smartFilters
+        source {
+            filteredRegion: @total-dispatched-quantity
+        }
+        layout {
+            sequence: 31
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_DISPATCHED_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_TDQ_DA_DATE (
+            type: checkboxGroup
+            label {
+                label: Despatch Advice Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: DESPATCHADVICEDATE
+            }
+        )
+
+        filter P380_TDQ_DA_NO (
+            type: checkboxGroup
+            label {
+                label: Despatch Advice No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 50
+            }
+            suggestions {
+                type: dynamic
+            }
+            source {
+                databaseColumn: DESPATCHADVICENO
+            }
+        )
+
+        filter P380_TDQ_PARTY (
+            type: checkboxGroup
+            label {
+                label: Party Name
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            listEntries {
+                computeCounts: false
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_TDQ_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+    )
+
+    region total-ordered-quantity (
+        name: Total Ordered Quantity
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                    NVL(emp.employeename, 'Unassigned')                                AS sales_executive_name,
+                    NVL(so.salesexecutivecode, 'UNASSIGNED')                           AS sales_executive_code,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                      AS cityname,
+                    GETSTATENAME(p.officestatecode)                                    AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' ||
+                    GETSTATENAME(p.officestatecode)                                    AS dtl_partyname,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    so.tno                                                             AS so_tno,
+                    p.tno                                                              AS party_tno,
+                    SUM(sod.quantity1)                                                 AS totalqty,
+                    SUM(sod.amount)                                                    AS total_base_amount,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => p.tno
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS party_link,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('SALESORDER', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 171,
+                                p_items  => 'P171_TNO',
+                                p_values => so.tno
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS so_link
+                FROM salesorder so
+                LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                LEFT JOIN party p              ON p.partycode = so.partycode
+                LEFT JOIN employee emp         ON so.salesexecutivecode = emp.employeecode
+                WHERE so.salesorderdate BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY           IS NULL OR :P380_PARTY = so.partycode)
+                  AND (:P380_SALES_EXECUTIVE IS NULL OR :P380_SALES_EXECUTIVE = so.salesexecutivecode)
+                GROUP BY
+                    emp.employeename,
+                    so.salesexecutivecode,
+                    so.partycode,
+                    p.partyname,
+                    p.officecitycode,
+                    p.officestatecode,
+                    so.salesorderdate,
+                    so.salesorderno,
+                    so.tno,
+                    p.tno
+                ORDER BY
+                    CASE WHEN NVL(emp.employeename, 'Unassigned') = 'Unassigned' THEN 2 ELSE 1 END ASC,
+                    so.salesorderdate DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 20
+            parentRegion: @total-orders-quantity-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#PARTY_LINK#" class="t-Button t-Button--link" title="Click to view Party Details">
+                       <span class="fa fa-user u-color-7-text" aria-hidden="true" style="margin-right: 5px;"></span>#PARTYNAME#
+                    </a>
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 13
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 160
+            }
+        )
+
+        column PARTY_TNO (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 110
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#SO_LINK#" class="t-Button t-Button--link" style="font-weight: bold; text-decoration: underline;" title="View Sales Order Details">
+                       <span class="fa fa-file-text-o" aria-hidden="true" style="margin-right: 5px;"></span>#SALESORDERNO#
+                    </a>
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALES_EXECUTIVE_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 150
+            }
+        )
+
+        column SALES_EXECUTIVE_NAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 140
+            }
+        )
+
+        column SO_LINK (
+            reportColumnQueryId: 14
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 170
+            }
+        )
+
+        column SO_TNO (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 100
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTALQTY (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: TOTAL QTY
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D000
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column TOTAL_BASE_AMOUNT (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G990D00
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+    )
+
+    region total-orders-filters (
+        name: Total Orders Filters
+        type: smartFilters
+        source {
+            filteredRegion: @total-orders-report
+        }
+        layout {
+            sequence: 11
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_ORDERS
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_TO_PARTY (
+            type: checkboxGroup
+            label {
+                label: Party Name
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            listEntries {
+                computeCounts: false
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_TO_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO
+            }
+        )
+
+        filter P380_TO_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+                sortDirection: desc
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+            multipleValues {
+                type: delimitedList
+                separator: ,
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        filter P380_TO_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    SELECT DISTINCT 
+                    SALESORDERNO AS D,
+                    SALESORDERNO AS R
+                    FROM SALESORDER
+                    ```
+            }
+            layout {
+                sequence: 40
+            }
+            appearance {
+                icon: fa-notebook
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region total-orders-quantity-filters (
+        name: Total Orders Quantity Filters
+        type: smartFilters
+        source {
+            filteredRegion: @total-orders-report
+        }
+        layout {
+            sequence: 21
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_ORDERED_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_TOQ_PARTY (
+            type: checkboxGroup
+            label {
+                label: Party Name
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            listEntries {
+                computeCounts: false
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_TOQ_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_TOQ_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_TOQ_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 40
+            }
+            appearance {
+                icon: fa-notebook
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    region total-orders-report (
+        name: Total Orders Report
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                WITH Raw_Aggregated_Data AS (
+                    SELECT 
+                        so.partycode,
+                        so.tno,
+                        LISTAGG(DISTINCT TO_CHAR(so.salesorderdate, 'DD-MM-YYYY'), ', ') WITHIN GROUP (ORDER BY so.salesorderdate) AS salesorderdate,
+                        LISTAGG(DISTINCT so.salesorderno, ', ') WITHIN GROUP (ORDER BY so.salesorderno) AS salesorderno,
+                        COUNT(DISTINCT so.tno) AS total_sales_orders
+                    FROM salesorder so
+                    LEFT JOIN salesorderdetail sod ON so.tno = sod.tno
+                    WHERE so.salesorderdate BETWEEN :P380_FROMDATE AND :P380_TODATE
+                      AND (:P380_PARTY             IS NULL OR :P380_PARTY             = so.partycode)
+                      AND (:P380_ITEM              IS NULL OR :P380_ITEM              = sod.itemcode)
+                      AND (:P380_ITEMSPECIFICATION IS NULL OR :P380_ITEMSPECIFICATION = sod.itemspecificationcode)
+                      AND (:P380_SALES_EXECUTIVE   IS NULL OR :P380_SALES_EXECUTIVE   = so.salesexecutivecode)
+                      AND (:P380_TO_SO_DATE IS NULL
+                           OR INSTR(',' || :P380_TO_SO_DATE || ',', ',' || TO_CHAR(so.salesorderdate, 'DD-MM-YYYY') || ',') > 0)
+                    GROUP BY so.partycode, so.tno
+                )
+                SELECT 
+                    rad.partycode,
+                    p.partyname,
+                    GETCITYNAME(p.officecitycode)                                                             AS cityname,
+                    GETSTATENAME(p.officestatecode)                                                           AS statename,
+                    p.partyname || ', ' || GETCITYNAME(p.officecitycode) || ', ' || GETSTATENAME(p.officestatecode) AS dtl_partyname,
+                    rad.salesorderdate,
+                    rad.salesorderno,
+                    rad.total_sales_orders,
+                    p.tno                                                                                     AS party_tno,
+                    rad.tno                                                                                   AS so_tno,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => p.tno
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS party_link,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('SALESORDER', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 171,
+                                p_items  => 'P171_TNO',
+                                p_values => rad.tno
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS so_link
+                FROM Raw_Aggregated_Data rad
+                LEFT JOIN party p ON p.partycode = rad.partycode
+                ORDER BY rad.total_sales_orders DESC
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+                " P380_TO_SO_DATE"
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @total-orders-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#PARTY_LINK#" class="t-Button t-Button--link" title="Click to view Party Details">
+                       <span class="fa fa-user u-color-7-text" aria-hidden="true" style="margin-right: 5px;"></span>#PARTYNAME#
+                    </a>
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 120
+            }
+        )
+
+        column PARTY_TNO (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 100
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <div class="my-custom-tags">
+                        <span class="my-badge">#SALESORDERDATE#</span>
+                    </div>
+                    
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#SO_LINK#" class="t-Button t-Button--link" style="font-weight: bold; text-decoration: underline;" title="View Sales Order Details">
+                       <span class="fa fa-file-text-o" aria-hidden="true" style="margin-right: 5px;"></span>#SALESORDERNO#
+                    </a>
+                    
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SO_LINK (
+            reportColumnQueryId: 12
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 130
+            }
+        )
+
+        column SO_TNO (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 110
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+        column TOTAL_SALES_ORDERS (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: TOTAL SALES ORDERS
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+    )
+
+    region total-pending-dispatched-quantity (
+        name: Total Pending Dispatched Quantity
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT 
+                    SO.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE)                                                                    AS CITYNAME,
+                    GETSTATENAME(P.OFFICESTATECODE)                                                                  AS STATENAME,
+                    P.PARTYNAME||', '||GETCITYNAME(P.OFFICECITYCODE)||', '||GETSTATENAME(P.OFFICESTATECODE)         AS DTL_PARTYNAME,
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    GREATEST(SUM(SOD.QUANTITY1) - NVL(SUM(DR.DESPATCHQTY), 0), 0)                                  AS PENDINGDISPATCHQTY,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('PARTY', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 49,
+                                p_items  => 'P49_TNO',
+                                p_values => P.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS PARTY_LINK,
+                    CASE
+                        WHEN CHECK_MODULE_VIEW_ACCESS('SALESORDER', :APP_USER, :GLOBAL_COMPANYCODE) = 1 THEN
+                            APEX_PAGE.GET_URL(
+                                p_page   => 171,
+                                p_items  => 'P171_TNO',
+                                p_values => SO.TNO
+                            )
+                        ELSE
+                            APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':380:' || :APP_SESSION)
+                    END AS SO_LINK
+                FROM SALESORDER SO
+                LEFT JOIN SALESORDERDETAIL SOD ON SO.TNO = SOD.TNO
+                LEFT JOIN PARTY P              ON P.PARTYCODE = SO.PARTYCODE
+                LEFT JOIN (
+                    SELECT
+                        DA.REFERENCETNO,
+                        DAD.ITEMCODE,
+                        DAD.ITEMSPECIFICATIONCODE,
+                        SUM(DAD.QUANTITY1) AS DESPATCHQTY
+                    FROM DESPATCHADVICE DA
+                    JOIN DESPATCHADVICEDETAIL DAD ON DA.TNO = DAD.TNO
+                    GROUP BY DA.REFERENCETNO, DAD.ITEMCODE, DAD.ITEMSPECIFICATIONCODE
+                ) DR ON DR.REFERENCETNO          = SO.TNO
+                    AND DR.ITEMCODE              = SOD.ITEMCODE
+                    AND DR.ITEMSPECIFICATIONCODE = SOD.ITEMSPECIFICATIONCODE
+                WHERE SO.SALESORDERDATE BETWEEN :P380_FROMDATE AND :P380_TODATE
+                  AND (:P380_PARTY             IS NULL OR :P380_PARTY             = SO.PARTYCODE)
+                  AND (:P380_ITEM              IS NULL OR :P380_ITEM              = SOD.ITEMCODE)
+                  AND (:P380_ITEMSPECIFICATION IS NULL OR :P380_ITEMSPECIFICATION = SOD.ITEMSPECIFICATIONCODE)
+                  AND (:P380_SALES_EXECUTIVE   IS NULL OR :P380_SALES_EXECUTIVE   = SO.SALESEXECUTIVECODE)
+                GROUP BY
+                    SO.PARTYCODE,
+                    P.PARTYNAME,
+                    GETCITYNAME(P.OFFICECITYCODE),
+                    GETSTATENAME(P.OFFICESTATECODE),
+                    SO.SALESORDERDATE,
+                    SO.SALESORDERNO,
+                    P.TNO,
+                    SO.TNO
+                HAVING GREATEST(SUM(SOD.QUANTITY1) - NVL(SUM(DR.DESPATCHQTY), 0), 0) > 0
+                ```
+            pageItemsToSubmit: [
+                P380_FROMDATE
+                P380_TODATE
+                P380_PARTY
+                P380_ITEMSPECIFICATION
+                P380_ITEM
+            ]
+        }
+        layout {
+            sequence: 10
+            parentRegion: @total-pending-dispatched-quantity-filters
+            slot: subRegions
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--staticRowColors
+                t-Report--rowHighlightOff
+            ]
+        }
+        pagination {
+            type: setPaginationSearchEngine
+        }
+        download {
+            csvExportEnabled: true
+        }
+
+        column CITYNAME (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 30
+            }
+        )
+
+        column DTL_PARTYNAME (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: PARTY NAME
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <a href="#PARTY_LINK#" style="color:#2c5f8a;text-decoration:none;font-weight:500;">#PARTYNAME#</a>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column PARTYCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 10
+            }
+        )
+
+        column PARTYNAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 20
+            }
+        )
+
+        column PARTY_LINK (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 140
+            }
+        )
+
+        column PENDINGDISPATCHQTY (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: PENDING DISPATCHED QUANTITY
+                alignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999990.999
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column SALESORDERDATE (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER DATE
+            }
+            layout {
+                sequence: 90
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SALESORDERNO (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: SALES ORDER NO.
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression:
+                    ```html
+                    <a href="#SO_LINK#" class="t-Button t-Button--link" style="font-weight: bold; text-decoration: underline;" title="View Sales Order Details">
+                       <span class="fa fa-file-text-o" aria-hidden="true" style="margin-right: 5px;"></span>#SALESORDERNO#
+                    </a>
+                    ```
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column SO_LINK (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 150
+            }
+        )
+
+        column STATENAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 40
+            }
+        )
+
+    )
+
+    region total-pending-dispatched-quantity-filters (
+        name: Total Pending Dispatched Quantity Filters
+        type: smartFilters
+        source {
+            filteredRegion: @total-orders-report
+        }
+        layout {
+            sequence: 41
+            parentRegion: @p380-header-title
+            slot: regionBody
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: item=value
+            item: P380_REGION_TO_DISPLAY
+            value: TOTAL_PENDING_DISPATCHED_QTY
+        }
+        settings {
+            moreFiltersSuggestionChip: true
+            compactNosThreshold: 10000
+            showTotalRowCount: true
+            totalRowCountLabel: "Total Records : "
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    console.log(options);
+                    return options;
+                }
+                ```
+        }
+
+        filter P380_TPDQ_PARTY (
+            type: checkboxGroup
+            label {
+                label: Search
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 10
+            }
+            appearance {
+                icon: fa-users-alt
+            }
+            suggestions {
+                type: dynamic
+            }
+            source {
+                databaseColumn: DTL_PARTYNAME
+            }
+        )
+
+        filter P380_TPDQ_SEARCH (
+            type: search
+            label {
+                label: Search
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dbColumns: DTL_PARTYNAME, SALESORDERDATE, SALESORDERNO, TOTALQTY ,TOTAL_BASE_AMOUNT
+            }
+        )
+
+        filter P380_TPDQ_SO_DATE (
+            type: checkboxGroup
+            label {
+                label: Sales Order Date
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                icon: fa-calendar-month
+            }
+            listEntries {
+                showSelectedFirst: true
+                clientSideFiltering: true
+            }
+            source {
+                databaseColumn: SALESORDERDATE
+            }
+        )
+
+        filter P380_TPDQ_SO_NO (
+            type: checkboxGroup
+            label {
+                label: Sales Order No
+            }
+            lov {
+                type: distinctValues
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                databaseColumn: SALESORDERNO
+            }
+        )
+
+    )
+
+    pageItem P380_CITY (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 130
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 30
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_HEADER_TITLE (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_ITEM (
+        type: hidden
+        layout {
+            sequence: 70
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_ITEMSPECIFICATION (
+        type: hidden
+        layout {
+            sequence: 60
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_ITEM_CATEGORY (
+        type: hidden
+        layout {
+            sequence: 80
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_PARTY (
+        type: hidden
+        layout {
+            sequence: 50
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_REGION_TO_DISPLAY (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_SALES_EXECUTIVE (
+        type: hidden
+        layout {
+            sequence: 90
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_SELECTED_DAY (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 110
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_SELECTED_MONTH (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 100
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_STATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 120
+            slot: dialogHeader
+        }
+    )
+
+    pageItem P380_TODATE (
+        type: hidden
+        layout {
+            sequence: 40
+            slot: dialogHeader
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Back
+        layout {
+            sequence: 10
+            region: @p380-header-title
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--iconLeft
+                t-Button--stretch
+            ]
+            icon: fa-arrow-circle-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @back
+        }
+
+        action native-dialog-close (
+            action: closeDialog
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process get-the-header-name (
+        name: Get the Header Name
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                BEGIN
+                    CASE 
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_CLIENTS'                      THEN :P380_HEADER_TITLE := 'Total Clients';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_ORDERS'                       THEN :P380_HEADER_TITLE := 'Total Orders';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_ORDERED_QTY'                  THEN :P380_HEADER_TITLE := 'Total Ordered Quantity';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_DISPATCHED_QTY'               THEN :P380_HEADER_TITLE := 'Total Despatched Quantity';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_PENDING_DISPATCHED_QTY'       THEN :P380_HEADER_TITLE := 'Total Pending Despatch Quantity';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_AMOUNT'                       THEN :P380_HEADER_TITLE := 'Total Amount';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_LOADINGADVICE_QTY'            THEN :P380_HEADER_TITLE := 'Total Despatch Quantity Outward';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_LOADINGADVICE_PENDING_QTY'    THEN :P380_HEADER_TITLE := 'Total Pending Despatch Quantity Outward';
+                        WHEN :P380_REGION_TO_DISPLAY = 'TOTAL_CANCELLED_QTY'                THEN :P380_HEADER_TITLE := 'Total Cancelled Quantity';
+                        ELSE :P380_HEADER_TITLE := 'Sales Dashboard Detail Reports';
+                    END CASE;
+                END;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 39634222567499910
+        }
+    )
+
+)
+

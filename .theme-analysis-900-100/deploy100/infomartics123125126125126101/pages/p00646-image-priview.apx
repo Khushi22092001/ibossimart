@@ -1,0 +1,402 @@
+page 646 (
+    name: Image Priview
+    alias: IMAGE-PRIVIEW
+    title: Image Priview
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        width: 700
+        height: 640
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            var video = document.getElementById('video');
+            var videoStream;
+            var canvas = document.getElementById('canvas');
+            var context = canvas.getContext('2d');
+            
+            var spinner;
+            var spinTargetElem = document.getElementById('wwvFlowForm');
+            var spinOptions = {
+              lines: 13
+            , length: 28
+            , width: 14
+            , radius: 42
+            , scale: 1
+            , corners: 1
+            , color: '#000'
+            , opacity: 0.25
+            , rotate: 0
+            , direction: 1
+            , speed: 1
+            , trail: 60
+            , fps: 20
+            , zIndex: 2e9
+            , className: 'spinner'
+            , top: '50%'
+            , left: '50%'
+            , shadow: false
+            , hwaccel: false
+            , position: 'absolute'
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: dialogFooter
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region camera (
+        name: Camera
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div style="text-align:center;">
+                  <video id="video" width="640" height="480" autoplay></video>
+                  <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+        headerAndFooter {
+            headerText:
+                ```html
+                <div style="text-align:center;">
+                  <video id="video" width="640" height="480" autoplay></video>
+                  </div>
+                ```
+        }
+    )
+
+    pageItem P646_PHOTO_SEQ_ID (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @camera
+            slot: regionBody
+        }
+    )
+
+    pageItem P646_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @camera
+            slot: regionBody
+        }
+    )
+
+    button cancel (
+        buttonName: Cancel
+        label: Cancel
+        layout {
+            sequence: 10
+            region: @buttons
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button snap-photo (
+        buttonName: SNAP_PHOTO
+        label: Snap Photo
+        layout {
+            sequence: 20
+            region: @buttons
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-smile-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: itemIsNull
+            item: P646_PHOTO_SEQ_ID
+        }
+    )
+
+    dynamicAction cancel-dialog (
+        name: cancel dialog
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-dialog-cancel (
+            action: cancelDialog
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
+                      alert('ok');
+                    } else { alert('not ok')} 
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-javascript-code-2 (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var errBack = function(error) {
+                                    console.log('video capture error: ', error.code);
+                                  };
+                     
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                      navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+                        videoStream = stream;
+                        video.srcObject = stream;
+                        video.play();
+                      });
+                    } else if (navigator.getUserMedia) { // Standard
+                      navigator.getUserMedia({ video: true }, function(stream) {
+                        videoStream = stream;
+                        video.src = stream;
+                        video.play();
+                      }, errBack);
+                    } else if (navigator.webkitGetUserMedia) { // WebKit-prefixed
+                      navigator.webkitGetUserMedia({ video: true }, function(stream) {
+                        videoStream = stream;
+                        video.srcObject = stream;
+                        video.play();
+                      }, errBack);
+                    } else if (navigator.mozGetUserMedia) { // Mozilla-prefixed
+                      navigator.mozGetUserMedia({ video: true }, function(stream) {
+                        videoStream = stream;
+                        video.srcObject = stream;
+                        video.play();
+                      }, errBack);
+                    }
+                    ```
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction snap-photo (
+        name: snap photo
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @snap-photo
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    //spinner = new Spinner(spinOptions).spin(spinTargetElem);
+                    context.drawImage(video, 0, 0, 640, 480);
+                    video.style.display = 'none';
+                    canvas.style.display = 'inline-block';
+                    videoStream.getTracks()[0].stop();
+                    
+                    apex.server.process(
+                      'SAVE_PHOTO',
+                      {
+                        p_clob_01: canvas.toDataURL().match(/,(.*)$/)[1]
+                    	},
+                    	{
+                        success: function(data) {
+                                   if (data.result == 'success') {
+                                     apex.submit('SNAP_PHOTO');
+                                   }
+                                 }
+                      }
+                    );
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process close-dialog (
+        name: close dialog
+        type: closeDialog
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 25293286715965132
+        }
+    )
+
+    process get-photo (
+        name: GET_PHOTO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                  l_photo_clob clob;
+                  l_photo_blob blob;
+                begin
+                  select blob001
+                  into l_photo_blob
+                  from apex_collections
+                  where collection_name = 'PHOTOS'
+                  and seq_id = :P121_PHOTO_SEQ_ID;
+                   
+                  l_photo_clob := apex_web_service.blob2clobbase64(
+                                    p_blob => l_photo_blob
+                                  );
+                   
+                  apex_json.open_object;
+                  apex_json.write('photoBase64', l_photo_clob);
+                  apex_json.close_object;
+                end;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 25291957980965119
+        }
+    )
+
+    process save-photo (
+        name: SAVE_PHOTO
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                  l_photo_clob clob;
+                  l_photo_blob blob;
+                begin
+                  l_photo_clob := apex_application.g_clob_01;
+                 
+                  l_photo_blob := apex_web_service.clobbase642blob(
+                                    p_clob => l_photo_clob
+                                  );
+                 
+                  apex_collection.add_member(
+                    p_collection_name => 'PHOTOS',
+                    p_blob001 => l_photo_blob
+                  );
+                  INSERT INTO VISITORINOUT (TNO,IMAGE1) VALUES (:P646_TNO,l_photo_blob);
+                  --:P646_BLOB := l_photo_blob;
+                  
+                  apex_json.open_object;
+                  apex_json.write(
+                    p_name => 'result',
+                    p_value => 'success'
+                  );
+                  apex_json.close_object;
+                exception
+                  when others then
+                    apex_json.open_object;
+                    apex_json.write(
+                      p_name => 'result',
+                      p_value => 'fail'
+                    );
+                    apex_json.close_object;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 24523948511240447
+        }
+    )
+
+)
+

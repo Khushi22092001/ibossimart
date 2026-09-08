@@ -1,0 +1,328 @@
+page 34 (
+    name: Pass Privilege
+    alias: PASS-PRIVILEGE
+    title: Pass Privilege
+    pageGroup: @administration
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        width: 600
+        height: 600
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region pass-privilege (
+        name: Pass Privilege
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P34_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                     CompanyName,
+                     CompanyCode
+                From Company
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @pass-privilege
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P34_MODULE (
+        type: displayOnly
+        label {
+            label: Module
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @pass-privilege
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        source {
+            type: staticValue
+            staticValue: DASHBOARD
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P34_PASSUSER (
+        type: popupLov
+        label {
+            label: Pass User
+            alignment: left
+        }
+        settings {
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      a.BossUserName,
+                      a.BossUserCode
+                From  BossUser a, BossUserRole b
+                Where a.TNo = b.TNo
+                  and b.CompanyCode = :P34_COMPANY
+                  --and a.BossUserCode != '1'
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P34_COMPANY
+            itemsToSubmit: P34_PASSUSER
+        }
+        layout {
+            sequence: 50
+            region: @pass-privilege
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Privileged User
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            inlineHelpText: (Select the user whose privilege is to be transferred)
+        }
+    )
+
+    pageItem P34_PUSER (
+        type: displayOnly
+        label {
+            label: User
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @pass-privilege
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional-floating
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P34_TNO (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @pass-privilege
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button add (
+        buttonName: ADD
+        label: Add
+        layout {
+            sequence: 20
+            region: @pass-privilege
+            slot: create
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-clipboard-plus
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button close (
+        buttonName: CLOSE
+        label: Close
+        layout {
+            sequence: 10
+            region: @pass-privilege
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-times-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 33
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    process delete (
+        name: Delete
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                Begin
+                For Vloop in 
+                    (Select
+                           aa.ExtraPrivilegeCode,
+                           aa.Remark
+                     From  ModulePrivilegeExtra aa, ModulePrivilege bb
+                     Where aa.Tno = bb.Tno
+                       and bb.BossUserCode = :P34_PASSUSER
+                       and bb.CompanyCode = :P34_COMPANY
+                       and bb.ModuleCode = 'DASHBOARD'
+                    )
+                Loop
+                Delete From ModulePrivilegeExtra Where Tno = :P34_TNO;
+                End Loop;
+                End;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        successMessage {
+            successMessage: "Privilege Deletion Successful and "
+        }
+        error {
+            errorMessage: Privilege Deletion Un-Successful
+        }
+        advanced {
+            executionMappingIdentifier: 5195548903030494
+        }
+        serverSideCondition {
+            whenButtonPressed: @add
+        }
+    )
+
+    process insert (
+        name: Insert
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                Begin
+                For Vloop in 
+                    (Select
+                           aa.ExtraPrivilegeCode,
+                           aa.Remark
+                     From  ModulePrivilegeExtra aa, ModulePrivilege bb
+                     Where aa.Tno = bb.Tno
+                       and bb.BossUserCode = :P34_PASSUSER
+                       and bb.CompanyCode = :P34_COMPANY
+                       and bb.ModuleCode = 'DASHBOARD'
+                    )
+                Loop
+                Insert Into ModulePrivilegeExtra (TNO,SNO,EXTRAPRIVILEGECODE,REMARK) values (:P34_TNO,GlobalTNo.Nextval, vloop.ExtraPrivilegeCode, vloop.Remark);
+                End Loop;
+                End;
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        successMessage {
+            successMessage: Privilege Pass on Successful
+        }
+        error {
+            errorMessage: Failed to pass the Privilege.
+        }
+        advanced {
+            executionMappingIdentifier: 5506930828122827
+        }
+        serverSideCondition {
+            whenButtonPressed: @add
+        }
+    )
+
+    branch (
+        name: Go to Page 33
+        execution {
+            sequence: 10
+        }
+        behavior {
+            target: {
+                page: 33
+            }
+        }
+    )
+
+)
+

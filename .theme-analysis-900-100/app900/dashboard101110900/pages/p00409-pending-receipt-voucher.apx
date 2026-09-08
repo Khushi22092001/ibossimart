@@ -1,0 +1,822 @@
+page 409 (
+    name: Pending Receipt Voucher for Bill  Receipt Allocation
+    alias: PENDING-RECEIPT-VOUCHER
+    title: Pending Receipt Voucher for Bill  Receipt Allocation
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/Pending Receipt Voucher for Bill Receipt Allocation.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P409_FROMDATE').val());
+              var toDate = new Date($('#P409_TODATE').val());
+            
+            var reportParams = 
+                  '&P409_COMPANY=' +$('#P409_COMPANY').val() +
+                  '&P409_FROMDATE='+ $('#P409_FROMDATE').val() +  
+                  '&P409_TODATE=' + $('#P409_TODATE').val() +  
+                  '&P409_PARTY=' +$('#P409_PARTY').val() +
+                  '&P409_VOUCHER=' +$('#P409_VOUCHER').val() +   
+                  '&P409_PARENT=' +$('#P409_PARENT').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region pending-receipt-voucher (
+        name: "Pending Receipt Voucher "
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                	a.Tno,
+                   row_number() over(order by a.VoucherDate) SerialNo,
+                	c.CompanyName,
+                	d.LocationName,
+                	e.DocTypeName,
+                	a.VoucherNo,
+                	a.VoucherDate,
+                	f.PartyName as AccountName,
+                	sum(b.Amount) as VoucherAmount,
+                	nvl(x.ReceiptAmount, 0) as ReceiptAmount,
+                	nvl(sum(b.Amount), 0) - nvl(x.ReceiptAmount, 0) as BalanceAmount
+                From Voucher a, VoucherDetail b, Company c, Location d, DocType e, Party f, Party g,
+                	(
+                	Select
+                		a.VoucherTno,
+                		a.VoucherSno,
+                		sum(b.Amount) as ReceiptAmount
+                	From DFreightBillReceipt a, DFreightBillReceiptDetail b
+                	Where a.Tno = b.Tno
+                	Group by
+                		a.VoucherTno,
+                		a.VoucherSno
+                	) x
+                Where a.Tno = b.Tno
+                	and a.CompanyCode = c.CompanyCode(+)
+                	and a.LocationCode = d.LocationCode(+)
+                	and a.DocTypeCode = e.DocTypeCode(+)
+                	and b.AccountCode = f.PartyCode(+)
+                   and f.ParentCode = g.PartyCode(+)
+                	and b.Tno = x.VoucherTno(+)
+                	and b.Sno = x.VoucherSno(+)
+                    
+                    -- 22-APR-2025
+                    and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                	and a.DocTypeCode = 'RECEIPT'
+                	and nvl(b.Amount, 0) > 0
+                   and a.VoucherDate between :P409_FROMDATE and :P409_TODATE
+                   and ( :P409_COMPANY IS NULL OR instr(':'||:P409_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                   and (:P409_PARTY is Null Or Instr (':' || :P409_PARTY || ':' , ':' || f.PartyCode || ':') > 0)
+                   and ( :P409_VOUCHER IS NULL OR instr(':'||:P409_VOUCHER||':',':'||a.Tno||':') > 0 ) 
+                   and ( :P409_PARENT IS NULL OR instr(':'||:P409_PARENT||':',':'||f.ParentCode||':') > 0 ) 
+                Group by
+                	a.Tno,
+                	c.CompanyName,
+                	d.LocationName,
+                	e.DocTypeName,
+                	a.VoucherNo,
+                	a.VoucherDate,
+                	f.PartyName,
+                	x.ReceiptAmount
+                Having nvl(sum(b.Amount), 0) - nvl(x.ReceiptAmount, 0) > 0
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 13557009737898048
+        }
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: Account Name
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column BALANCEAMOUNT (
+            type: plainText
+            heading {
+                heading: Balance Amount
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Company Name
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doctype Name
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column RECEIPTAMOUNT (
+            type: plainText
+            heading {
+                heading: Receipt Amount
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VOUCHERAMOUNT (
+            type: plainText
+            heading {
+                heading: Voucher Amount
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column VOUCHERDATE (
+            type: plainText
+            heading {
+                heading: Voucher Date
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column VOUCHERNO (
+            type: plainText
+            heading {
+                heading: Voucher No
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: "Pending Receipt Voucher "
+        }
+
+        savedReport 141161 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCOUNTNAME (
+                sequence: 7
+            )
+
+            displayColumn BALANCEAMOUNT (
+                sequence: 10
+            )
+
+            displayColumn COMPANYNAME (
+                sequence: 2
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 3
+            )
+
+            displayColumn RECEIPTAMOUNT (
+                sequence: 9
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn VOUCHERAMOUNT (
+                sequence: 8
+            )
+
+            displayColumn VOUCHERDATE (
+                sequence: 6
+            )
+
+            displayColumn VOUCHERNO (
+                sequence: 5
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: VOUCHERAMOUNT
+            )
+
+            aggregate (
+                column: RECEIPTAMOUNT
+            )
+
+            aggregate (
+                column: BALANCEAMOUNT
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    region pending-receipt-voucher-for-bill-receipt-allocation (
+        name: Pending Receipt Voucher for Bill  Receipt Allocation
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P409_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   b.CompanyName d,
+                   b.CompanyCode r
+                 From Voucher a, Company b
+                 Where a.CompanyCode = b.CompanyCode 
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Company Name
+        }
+    )
+
+    pageItem P409_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P409_PARENT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   c.PartyName d,
+                   c.PartyCode r
+                 From Party c
+                 Where exists (
+                      Select 
+                      b.AccountCode
+                      From VoucherDetail b,Party d
+                      Where b.AccountCode = d.PartyCode
+                      and d.ParentCode = c.PartyCode )
+                      
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P409_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   c.PartyName d,
+                   c.PartyCode r
+                 From Party c
+                 Where exists (
+                      Select 
+                      b.AccountCode
+                      From VoucherDetail b
+                      Where b.AccountCode = c.PartyCode )
+                      and c.PartytypeCode = 'CUSTOMER'
+                
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P409_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P409_VOUCHER (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Voucher No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                   a.VoucherNo d,
+                   a.Tno r
+                 From Voucher a
+                 Where a.DoctypeCode = 'RECEIPT';
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+            columnCssClasses: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Voucher No
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @pending-receipt-voucher
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @pending-receipt-voucher-for-bill-receipt-allocation
+            slot: regionBody
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

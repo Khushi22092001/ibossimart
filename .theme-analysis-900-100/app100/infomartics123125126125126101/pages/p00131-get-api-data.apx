@@ -1,0 +1,380 @@
+page 131 (
+    name: Get API Data
+    alias: GET-API-DATA
+    title: Get API Data
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function get_api_data() {
+                var xhr = new XMLHttpRequest();
+                var url = "http://192.168.0.61:8888/ords/ironmart/ironmart/getAccountMaster";
+                xhr.open('GET',url, true);
+                xhr.onload = function() {
+                    $s('P131_JSON_DATA',(xhr.responseText));
+                }
+                xhr.send();
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region call-api-data (
+        name: Call APi Data
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region new (
+        name: New
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select 
+                    partycode,
+                    partyname,
+                    partytypecode,
+                    ownername
+                from apex_collections c,
+                      XMLTABLE ('/json/items/row'
+                                PASSING apex_json.to_xmltype (c.clob001)
+                                COLUMNS partycode       VARCHAR2(400) PATH 'partycode',
+                                        partyname       VARCHAR2(400) PATH 'partyname',
+                                        partytypecode   VARCHAR2(400) PATH 'partytypecode',
+                                        ownername       VARCHAR2(400) PATH 'ownername') x
+                      where c.collection_name='REST_COLLECTION';
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 165736749045851941
+        }
+
+        savedReport 1658623 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @PARTYCODE
+                layout {
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @PARTYTYPECODE
+                layout {
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @OWNERNAME
+                layout {
+                    sequence: 4
+                }
+            )
+
+        )
+
+        column OWNERNAME (
+            type: textarea
+            heading {
+                heading: Ownername
+            }
+            layout {
+                sequence: 40
+            }
+            validation {
+                maxLength: 400
+            }
+            source {
+                databaseColumn: OWNERNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYCODE (
+            type: textarea
+            heading {
+                heading: Partycode
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 400
+            }
+            source {
+                databaseColumn: PARTYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYNAME (
+            type: textarea
+            heading {
+                heading: Partyname
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 400
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYTYPECODE (
+            type: textarea
+            heading {
+                heading: Partytypecode
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 400
+            }
+            source {
+                databaseColumn: PARTYTYPECODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: New
+        }
+    )
+
+    pageItem P131_JSON_DATA (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            region: @call-api-data
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button getjsondata (
+        buttonName: getjsondata
+        label: Refresh
+        layout {
+            sequence: 20
+            region: @call-api-data
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction getapidata (
+        name: getapidata
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @getjsondata
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: get_api_data()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            selectionType: items
+            items: P131_JSON_DATA
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                        l_response  CLOB;
+                    begin
+                        l_response  := :P131_JSON_DATA;
+                        apex_collection.create_or_truncate_collection('REST_COLLECTION');
+                        apex_collection.add_member (p_collection_name  =>'REST_COLLECTION',
+                                                    p_clob001          => l_response );
+                    end;
+                    ```
+                itemsToSubmit: P131_JSON_DATA
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 30
+        }
+        when {
+            selectionType: items
+            items: P131_JSON_DATA
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

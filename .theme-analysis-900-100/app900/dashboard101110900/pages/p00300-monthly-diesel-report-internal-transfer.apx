@@ -1,0 +1,505 @@
+page 300 (
+    name: Monthly Diesel Report Internal Transfer
+    alias: MONTHLY-DIESEL-REPORT-INTERNAL-TRANSFER
+    title: Monthly Diesel Report Internal Transfer
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region monthly-diesel-report-internal-transfer (
+        name: Monthly Diesel Report Internal Transfer
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select 
+                        a.DriverName,
+                        Count(Distinct(a.InternalTransferDate)) as noofdays,
+                        Count(a.DriverName) as Trips,
+                        Count(a.DriverName) * d.DistanceInKM as TotalDistanceinKM,
+                        Count(a.DriverName) * d.DieselForLoadedVehicle as TotalFixDiesel,
+                        d.DieselForLoadedVehicle as FixAverage,
+                
+                        Case When Sum(Nvl(e.RunningDieselQuantity,0)) != 0  then
+                        d.DistanceinKm / (Sum(e.RunningDieselQuantity)/(Count(Nvl(a.DriverName,1))))
+                        else 0 end as "Actual Average",
+                
+                        Sum(Nvl(e.RunningDieselQuantity,0)) as ConsumptionDiesel,
+                        Case When Sum(Nvl(e.RunningDieselQuantity,0)) != 0 then
+                        Sum(Nvl(e.RunningDieselQuantity,0))  - (Count(Nvl(a.DriverName,1)) *
+                        Nvl(d.DieselForLoadedVehicle,0)) else 0 end as "Extra Diesel",
+                        a.Creator
+                  from InternalTransfer a, SourceLocation b, DestinationLocation c, 
+                        StandardDieselConsumption d, necessitySlip e
+                  where a.SourceLocationTno = b.Tno(+)
+                        and a.DestinationLocationTno = c.Tno(+)
+                        and b.Tno = d.SourceLocationTno(+)
+                        and c.Tno = d.DestinationLocationTno(+)
+                        and a.vehicleno = e.Vehicleno (+)
+                        and a.InternalTransferDate = e.NecessitySlipDate(+)
+                        and a.ShiftCode = e.ShiftCode(+)
+                        and a.internalTransferDate Between :P300_FROMDATE and :P300_TODATE
+                        and ( :P300_COMPANY IS NULL OR instr(':'||:P300_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+                        and ( :P300_VEHICLENO IS NULL OR instr(':'||:P300_VEHICLENO||':',':'||a.VehicleNo||':') > 0 )
+                        and ( :P300_DRIVER IS NULL OR instr(':'||:P300_DRIVER||':',':'||a.DriverName||':') > 0 ) 
+                  Group by
+                        a.DriverName,
+                        d.DistanceInKM,
+                        d.DieselForLoadedVehicle,
+                        a.Creator
+                        ;
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 18739950804068324
+        }
+
+        column "Actual Average" (
+            type: plainText
+            heading {
+                heading: Actual Average
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column CONSUMPTIONDIESEL (
+            type: plainText
+            heading {
+                heading: Consumption Diesel
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DRIVERNAME (
+            type: plainText
+            heading {
+                heading: Driver Name
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column "Extra Diesel" (
+            type: plainText
+            heading {
+                heading: Extra Diesel
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column FIXAVERAGE (
+            type: plainText
+            heading {
+                heading: Fix Average
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column NOOFDAYS (
+            type: plainText
+            heading {
+                heading: Working Days
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column TOTALDISTANCEINKM (
+            type: plainText
+            heading {
+                heading: Distance in KM
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column TOTALFIXDIESEL (
+            type: plainText
+            heading {
+                heading: Fix Diesel
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column TRIPS (
+            type: plainText
+            heading {
+                heading: Trips
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Monthly Diesel Report Internal Transfer
+        }
+
+        savedReport 224451 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn "Actual Average" (
+                sequence: 7
+            )
+
+            displayColumn CONSUMPTIONDIESEL (
+                sequence: 6
+            )
+
+            displayColumn CREATOR (
+                sequence: 9
+            )
+
+            displayColumn DRIVERNAME (
+                sequence: 1
+            )
+
+            displayColumn "Extra Diesel" (
+                sequence: 8
+            )
+
+            displayColumn FIXAVERAGE (
+                sequence: 4
+            )
+
+            displayColumn NOOFDAYS (
+                sequence: 2
+            )
+
+            displayColumn TOTALFIXDIESEL (
+                sequence: 5
+            )
+
+            displayColumn TRIPS (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    region monthly-diesel-report-internal-transfer-2 (
+        name: Monthly Diesel Report Internal Transfer
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-expanded
+                t-Region--accent4
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P300_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select CompanyName D,
+                CompanyCode R
+                From Company;
+                ```
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 30
+            region: @monthly-diesel-report-internal-transfer-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P300_DRIVER (
+        type: popupLov
+        label {
+            label: Driver
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select Distinct DriverName From internaltransfer;
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 50
+            region: @monthly-diesel-report-internal-transfer-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P300_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @monthly-diesel-report-internal-transfer-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P300_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @monthly-diesel-report-internal-transfer-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P300_VEHICLENO (
+        type: popupLov
+        label {
+            label: Vehicle No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select Distinct VehicleNo From internaltransfer;
+        }
+        multipleValues {
+            type: delimitedList
+        }
+        layout {
+            sequence: 40
+            region: @monthly-diesel-report-internal-transfer-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 10
+            region: @monthly-diesel-report-internal-transfer-2
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

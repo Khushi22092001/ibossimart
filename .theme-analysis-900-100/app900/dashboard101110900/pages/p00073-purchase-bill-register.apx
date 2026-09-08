@@ -1,0 +1,1866 @@
+page 73 (
+    name: Purchase Bill Register
+    alias: PURCHASE-BILL-REGISTER
+    title: Purchase Bill Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/PurchaseBillRegister.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P73_FROMDATE').val());
+              var toDate = new Date($('#P73_TODATE').val());
+            
+            var reportParams = 
+                  '&P73_COMPANY='+ $('#P73_COMPANY').val() +
+                  '&P73_FROMDATE='+ $('#P73_FROMDATE').val() +  
+                  '&P73_TODATE=' + $('#P73_TODATE').val() +  
+                  '&P73_LOCATION=' +$('#P73_LOCATION').val() +  
+                  '&P73_PBPSTATUS=' +$('#P73_PBPSTATUS').val() +
+                  '&P73_PARTY=' +$('#P73_PARTY').val() +    
+                  '&P73_ITEMGROUP=' +$('#P73_ITEMGROUP').val() + 
+                  '&P73_ITEM=' +$('#P73_ITEM').val() +  
+                  '&P73_ITEMSPECIFICATION=' +$('#P73_ITEMSPECIFICATION').val() 
+                  ;
+             
+                  
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              var reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region purchase-bill-register (
+        name: Purchase Bill Register
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        settings {
+            expandShortcuts: true
+        }
+    )
+
+    region purchase-bill-register-report (
+        name: Purchase Bill Register Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                rownum,
+                xxx.TNo,
+                xxx.SNo,
+                xxx.LocationName,
+                xxx.PurchaseBillNo,
+                xxx.PurchaseBillDate,
+                xxx.Vendor,
+                xxx.PartyBillNo,
+                xxx.partyBillDate,
+                xxx.ItemCode,
+                xxx.Item,
+                xxx.UOM1,
+                round(xxx.Quantity1,3) as Quantity1,
+                xxx.UOM2,
+                round(xxx.Quantity2,3) as Quantity2,
+                xxx.Rate,
+                xxx.UOM,
+                round(xxx.Amount,2) as Amount,
+                xxx.CGST,
+                xxx.SGST,
+                xxx.IGST,
+                xxx.TCS,
+                round(xxx.FooterAmount,2) as FooterAmount,
+                round((xxx.FooterAmount - (xxx.CGST + xxx.SGST + xxx.IGST + xxx.TCS)),2) as OtherAmount,
+                round(xxx.TotalAmount,2) as TotalAmount,
+                xxx.PBPASS_STATUS,
+                xxx.PBPassNo,
+                xxx.PBPassDate,
+                xxx.locationcode,
+                xxx.vendoraddress,
+                (SELECT SUM(footerpercent)
+                FROM Purchasebilldetailfooter
+                WHERE tno = xxx.tno
+                AND sno = xxx.sno
+                AND footerheadcode IN ('.CGST.', '.SGST.', '.IGST.')
+                ) as footerpercent,
+                xxx.hsncode,
+                xxx.Description
+                From (Select
+                xx.TNo,
+                xx.SNo,
+                xx.LocationName,
+                xx.PurchaseBillNo,
+                xx.PurchaseBillDate,
+                xx.Vendor,
+                xx.PartyBillNo,
+                xx.partyBillDate,
+                xx.ItemCode,
+                xx.Item,
+                xx.UOM1,
+                xx.Quantity1,
+                xx.UOM2,
+                xx.Quantity2,
+                xx.Rate,
+                xx.RateMeasuringUnitCode UOM,
+                xx.Amount,
+                sum(xx.CGST) CGST,
+                sum(xx.SGST) SGST,
+                sum(xx.IGST) IGST,
+                sum(xx.TCS) TCS,
+                xx.FooterAmount,
+                xx.TotalAmount,
+                xx.PBPASS_STATUS,
+                xx.PBPassNo,
+                xx.PBPassDate,
+                xx.locationcode,
+                xx.vendoraddress,
+                max(xx.footerpercent) as footerpercent,
+                xx.hsncode,
+                xx.Description
+                From (Select
+                a.TNo,
+                b.SNo,
+                a.locationcode,
+                l.LocationName,
+                a.PurchaseBillNo,
+                a.PurchaseBillDate,
+                p.PartyName as Vendor,
+                (p.officeaddress ||
+                decode(p.officeaddress2, NULL, NULL, ',' || p.officeaddress2) ||
+                decode(p.officeaddress3, NULL, NULL, ',' || p.officeaddress3) ||
+                decode(p.officeaddress4, NULL, NULL, ',' || p.officeaddress4) ||
+                decode(p.officecitycode,
+                NULL,
+                NULL,
+                ',' || getcityname(p.officecitycode)) ||
+                decode(p.officestatecode,
+                NULL,
+                NULL,
+                ',' || getstatename(p.officestatecode)) ||
+                decode(p.officepincode,
+                NULL,
+                NULL,
+                ', PIN CODE -' || p.officepincode)
+                
+                ) as vendoraddress,
+                a.PartyBillNo,
+                a.partyBillDate,
+                e.ItemCode,
+                e.ItemName||' ~ '||ee.ItemSpecificationName as Item,
+                ee.hsncode,
+                e.MeasuringUnitCode1 as UOM1,
+                b.Quantity1,
+                e.MeasuringUnitCode2 as UOM2,
+                b.Quantity2,
+                b.Rate,
+                b.RateMeasuringUnitCode,
+                b.Amount,
+                c.footerpercent,
+                nvl(Decode(c.FooterHeadCode,'.CGST.', c.FooterValue),0) as CGST,
+                nvl(Decode(c.FooterHeadCode,'.SGST.', c.FooterValue),0) as SGST,
+                nvl(Decode(c.FooterHeadCode,'.IGST.', c.FooterValue),0) as IGST,
+                nvl(Decode(c.FooterHeadCode,'.TCS.', c.FooterValue),0) as TCS,
+                b.FooterAmount,
+                b.TotalAmount,
+                nvl(Decode(pbp.PurchaseBillTNo,a.TNo,'PREPARED'),'PENDING') as PBPASS_STATUS,
+                pbp.PBPassNo,
+                pbp.PBPassDate,
+                b.Description
+                From  PurchaseBill a, PurchaseBillDetail b, PurchaseBillDetailFooter c, Location l, Item e, ItemSpecification ee, Party p, PurchaseOrder po, PBPass pbp
+                Where a.TNo = b.TNo
+                and b.TNo = c.TNO(+)
+                and b.SNo = c.SNo(+)
+                and a.LocationCode = l.LocationCode
+                and b.ItemCode = e.ItemCode(+)
+                and b.ItemSpecificationCode = ee.ItemSpecificationCode(+)
+                and a.PartyCode = p.PartyCode(+)
+                and a.PurchaseOrderTNo = po.TNo(+)
+                and (:P73_TODOLIST = 'YES' OR :P73_NEXTPROCESS = 'YES' OR (a.PurchaseBillDate between :P73_FROMDATE and :P73_TODATE))
+                and (:P73_TODOLIST = 'YES' OR :P73_NEXTPROCESS = 'YES' OR (instr(':'||:P73_COMPANY||':',':'||a.CompanyCode||':') > 0))
+                and (:P73_TODOLIST = 'YES' OR :P73_NEXTPROCESS = 'YES' OR (instr(':'||:P73_LOCATION||':',':'||a.LocationCode||':') > 0))
+                and ( :P73_PARTY IS NULL OR instr(':'||:P73_PARTY||':',':'||a.PartyCode||':') > 0 )
+                and ( :P73_ITEM IS NULL OR instr(':'||:P73_ITEM||':',':'||e.ItemCode||':') > 0 )
+                and ( :P73_DOCTYPE IS NULL OR instr(':'||:P73_DOCTYPE||':',':'||po.DoctypeCode||':') > 0 )
+                and ( :P73_ITEMSPECIFICATION IS NULL OR instr(':'||:P73_ITEMSPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+                and nvl(Decode(pbp.PurchaseBillTNo,a.TNo,'PREPARED'),'PENDING') like nvl(:P73_PBPSTATUS,'%')
+                and a.TNo = pbp.PurchaseBillTNo(+)
+                and a.PurchaseBillNo like nvl(:P73_PBNO,'%')
+                  -- 22-APR-2025
+                  and ( GetUserPanelAB_apex() is null  or a.panel = GetUserPanelAB_apex())
+                -- and ( :P73_ITEMGROUP IS NULL OR instr(':'||:P73_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )                     
+                and ( :P73_ITEMGROUP IS NULL
+                or
+                exists (select 1 from (Select ITEMCODE,
+                parentcode,
+                RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+                Level,
+                CONNECT_BY_ROOT itemcode As root_id,
+                '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+                CONNECT_BY_ISLEAF As leaf
+                From item a
+                Start With parentcode in ( select itemcode from item xx where
+                instr(':'||:P73_ITEMGROUP||':',':'||xx.ItemCode||':') > 0)
+                
+                Connect By parentcode = Prior itemcode
+                Order Siblings By itemcode) x where x.itemcode = e.itemcode
+                )
+                )
+                )xx  
+                Group By
+                xx.TNo,
+                xx.SNo,
+                xx.LocationName,
+                xx.PurchaseBillNo,
+                xx.PurchaseBillDate,
+                xx.Vendor,
+                xx.PartyBillNo,
+                xx.partyBillDate,
+                xx.ItemCode,
+                xx.Item,
+                xx.UOM1,
+                xx.Quantity1,
+                xx.UOM2,
+                xx.Quantity2,
+                xx.Rate,
+                xx.RateMeasuringUnitCode,
+                xx.FooterAmount,
+                xx.Amount,
+                xx.TotalAmount,
+                xx.PBPASS_STATUS,
+                xx.PBPassNo,
+                xx.PBPassDate,
+                xx.locationcode,
+                xx.vendoraddress,
+                xx.hsncode,
+                xx.Description
+                )xxx
+                where ( :P73_TODOLIST='NO' OR (:P73_TODOLIST='YES' AND EXISTS ( SELECT 1 FROM ONTHETABLE_APEX YY WHERE YY.MODULETNO=XXX.TNO) ))
+                AND ( :P73_NEXTPROCESS = 'NO' OR (:P73_NEXTPROCESS = 'YES' AND (  getdocumentstatuscode('PURCHASEBILL',XXX.TNO)='ACTIVE'
+                                                    AND  NOT EXISTS (Select 1 From PBPass AA Where AA.Purchasebilltno = XXX.TNO)
+                                                ))
+                
+                 )
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        componentAppearance {
+            showNullValuesAs: 0
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+        }
+        download {
+            authorization: @candownload
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 49319861234262774
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column CGST (
+            type: plainText
+            heading {
+                heading: CGST
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: DESCRIPTION
+            }
+            layout {
+                sequence: 380
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#DESCRIPTION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column FOOTERAMOUNT (
+            type: plainText
+            heading {
+                heading: FOOTER AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column FOOTERPERCENT (
+            type: plainText
+            heading {
+                heading: TAX PERCENT
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column HSNCODE (
+            type: plainText
+            heading {
+                heading: HSN CODE
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column IGST (
+            type: plainText
+            heading {
+                heading: IGST
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column ITEM (
+            type: plainText
+            heading {
+                heading: MATERIAL DESCRIPTION
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:300px">#ITEM#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: LOCATION CODE
+                alignment: center
+            }
+            layout {
+                sequence: 300
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: LOCATION
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column OTHERAMOUNT (
+            type: plainText
+            heading {
+                heading: OTHER AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column PARTYBILLDATE (
+            type: plainText
+            heading {
+                heading: PARTY BILL DATE
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PARTYBILLDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column PARTYBILLNO (
+            type: plainText
+            heading {
+                heading: PARTY BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#PARTYBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column PBPASSDATE (
+            type: plainText
+            heading {
+                heading: PBPASS DATE
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PBPASSDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column PBPASSNO (
+            type: plainText
+            heading {
+                heading: PBPASS NO
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#PBPASSNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column PBPASS_STATUS (
+            type: plainText
+            heading {
+                heading: PBPASS STATUS
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PBPASS_STATUS#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column PURCHASEBILLDATE (
+            type: plainText
+            heading {
+                heading: PURCHASE BILL DATE
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PURCHASEBILLDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column PURCHASEBILLNO (
+            type: plainText
+            heading {
+                heading: PURCHASE BILL NO
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#PURCHASEBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: P QTY
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#QUANTITY1#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: S QTY
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#QUANTITY2#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: RATE
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column ROWNUM (
+            type: plainText
+            heading {
+                heading: SERIAL NO.
+                alignment: center
+            }
+            layout {
+                sequence: 370
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column SGST (
+            type: plainText
+            heading {
+                heading: SGST
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column SNO (
+            type: plainText
+            heading {
+                heading: Sno
+                alignment: center
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column TCS (
+            type: plainText
+            heading {
+                heading: TCS
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: TOTAL AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: UOM
+                alignment: center
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column UOM1 (
+            type: plainText
+            heading {
+                heading: P UOM
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#UOM1#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column UOM2 (
+            type: plainText
+            heading {
+                heading: S UOM
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:60px">#UOM2#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column VENDOR (
+            type: plainText
+            heading {
+                heading: VENDOR NAME
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#VENDOR#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column VENDORADDRESS (
+            type: plainText
+            heading {
+                heading: VENDOR ADDRESS
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#VENDORADDRESS#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Purchase Bill Register Report
+        }
+
+        savedReport 42621 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 18
+            )
+
+            displayColumn CGST (
+                sequence: 20
+            )
+
+            displayColumn DESCRIPTION (
+                sequence: 11
+            )
+
+            displayColumn FOOTERPERCENT (
+                sequence: 19
+            )
+
+            displayColumn HSNCODE (
+                sequence: 8
+            )
+
+            displayColumn IGST (
+                sequence: 22
+            )
+
+            displayColumn ITEM (
+                sequence: 10
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 9
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 1
+            )
+
+            displayColumn OTHERAMOUNT (
+                sequence: 24
+            )
+
+            displayColumn PARTYBILLDATE (
+                sequence: 7
+            )
+
+            displayColumn PARTYBILLNO (
+                sequence: 6
+            )
+
+            displayColumn PBPASSDATE (
+                sequence: 28
+            )
+
+            displayColumn PBPASSNO (
+                sequence: 27
+            )
+
+            displayColumn PBPASS_STATUS (
+                sequence: 26
+            )
+
+            displayColumn PURCHASEBILLDATE (
+                sequence: 4
+            )
+
+            displayColumn PURCHASEBILLNO (
+                sequence: 5
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 13
+            )
+
+            displayColumn QUANTITY2 (
+                sequence: 15
+            )
+
+            displayColumn RATE (
+                sequence: 16
+            )
+
+            displayColumn SGST (
+                sequence: 21
+            )
+
+            displayColumn TCS (
+                sequence: 23
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 25
+            )
+
+            displayColumn UOM (
+                sequence: 17
+            )
+
+            displayColumn UOM1 (
+                sequence: 12
+            )
+
+            displayColumn UOM2 (
+                sequence: 14
+            )
+
+            displayColumn VENDOR (
+                sequence: 2
+            )
+
+            displayColumn VENDORADDRESS (
+                sequence: 3
+            )
+
+            sort (
+                column: VENDOR
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: PURCHASEBILLDATE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: CGST
+            )
+
+            aggregate (
+                column: SGST
+            )
+
+            aggregate (
+                column: IGST
+            )
+
+            aggregate (
+                column: TCS
+            )
+
+            aggregate (
+                column: OTHERAMOUNT
+            )
+
+            aggregate (
+                column: TOTALAMOUNT
+            )
+
+        )
+
+    )
+
+    pageItem P73_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'PURCHASEBILL'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P73_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doctype
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct 
+                       b.DoctypeName d,
+                       b.DoctypeCode r 
+                From   PurchaseOrder a,Doctype b 
+                Where  a.Doctypecode = b.Doctypecode
+                Order By 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 100
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+    )
+
+    pageItem P73_FROMDATE (
+        type: datePickerJquery
+        label {
+            label: From Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 40
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)-7
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P73_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      e.ItemName||' ( '||e.ItemCode||' )' as d,
+                      e.ItemCode r
+                From PurchaseBillDetail a, Item e
+                Where a.ItemCode = e.ItemCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material
+        }
+    )
+
+    pageItem P73_ITEMGROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Material Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      a.ItemName||' ~ '||A.iTEMcODE d,
+                      a.ItemCode r
+                From  Item a
+                Where a.ItemType= 'GROUP'
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Material Group
+        }
+    )
+
+    pageItem P73_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      ee.ItemSpecificationName as d,
+                      ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee
+                Where e.ItemCode = :P73_ITEM
+                  and e.TNo = ee.TNo
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P73_ITEM
+            itemsToSubmit: P73_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 110
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material Specification
+        }
+    )
+
+    pageItem P73_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PURCHASEBILL'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P73_NEXTPROCESS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 130
+            region: @purchase-bill-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    pageItem P73_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Vendor
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From PurchaseBill a, Party p
+                Where a.PartyCode = p.PartyCode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Vendor Name
+        }
+    )
+
+    pageItem P73_PBPSTATUS (
+        type: selectList
+        label {
+            label: PBP Status
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:PREPARED;PREPARED,PENDING;PENDING
+            nullDisplayValue: --Select PBPass Status--
+        }
+        layout {
+            sequence: 60
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P73_TODATE (
+        type: datePickerJquery
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 50
+            region: @purchase-bill-register
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P73_TODOLIST (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 120
+            region: @purchase-bill-register
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+    )
+
+    button custom (
+        buttonName: CUSTOM
+        label: Custom
+        layout {
+            sequence: 20
+            region: @purchase-bill-register-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--iconRight
+            ]
+            icon: fa-file-excel-o
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: http://15.207.2.208:9704/xmlpserver/PRA/purchasebillregister.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&P73_FROMDATE=&P73_FROMDATE.&P73_TODATE=&P73_TODATE.&P73_PBPSTATUS=&P73_PBPSTATUS.&P73_ITEMSPECIFICATION=&P73_ITEMSPECIFICATION.&P73_ITEM=&P73_ITEM.&P73_LOCATION=&P73_LOCATION.&P73_PARTY=&P73_PARTY.&P73_PBNO=&P73_PBNO.
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: 1
+            value: 1
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 120
+            region: @purchase-bill-register
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                
+                begin
+                  if :P73_PBNO IS NOT NULL THEN
+                      SELECT X.FINANCIALYEARBEGIN INTO :P73_FROMDATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                      SELECT X.FINANCIALYEAREND INTO :P73_TODATE FROM FINANCIALYEAR X WHERE TRUNC(SYSDATE) BETWEEN X.FINANCIALYEARBEGIN AND X.FINANCIALYEAREND ;
+                  END IF;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeRegions
+        }
+        advanced {
+            executionMappingIdentifier: 5690173357298697
+        }
+    )
+
+)
+

@@ -1,0 +1,1047 @@
+page 141 (
+    name: Stock  Division Wise
+    alias: STOCK-DIVISION-WISE
+    title: Stock  Division Wise
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region stock-division-wise (
+        name: Stock  Division Wise
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region stock-division-wise-2 (
+        name: Stock  Division Wise
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select  
+                        row_number() over(order by x.Itemcode) SerialNo,
+                        x.Itemcode,
+                        x.ItemSpecificationCode,
+                        x.companycode,
+                        getcompanyname(x.companycode) as Company,
+                        /*Case
+                         When ROW_NUMBER()
+                          Over(Partition By x.Itemcode Order By x.Itemcode) = 1 Then
+                          x.Itemcode
+                         Else
+                          Null
+                       End Itemcode,*/
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By x.Itemcode Order By x.Itemcode) = 1 Then
+                          x.ItemName
+                         Else
+                          Null
+                       End ItemName,
+                       /*Case
+                         When ROW_NUMBER()
+                          Over(Partition By x.Itemcode,ItemSpecificationCode Order By x.Itemcode,ItemSpecificationCode) = 1 Then
+                          x.ItemSpecificationCode
+                         Else
+                          Null
+                       End ItemSpecificationCode,
+                       */
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By x.Itemcode,ItemSpecificationCode Order By x.Itemcode,ItemSpecificationCode) = 1 Then
+                          x.ItemSpecificationName
+                         Else
+                          Null
+                       End ItemSpecificationName,
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By x.Itemcode,ItemSpecificationCode,x.locationcode Order By x.Itemcode,ItemSpecificationCode,x.locationcode ) = 1 Then
+                          x.locationname
+                         Else
+                          Null
+                       End locationname,
+                    /* ,
+                     x.ItemName,
+                     x.ItemSpecificationCode,
+                       x.ItemSpecificationName,*/
+                       x.storagelocationcode,
+                       x.storagelocationname,
+                       x.locationcode,
+                     --  x.locationname,
+                       getLLItemOpeningQuantity1(x.locationcode, x.StorageLocationCode, x.ItemCode, x.ItemSpecificationCode,  X.COMPANYCODE , (to_date(:P141_ASONDATE,'dd-mm-yyyy') + 1))
+                        As ClosingQty
+                  From (Select Distinct A.ITEMCODE,
+                                        A.ITEMNAME,
+                                        B.ITEMSPECIFICATIONCODE,
+                                        B.ITEMSPECIFICATIONNAME,
+                                        e.storagelocationcode,
+                                        e.storagelocationname,
+                                        f.locationcode,
+                                        f.locationname,
+                                        c.companycode
+                          From ITEM               A,
+                               ITEMSPECIFICATION  B,
+                               stock              c,
+                               stockstoragedetail d,
+                               Storagelocation    e,
+                               Location           f
+                         Where A.TNO = B.TNO
+                           And a.itemcode = c.itemcode
+                           And b.itemspecificationcode = c.itemspecificationcode
+                           And c.tno = d.tno
+                           And d.storagelocationcode = e.storagelocationcode
+                           ---- Filter
+                           AND LENGTH(:P141_ASONDATE) > 0 
+                          AND INSTR(':'||:P141_COMPANY||':',':'||C.COMPANYCODE||':') > 0
+                          AND ( :P141_LOCATION is null or INSTR(':'||:P141_LOCATION||':',':'||C.LOCATIONCODE||':') > 0)
+                          AND ( :P141_ITEM IS NULL OR INSTR(':'||:P141_ITEM||':',':'||A.ITEMCODE||':') > 0 )
+                          AND ( :P141_ITEMNATURE IS NULL OR INSTR(':'||:P141_ITEMNATURE||':',':'||A.ITEMnaturecode||':') > 0 )
+                          AND ( :P141_ITEMSPECIFICATION IS NULL OR INSTR(':'||:P141_ITEMSPECIFICATION||':',':'||B.ITEMSPECIFICATIONCODE||':') > 0 )
+                          AND ( :P141_STORAGELOCATION IS NULL OR INSTR(':'||:P141_STORAGELOCATION||':',':'||E.STORAGELOCATIONCODE||':') > 0 ) 
+                           ) x
+                 Where 
+                 getLLItemOpeningQuantity1(x.locationcode, x.StorageLocationCode, x.ItemCode, x.ItemSpecificationCode,  x.COMPANYCODE, (to_date(:P141_ASONDATE,'dd-mm-yyyy') + 1)) > 0;	
+                  
+                
+                ```
+            pageItemsToSubmit: [
+                P141_COMPANY
+                P141_LOCATION
+                P141_ASONDATE
+                P141_FROMDATE
+                P141_TODATE
+                P141_STORAGELOCATION
+                P141_ITEM
+                P141_ITEMNATURE
+                P141_ITEMSPECIFICATION
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        advanced {
+            savedReportMappingIdentifier: 133195404396627841
+        }
+
+        column CLOSINGQTY (
+            type: plainText
+            heading {
+                heading: Closingqty
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ITEMNAME (
+            type: link
+            heading {
+                heading: Item Name
+            }
+            layout {
+                sequence: 20
+            }
+            link {
+                target: {
+                    page: 407
+                    items: {
+                        P407_COMPANY: &P141_COMPANY.
+                        P407_FROMDATE: &GLOBAL_FINANCIALYEARBEGIN.
+                        P407_TODATE: &P141_ASONDATE.
+                        P407_ITEM: #ITEMCODE#
+                        P407_LOCATION: &P141_LOCATION.
+                    }
+                    clearCache: 407
+                }
+                linkText: #ITEMNAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: link
+            heading {
+                heading: Item Specification
+            }
+            layout {
+                sequence: 40
+            }
+            link {
+                target: {
+                    page: 407
+                    items: {
+                        P407_COMPANY: &P141_COMPANY.
+                        P407_FROMDATE: &GLOBAL_FINANCIALYEARBEGIN.
+                        P407_ITEM: #ITEMCODE#
+                        P407_ITEMSPECIFICATION: #ITEMSPECIFICATIONCODE#
+                        P407_TODATE: &P141_ASONDATE.
+                        P407_LOCATION: &P141_LOCATION.
+                    }
+                    clearCache: 407
+                }
+                linkText: #ITEMSPECIFICATIONNAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Locationcode
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column LOCATIONNAME (
+            type: link
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 90
+            }
+            link {
+                target: {
+                    page: 407
+                    items: {
+                        P407_COMPANY: &P141_COMPANY.
+                        P407_FROMDATE: &GLOBAL_FINANCIALYEARBEGIN.
+                        P407_TODATE: &P141_ASONDATE.
+                        P407_ITEM: #ITEMCODE#
+                        P407_ITEMSPECIFICATION: #ITEMSPECIFICATIONCODE#
+                        P407_LOCATION: #LOCATIONCODE#
+                    }
+                    clearCache: 407
+                }
+                linkText: #LOCATIONNAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column STORAGELOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Storagelocationcode
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column STORAGELOCATIONNAME (
+            type: link
+            heading {
+                heading: Storage Location
+            }
+            layout {
+                sequence: 60
+            }
+            link {
+                target: {
+                    page: 407
+                    items: {
+                        P407_COMPANY: &P141_COMPANY.
+                        P407_LOCATION: #LOCATIONCODE#
+                        P407_FROMDATE: &GLOBAL_FINANCIALYEARBEGIN.
+                        P407_TODATE: &P141_ASONDATE.
+                        P407_ITEM: #ITEMCODE#
+                        P407_ITEMSPECIFICATION: #ITEMSPECIFICATIONCODE#
+                        P407_STORAGELOCATION: #STORAGELOCATIONCODE#
+                    }
+                    clearCache: 407
+                }
+                linkText: #STORAGELOCATIONNAME#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Stock  Division Wise
+        }
+
+        savedReport 672398 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CLOSINGQTY (
+                sequence: 6
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 3
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 4
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn STORAGELOCATIONNAME (
+                sequence: 5
+            )
+
+            aggregate (
+                column: CLOSINGQTY
+            )
+
+        )
+
+    )
+
+    pageItem P141_ASONDATE (
+        type: datePicker
+        label {
+            label: As On Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P141_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'STOCKSTATEMENT'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P141_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @stock-division-wise
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P141_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: "Item "
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 3
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select DISTINCT
+                      e.ItemName d,
+                      e.ItemCode r
+                From  Item e, ItemSpecification ee
+                Where e.itemclassificationcode = 'MATERIAL'
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Material List
+        }
+    )
+
+    pageItem P141_ITEMNATURE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item  Nature
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                  Select a.ItemnatureName As d,
+                       a.ItemNatureCode As r
+                  From ItemNature a
+                  order by 1
+                /*
+                select 
+                distinct 
+                getitemname(a.parentcode) as d,
+                a.parentcode as r
+                from item a
+                order by 1
+                */
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Material Group Name
+        }
+    )
+
+    pageItem P141_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 3
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      ee.ItemSpecificationName as d,
+                      ee.ItemSpecificationCode as r
+                From  Item e, ItemSpecification ee
+                Where e.TNo = ee.TNo
+                  and e.ItemCode = :P141_ITEM
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P141_ITEM
+            itemsToSubmit: P141_ITEMSPECIFICATION
+        }
+        layout {
+            sequence: 100
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 74
+            valuePlaceholder: Select Item Specification
+        }
+    )
+
+    pageItem P141_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT l.LocationName d,l.LocationCode r FROM LOCATION L  WHERE L.LOCATIONCODE IN (SELECT LOCATIONCODE FROM STOCK)
+                /*Select
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'GRN'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ;
+                */
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P141_STORAGELOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Storage Loc
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT STORAGELOCATIONNAME AS D,
+                STORAGELOCATIONCODE AS R
+                FROM STORAGELOCATION 
+                
+                ```
+        }
+        layout {
+            sequence: 70
+            region: @stock-division-wise
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Storage Location Name
+        }
+    )
+
+    pageItem P141_TODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @stock-division-wise
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button custom (
+        buttonName: CUSTOM
+        label: Custom
+        layout {
+            sequence: 10
+            region: @stock-division-wise-2
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--iconRight
+            ]
+            icon: fa-file-excel-o
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: http://15.207.2.208:9704/xmlpserver/PRA/StockStatus.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&P141_FROMDATE=&P141_FROMDATE.&P141_TODATE=&P141_TODATE.&P141_LOCATION=&P141_LOCATION.&P141_ITEM=&P141_ITEM.&
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P141_ITEM
+            value: 1
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 20
+            region: @stock-division-wise-2
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--iconRight
+            ]
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: http://15.207.2.208:9704/xmlpserver/PRA/StockStatus.xdo?id=weblogic&passwd=webboss123&_xpt=1&_xmode=1&P141_FROMDATE=&P141_FROMDATE.&P141_TODATE=&P141_TODATE.&P141_LOCATION=&P141_LOCATION.&P141_ITEM=&P141_ITEM.&_xf=pdf
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P141_ITEM
+            value: 1
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 110
+            region: @stock-division-wise
+            slot: regionBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

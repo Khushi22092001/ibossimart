@@ -1,0 +1,1770 @@
+page 63 (
+    name: Attendance Monthly Detail
+    alias: ATTENDANCE-MONTHLY-DETAIL
+    title: Attendance Monthly Detail
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region attendance-monthly-detail (
+        name: Attendance Monthly Detail
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region attendance-monthly-detail-report (
+        name: Attendance Monthly Detail Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* OLD CODE
+                select * from (Select 
+                      l.LocationName,
+                      b.EmployeeCode,
+                      e.EmployeeName||' ( '||e.EmployeeCode||' )' as Employee,
+                      to_number(To_char(a.attendenceDate,'DD'),'99') day,
+                      b.AttendenceHeadCode,
+                      null as totalpr
+                From Attendence a, AttendenceDetail b, Employee e, Location l
+                Where a.TNo = b.TNo(+)
+                  and b.EmployeeCode = e.EmployeeCode(+)
+                  and a.LocationCode = l.LocationCode
+                  and a.LocationCode = nvl(:p63_location,a.locationcode)
+                  and a.attendencedate between nvl(:p63_fromdate,sysdate) and nvl(:p63_todate,sysdate) 
+                	)
+                  pivot (
+                   max(AttendenceHeadCode) as day for day in (1 ,2 ,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31)
+                  )
+                  */
+                  
+                Select 
+                  ROWNUM,
+                  x.*,Y.* from 
+                (select * from (Select 
+                      l.LocationName,
+                      b.EmployeeCode,
+                      e.EmployeeName,
+                      e.EmployeeID,
+                      dp.DepartmentName,
+                      getworkcentername(e.workcentrecode) as WorkCenterName,
+                      dg.DesignationName,
+                      to_number(To_char(a.attendenceDate,'DD'),'99') day,
+                      --b.AttendenceHeadCode,
+                      AH.attendenceheadshortname,
+                      null as totalpr,
+                      st.StaffTypeName
+                From Attendence a, AttendenceDetail b, Employee e, Location l, Department dp, Designation dg, ATTENDENCEHEAD AH, StaffType st
+                Where a.TNo = b.TNo(+)
+                  and b.EmployeeCode = e.EmployeeCode(+)
+                  and a.LocationCode = l.LocationCode(+)
+                  and e.DepartmentCode = dp.DepartmentCode(+)
+                  and e.DesignationCode = dg.DesignationCode(+)
+                  AND B.ATTENDENCEHEADCODE = AH.ATTENDENCEHEADCODE(+)
+                  and e.StaffTypeCode = st.StaffTypeCode(+)
+                  and b.EmployeeCode not in ('AS','VAS')
+                  and ( :P63_DEPARTMENT IS NULL OR instr(':'||:P63_DEPARTMENT||':',':'||getemployeedepartmentcode(b.EmployeeCode,A.attendenceDate)||':') > 0 ) 
+                  and ( :P63_WORKCENTER IS NULL OR instr(':'||:P63_WORKCENTER||':',':'||e.workcentrecode||':') > 0 ) 
+                  and ( :P63_DESIGNATION IS NULL OR instr(':'||:P63_DESIGNATION||':',':'||getemployeedesignationcode(b.EmployeeCode,A.attendenceDate)||':') > 0 ) 
+                  and ( :P63_STAFFTYPE IS NULL OR instr(':'||:P63_STAFFTYPE||':',':'||e.StaffTypeCode||':') > 0 ) 
+                  and instr(':'||:P63_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P63_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and a.attendencedate between :p63_fromdate and :p63_todate 
+                
+                   )
+                  pivot (
+                   max(AttendenceHeadShortName) as day for day in (1 ,2 ,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31)
+                  )
+                ) x, 
+                
+                ( SELECT * FROM ( select 
+                  EMPLOYEECODE empcode,
+                  --BB.ATTENDENCEHEADCODE --,
+                  ah.AttendenceHeadShortName,
+                  bb.attendencevalue 
+                  from  atteNdence aa, attendencedetail bb, Attendencehead ah
+                  where aa.tno = bb.tno(+)
+                    --and aa.LocationCode = nvl(:p63_location,aa.locationcode)
+                   and instr(':'||:P63_COMPANY||':',':'||aa.CompanyCode||':') > 0
+                   and instr(':'||:P63_LOCATION||':',':'||aa.LocationCode||':') > 0
+                   and bb.AttendenceHeadCode = ah.AttendenceHeadCode(+)
+                   and aa.attendencedate between nvl(:P63_FROMDATE,sysdate) and nvl(:P63_TODATE,sysdate) 
+                
+                )
+                PIVOT
+                 ( 
+                  sum(attendencevalue) AS TOTAL FOR AttendenceHeadShortName IN ('P','A','OFF','OD','OH','L','C')
+                 )
+                  
+                ) y
+                
+                where x.employeecode = y.empcode 
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        componentAppearance {
+            showNullValuesAs: -
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                excel
+                pdf
+            ]
+            sendAsEmail: false
+        }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 11540534693833695
+        }
+
+        column 'A'_TOTAL (
+            type: plainText
+            heading {
+                heading: A
+                alignment: center
+            }
+            layout {
+                sequence: 500
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column 'C'_TOTAL (
+            type: plainText
+            heading {
+                heading: C
+                alignment: center
+            }
+            layout {
+                sequence: 510
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BL
+            }
+        )
+
+        column 'L'_TOTAL (
+            type: plainText
+            heading {
+                heading: L
+                alignment: center
+            }
+            layout {
+                sequence: 540
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BP
+            }
+        )
+
+        column 'OD'_TOTAL (
+            type: plainText
+            heading {
+                heading: OD
+                alignment: center
+            }
+            layout {
+                sequence: 530
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BN
+            }
+        )
+
+        column 'OFF'_TOTAL (
+            type: plainText
+            heading {
+                heading: OFF
+                alignment: center
+            }
+            layout {
+                sequence: 520
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BM
+            }
+        )
+
+        column 'OH'_TOTAL (
+            type: plainText
+            heading {
+                heading: OH
+                alignment: center
+            }
+            layout {
+                sequence: 550
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BR
+            }
+        )
+
+        column 'P'_TOTAL (
+            type: plainText
+            heading {
+                heading: P
+                alignment: center
+            }
+            layout {
+                sequence: 490
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BF
+            }
+        )
+
+        column 10_DAY (
+            type: plainText
+            heading {
+                heading: 10
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column 11_DAY (
+            type: plainText
+            heading {
+                heading: 11
+                alignment: center
+            }
+            layout {
+                sequence: 150
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column 12_DAY (
+            type: plainText
+            heading {
+                heading: 12
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column 13_DAY (
+            type: plainText
+            heading {
+                heading: 13
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column 14_DAY (
+            type: plainText
+            heading {
+                heading: 14
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column 15_DAY (
+            type: plainText
+            heading {
+                heading: 15
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column 16_DAY (
+            type: plainText
+            heading {
+                heading: 16
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column 17_DAY (
+            type: plainText
+            heading {
+                heading: 17
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column 18_DAY (
+            type: plainText
+            heading {
+                heading: 18
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column 19_DAY (
+            type: plainText
+            heading {
+                heading: 19
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column 1_DAY (
+            type: plainText
+            heading {
+                heading: 1
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column 20_DAY (
+            type: plainText
+            heading {
+                heading: 20
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column 21_DAY (
+            type: plainText
+            heading {
+                heading: 21
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column 22_DAY (
+            type: plainText
+            heading {
+                heading: 22
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column 23_DAY (
+            type: plainText
+            heading {
+                heading: 23
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column 24_DAY (
+            type: plainText
+            heading {
+                heading: 24
+                alignment: center
+            }
+            layout {
+                sequence: 280
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column 25_DAY (
+            type: plainText
+            heading {
+                heading: 25
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column 26_DAY (
+            type: plainText
+            heading {
+                heading: 26
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column 27_DAY (
+            type: plainText
+            heading {
+                heading: 27
+                alignment: center
+            }
+            layout {
+                sequence: 310
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column 28_DAY (
+            type: plainText
+            heading {
+                heading: 28
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column 29_DAY (
+            type: plainText
+            heading {
+                heading: 29
+                alignment: center
+            }
+            layout {
+                sequence: 330
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column 2_DAY (
+            type: plainText
+            heading {
+                heading: 2
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column 30_DAY (
+            type: plainText
+            heading {
+                heading: 30
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column 31_DAY (
+            type: plainText
+            heading {
+                heading: 31
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column 3_DAY (
+            type: plainText
+            heading {
+                heading: 3
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column 4_DAY (
+            type: plainText
+            heading {
+                heading: "4 "
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column 5_DAY (
+            type: plainText
+            heading {
+                heading: 5
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column 6_DAY (
+            type: plainText
+            heading {
+                heading: 6
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column 7_DAY (
+            type: plainText
+            heading {
+                heading: "7 "
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column 8_DAY (
+            type: plainText
+            heading {
+                heading: 8
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column 9_DAY (
+            type: plainText
+            heading {
+                heading: 9
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column DEPARTMENTNAME (
+            type: plainText
+            heading {
+                heading: DEPARTMENT
+                alignment: center
+            }
+            layout {
+                sequence: 460
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column DESIGNATIONNAME (
+            type: plainText
+            heading {
+                heading: DESIGNATION
+                alignment: center
+            }
+            layout {
+                sequence: 480
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column EMPCODE (
+            type: hidden
+            heading {
+                heading: Empcode
+            }
+            layout {
+                sequence: 360
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column EMPLOYEECODE (
+            type: plainText
+            heading {
+                heading: EMPLOYEE CODE
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column EMPLOYEEID (
+            type: plainText
+            heading {
+                heading: EMP ID
+                alignment: center
+            }
+            layout {
+                sequence: 450
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: plainText
+            heading {
+                heading: EMPLOYEE
+                alignment: center
+            }
+            layout {
+                sequence: 440
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ROWNUM (
+            type: plainText
+            heading {
+                heading: SERIAL NO
+                alignment: center
+            }
+            layout {
+                sequence: 570
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BT
+            }
+        )
+
+        column STAFFTYPENAME (
+            type: plainText
+            heading {
+                heading: STAFF TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 560
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BS
+            }
+        )
+
+        column TOTALPR (
+            type: hidden
+            heading {
+                heading: Totalpr
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column WORKCENTERNAME (
+            type: plainText
+            heading {
+                heading: WORKCENTER
+                alignment: center
+            }
+            layout {
+                sequence: 470
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BU
+            }
+        )
+
+        page {
+            size: tabloid
+            width: 17
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            fontWeight: bold
+            fontSize: 15
+            pageHeaderText:
+                ```
+                  Caliber Mercantile Private Limited  
+                   Attendance Monthly Detail Report
+                 From : &P63_FROMDATE. TO &P63_TODATE.
+                ```
+        }
+
+        savedReport 35658 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn 'A'_TOTAL (
+                sequence: 40
+            )
+
+            displayColumn 'L'_TOTAL (
+                sequence: 43
+            )
+
+            displayColumn 'OD'_TOTAL (
+                sequence: 42
+            )
+
+            displayColumn 'OFF'_TOTAL (
+                sequence: 41
+            )
+
+            displayColumn 'OH'_TOTAL (
+                sequence: 44
+            )
+
+            displayColumn 'P'_TOTAL (
+                sequence: 39
+            )
+
+            displayColumn 10_DAY (
+                sequence: 17
+            )
+
+            displayColumn 11_DAY (
+                sequence: 18
+            )
+
+            displayColumn 12_DAY (
+                sequence: 19
+            )
+
+            displayColumn 13_DAY (
+                sequence: 20
+            )
+
+            displayColumn 14_DAY (
+                sequence: 21
+            )
+
+            displayColumn 15_DAY (
+                sequence: 22
+            )
+
+            displayColumn 16_DAY (
+                sequence: 23
+            )
+
+            displayColumn 17_DAY (
+                sequence: 24
+            )
+
+            displayColumn 18_DAY (
+                sequence: 25
+            )
+
+            displayColumn 19_DAY (
+                sequence: 26
+            )
+
+            displayColumn 1_DAY (
+                sequence: 8
+            )
+
+            displayColumn 20_DAY (
+                sequence: 27
+            )
+
+            displayColumn 21_DAY (
+                sequence: 28
+            )
+
+            displayColumn 22_DAY (
+                sequence: 29
+            )
+
+            displayColumn 23_DAY (
+                sequence: 30
+            )
+
+            displayColumn 24_DAY (
+                sequence: 31
+            )
+
+            displayColumn 25_DAY (
+                sequence: 32
+            )
+
+            displayColumn 26_DAY (
+                sequence: 33
+            )
+
+            displayColumn 27_DAY (
+                sequence: 34
+            )
+
+            displayColumn 28_DAY (
+                sequence: 35
+            )
+
+            displayColumn 29_DAY (
+                sequence: 36
+            )
+
+            displayColumn 2_DAY (
+                sequence: 9
+            )
+
+            displayColumn 30_DAY (
+                sequence: 37
+            )
+
+            displayColumn 31_DAY (
+                sequence: 38
+            )
+
+            displayColumn 3_DAY (
+                sequence: 10
+            )
+
+            displayColumn 4_DAY (
+                sequence: 11
+            )
+
+            displayColumn 5_DAY (
+                sequence: 12
+            )
+
+            displayColumn 6_DAY (
+                sequence: 13
+            )
+
+            displayColumn 7_DAY (
+                sequence: 14
+            )
+
+            displayColumn 8_DAY (
+                sequence: 15
+            )
+
+            displayColumn 9_DAY (
+                sequence: 16
+            )
+
+            displayColumn DEPARTMENTNAME (
+                sequence: 4
+            )
+
+            displayColumn DESIGNATIONNAME (
+                sequence: 5
+            )
+
+            displayColumn EMPLOYEEID (
+                sequence: 2
+            )
+
+            displayColumn EMPLOYEENAME (
+                sequence: 3
+            )
+
+            displayColumn ROWNUM (
+                sequence: 1
+            )
+
+            displayColumn STAFFTYPENAME (
+                sequence: 7
+            )
+
+            displayColumn WORKCENTERNAME (
+                sequence: 6
+            )
+
+            sort (
+                column: ROWNUM
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: EMPLOYEEID
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                function: count
+                column: ROWNUM
+            )
+
+        )
+
+    )
+
+    pageItem P63_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'ATTENDENCE'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P63_DEPARTMENT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Department
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                     Distinct
+                     a.DepartmentName d,
+                     a.DepartmentCode r
+                From Department a
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Department Name
+        }
+    )
+
+    pageItem P63_DESIGNATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Designation
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                     Distinct
+                     a.Designationname d,
+                     a.DesignationCode r
+                From Designation a
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Designation
+        }
+    )
+
+    pageItem P63_FROMDATE (
+        type: datePickerJquery
+        label {
+            label: From Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 30
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 45
+            valuePlaceholder: From Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P63_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'ATTENDENCE'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+    )
+
+    pageItem P63_STAFFTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: "Staff Type "
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                     Distinct
+                     c.StafftypeName d,
+                     c.StaffTypeCode r
+                From AttendenceDetail a, Employee b, StaffType c
+                Where a.EmployeeCode = b.EmployeeCode(+)
+                and b.StaffTypeCode = c.StaffTypeCode(+)
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 50
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select StaffType
+        }
+    )
+
+    pageItem P63_TODATE (
+        type: datePickerJquery
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 40
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 40
+            valuePlaceholder: To Date
+        }
+        default {
+            type: expression
+            plsqlExpression: Trunc(Sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P63_WORKCENTER (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Workcenter
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                     Distinct
+                     a.WorkCentreName d,
+                     a.WorkCentreCode r
+                From Workcentre a
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @attendance-monthly-detail
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Department Name
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @attendance-monthly-detail
+            slot: regionBody
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

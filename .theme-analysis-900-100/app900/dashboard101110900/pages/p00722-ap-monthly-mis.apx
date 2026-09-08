@@ -1,0 +1,801 @@
+page 722 (
+    name: Monthly AP Management MIS
+    alias: AP-MONTHLY-MIS
+    title: Monthly AP Management MIS
+    pageGroup: @payables-intelligence
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: The management pack, in nine sections: Executive Summary, Ageing, Payments, Creditor Exposure, Advances, Risk, Reconciliation, Exceptions and Management Actions. Every line states its own basis, and lines whose data does not exist in this ERP say so rather than reading zero - credit limit and credit utilisation in particular, which cannot be computed because Party.CreditAmount is greater than zero on 0 of 954 creditor accounts. Positions are measured at the To Date, flows across the From-To window, and the Reconciliation section proves the pack against the general-ledger control account rather than asserting it.
+    }
+
+    region by-company (
+        name: Position by Company and Location
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P722_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno)
+                Select apex_escape.html(nvl(c.CompanyName, d.CompanyCode))   As COMPANY,
+                       apex_escape.html(nvl(l.LocationName, d.LocationCode)) As LOCATION,
+                       Round(Sum(Case When -(d.Amount-nvl(al.Amt,0))>0
+                                      Then -(d.Amount-nvl(al.Amt,0)) Else 0 End),2) As GROSS,
+                       Round(Sum(Case When -(d.Amount-nvl(al.Amt,0))<0
+                                      Then  (d.Amount-nvl(al.Amt,0)) Else 0 End),2) As CREDIT_HELD,
+                       Round(Sum(-(d.Amount-nvl(al.Amt,0))),2)                      As NET_EXPOSURE,
+                       Round(Sum(-d.Amount),2)                                      As GL_CONTROL,
+                       Round(Sum(-(d.Amount-nvl(al.Amt,0))) - Sum(-d.Amount),2)     As DIFFERENCE
+                  From VoucherDetail d
+                  Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                  Left Join Company c On c.CompanyCode = d.CompanyCode
+                  Left Join Location l On l.LocationCode = d.LocationCode
+                  Cross Join Asof
+                 Where d.AccountCode In (Select PartyCode From Sd)
+                   And d.VoucherDate <= Asof.D
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (:P722_PANEL    Is Null Or d.Panel        = :P722_PANEL)
+                   And (:P722_COMPANY  Is Null Or d.CompanyCode  = :P722_COMPANY)
+                   And (:P722_LOCATION Is Null Or d.LocationCode = :P722_LOCATION)
+                 Group By d.CompanyCode, c.CompanyName, d.LocationCode, l.LocationName
+                 Order By 1, 2
+                ```
+            pageItemsToSubmit: [
+                P722_TODATE
+                P722_COMPANY
+                P722_LOCATION
+                P722_PANEL
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No payable position in this scope.
+        }
+
+        column COMPANY (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column CREDIT_HELD (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Credit Held (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+        )
+
+        column DIFFERENCE (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Difference (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+        )
+
+        column GL_CONTROL (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: GL Control (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+        )
+
+        column GROSS (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Gross (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+        )
+
+        column LOCATION (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column NET_EXPOSURE (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Net Exposure (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+        )
+
+    )
+
+    region command-header (
+        name: Monthly AP Management MIS
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-ap-head">'
+                    || '<div class="ds-ap-eyebrow">Payables &middot; Monthly Management MIS</div>'
+                    || '<h1 class="ds-ap-title">Monthly AP Management MIS</h1>'
+                    || '<div class="ds-ap-sub">Nine sections, every line carrying its own basis, reconciled to the general ledger at the foot</div>'
+                    || '<div class="ds-ap-context">'
+                    || '<span class="ds-ap-chip"><span class="fa fa-calendar"></span>Period <b>'
+                       || :P722_FROMDATE || ' &rarr; ' || :P722_TODATE || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-crosshairs"></span>Positions as at <b>' || :P722_TODATE || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P722_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P722_LOCATION),'All locations')) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-shield"></span>Panel <b>'
+                       || Case When (Select GetUserPanelAB_apex() From dual) Is Not Null
+                               Then (Select GetUserPanelAB_apex() From dual) || ' (enforced)'
+                               When :P722_PANEL Is Not Null Then :P722_PANEL Else 'A + B' End || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P722_FROMDATE
+                P722_TODATE
+                P722_COMPANY
+                P722_LOCATION
+                P722_PANEL
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ap-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p722Filters
+        }
+    )
+
+    region pack (
+        name: Management Pack
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* THE WHOLE PACK FROM ONE EVALUATION OF THE CANONICAL LAYER.
+                   Nine sections, all derived from a single pass so no two lines can
+                   disagree with each other. Lines whose input does not exist in this
+                   ERP are emitted with a null value and an explicit basis - never as a
+                   zero, which a reader would take for a measured result. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P722_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select d.AccountCode Pty, d.VoucherDate Vdt, d.Panel Pnl, d.LocationCode Loc,
+                              v.VoucherNo Vno, v.DocTypeCode Dtc, v.ModuleCode Mc,
+                              (d.Amount - nvl(al.Amt,0)) Recv,
+                              -d.Amount Gl,
+                              coalesce(i.DueDate, sb.DueDate, ao.BillDueDate) DueDate,
+                              coalesce(i.PbPassDate, ao.BillDate, d.VoucherDate) DocDate,
+                              ao.BillDate AoBillDate
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join PBPass     i  On v.ModuleCode = 'PBPASS'     And i.Tno  = v.ModuleTno
+                         Left Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P722_PANEL    Is Null Or d.Panel        = :P722_PANEL)
+                          And (:P722_COMPANY  Is Null Or d.CompanyCode  = :P722_COMPANY)
+                          And (:P722_LOCATION Is Null Or d.LocationCode = :P722_LOCATION)),
+                     T As (
+                       Select nvl(Sum(Case When Recv>0 Then Recv Else 0 End),0) Gross,
+                              nvl(Sum(Case When Recv<0 Then -Recv Else 0 End),0) Cred,
+                              nvl(Sum(Recv),0) Net,
+                              nvl(Sum(Gl),0) GlNet,
+                              nvl(Sum(Case When Recv>0 And DueDate>=(Select D From Asof) Then Recv Else 0 End),0) NotDue,
+                              nvl(Sum(Case When Recv>0 And DueDate<(Select D From Asof) Then Recv Else 0 End),0) Overdue,
+                              nvl(Sum(Case When Recv>0 And DueDate Is Null Then Recv Else 0 End),0) NoAge,
+                              nvl(Sum(Case When Recv>0 And (Select D From Asof)-DocDate<=30 Then Recv Else 0 End),0) A30,
+                              nvl(Sum(Case When Recv>0 And (Select D From Asof)-DocDate>30
+                                            And (Select D From Asof)-DocDate<=90 Then Recv Else 0 End),0) A90,
+                              nvl(Sum(Case When Recv>0 And (Select D From Asof)-DocDate>90
+                                            And (Select D From Asof)-DocDate<=180 Then Recv Else 0 End),0) A180,
+                              nvl(Sum(Case When Recv>0 And (Select D From Asof)-DocDate>180 Then Recv Else 0 End),0) A180P,
+                              nvl(Sum(Case When Recv<0 And Dtc='RECEIPT' Then -Recv Else 0 End),0) Unapp,
+                              nvl(Sum(Case When Recv<0 And Dtc='RECEIPT'
+                                            And (Select D From Asof)-Vdt>90 Then -Recv Else 0 End),0) Unapp90,
+                              nvl(Sum(Case When Recv<0 And Mc='PBPASS' Then -Recv Else 0 End),0) Contra,
+                              Count(Distinct Case When Recv<>0 Then Pty End) ActPty,
+                              Count(Distinct Case When Recv>0 And DueDate<(Select D From Asof) Then Pty End) OdPty,
+                              nvl(Sum(Case When Recv>0 And DueDate Is Not Null
+                                       Then Recv * Greatest((Select D From Asof)-DueDate,0) End),0) WSum,
+                              nvl(Sum(Case When Recv>0 And DueDate Is Not Null Then Recv End),0) WBase
+                         From Oi),
+                     Pty As (
+                       Select Pty, Sum(Case When Recv>0 Then Recv Else 0 End) Dr,
+                                   Sum(Case When Recv<0 Then -Recv Else 0 End) Cr
+                         From Oi Group By Pty),
+                     Conc As (
+                       Select nvl(Sum(Dr),0) Top10 From (
+                         Select Dr From Pty Where Dr>0.005 Order By Dr Desc Fetch First 10 Rows Only)),
+                     Both As (Select Count(*) N, nvl(Sum(Least(Dr,Cr)),0) Adj From Pty Where Dr>0.005 And Cr>0.005),
+                     F As (
+                       Select nvl(Sum(Case When v.DocTypeCode In ('PURCHASE','SERVICEBILL') And d.Amount<0
+                                           Then -d.Amount Else 0 End),0) Billing,
+                              nvl(Sum(Case When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT') And d.Amount>0 Then d.Amount Else 0 End),0) Coll,
+                              nvl(Count(Distinct Case When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT') Then d.Tno End),0) RcptN,
+                              nvl(Sum(Case When v.DocTypeCode = 'DEBITNOTE' And d.Amount>0 Then d.Amount Else 0 End),0) CN
+                         From VoucherDetail d Join Voucher v On v.Tno=d.Tno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate >= to_date(:P722_FROMDATE,'DD-MM-RRRR')
+                          And d.VoucherDate <  to_date(:P722_TODATE,'DD-MM-RRRR') + 1
+                          And ((Select GetUserPanelAB_apex() From dual) Is Null
+                               Or d.Panel = (Select GetUserPanelAB_apex() From dual))
+                          And (:P722_PANEL    Is Null Or d.Panel        = :P722_PANEL)
+                          And (:P722_COMPANY  Is Null Or d.CompanyCode  = :P722_COMPANY)
+                          And (:P722_LOCATION Is Null Or d.LocationCode = :P722_LOCATION)),
+                     Ex As (
+                       Select (Select Count(*) From Oi Where Recv>0.005 And DueDate Is Null) NoDueN,
+                              (Select Count(*) From Oi o Cross Join Asof
+                                Where o.Dtc='RECEIPT' And o.Recv<-0.005 And Asof.D-o.Vdt>90) Unapp90N,
+                              (Select Count(*) From Oi Where Vno='OPENING' And AoBillDate Is Null And Abs(Recv)>0.005) OpenN,
+                              (Select Count(*) From Oi Where Pnl Is Null) PanelN,
+                              (Select Count(*) From DrCrAllocation a
+                                Where Not Exists (Select 1 From Voucher v Where v.Tno=a.DrVoucherTno)
+                                   Or Not Exists (Select 1 From Voucher v Where v.Tno=a.CrVoucherTno)) OrphanN
+                         From dual)
+                Select Ord, Section, Line, Amt, Basis From (
+                  Select 100 Ord,'1. Executive Summary' Section,'Gross Outstanding' Line, Round(t.Gross,2) Amt,
+                         'open debit items as at ' || :P722_TODATE Basis From T t
+                  Union All Select 110,'1. Executive Summary','Vendor Debits Held', Round(t.Cred,2),
+                         'advances, unapplied cash, credit notes and contra purchases' From T t
+                  Union All Select 120,'1. Executive Summary','Net Vendor Exposure', Round(t.Net,2),
+                         'gross less credits - the figure that ties to the GL' From T t
+                  Union All Select 130,'1. Executive Summary','Active creditors', t.ActPty,
+                         'vendors with a non-zero position' From T t
+                  Union All Select 200,'2. Ageing','Not yet due', Round(t.NotDue,2),
+                         'due date on or after the As-of Date' From T t
+                  Union All Select 210,'2. Ageing','Overdue', Round(t.Overdue,2),
+                         'due date already passed' From T t
+                  Union All Select 220,'2. Ageing','Cannot age - no due date', Round(t.NoAge,2),
+                         'no due date on the source document; ERP holds no credit terms to derive one' From T t
+                  Union All Select 230,'2. Ageing','Weighted days overdue',
+                         Round(t.WSum / Nullif(t.WBase,0),0),
+                         'weighted by amount, over items that carry a due date only' From T t
+                  Union All Select 240,'2. Ageing','Age 0-30 (document basis)', Round(t.A30,2),
+                         'document-date basis, which ages every item' From T t
+                  Union All Select 250,'2. Ageing','Age 31-90 (document basis)', Round(t.A90,2), 'as above' From T t
+                  Union All Select 260,'2. Ageing','Age 91-180 (document basis)', Round(t.A180,2), 'as above' From T t
+                  Union All Select 270,'2. Ageing','Age over 180 (document basis)', Round(t.A180P,2), 'as above' From T t
+                  Union All Select 300,'3. Payments','Billing in the period', Round(f.Billing,2),
+                         'SALE and SERVICEBILL debits' From F f
+                  Union All Select 310,'3. Payments','Payments in the period', Round(f.Coll,2),
+                         to_char(f.RcptN,'FM999G990') || ' payment vouchers - actual transactions' From F f
+                  Union All Select 320,'3. Payments','Credit notes in the period', Round(f.CN,2),
+                         'CREDITNOTE credits' From F f
+                  Union All Select 330,'3. Payments','Payment against opening gross',
+                         Round(Case When t.Gross>0 Then 100*f.Coll/t.Gross End,1),
+                         'per cent - payments measured against payable, not against billing' From T t Cross Join F f
+                  Union All Select 400,'4. Creditor Exposure','Top 10 concentration', Round(c.Top10,2),
+                         'gross payable held by the ten largest creditors' From Conc c
+                  Union All Select 410,'4. Creditor Exposure','Top 10 as a share of gross',
+                         Round(Case When t.Gross>0 Then 100*c.Top10/t.Gross End,1),
+                         'per cent' From T t Cross Join Conc c
+                  Union All Select 420,'4. Creditor Exposure','Creditors overdue', t.OdPty,
+                         'vendors with at least one overdue item' From T t
+                  Union All Select 500,'5. Advances','Unapplied payment cash', Round(t.Unapp,2),
+                         'cash received and never applied to a bill' From T t
+                  Union All Select 510,'5. Advances','Unapplied over 90 days', Round(t.Unapp90,2),
+                         'control AR-R03' From T t
+                  Union All Select 520,'5. Advances','Contra purchase credits', Round(t.Contra,2),
+                         'purchases from a party who is also a vendor - NOT a vendor advance' From T t
+                  Union All Select 530,'5. Advances','Vendors holding AP and credit', b.N,
+                         'both positions open at once' From Both b
+                  Union All Select 540,'5. Advances','Immediately adjustable', Round(b.Adj,2),
+                         'clearable by allocation alone, with no payment effort' From Both b
+                  Union All Select 600,'6. Risk','Credit limit exceeded', To_Number(Null),
+                         'NOT MEASURABLE - Party.CreditAmount is greater than zero on 0 of 954 creditor accounts' From dual
+                  Union All Select 610,'6. Risk','Credit utilisation %', To_Number(Null),
+                         'NOT MEASURABLE - no credit limit exists to measure utilisation against' From dual
+                  Union All Select 620,'6. Risk','Payable with no due date, as a share of gross',
+                         Round(Case When t.Gross>0 Then 100*t.NoAge/t.Gross End,1),
+                         'per cent - the share of exposure that cannot be scheduled for payment' From T t
+                  Union All Select 700,'7. Reconciliation','AP analytical balance', Round(t.Net,2),
+                         'open-item register with allocation logic' From T t
+                  Union All Select 710,'7. Reconciliation','GL control (SUNDRYCREDITORS)', Round(t.GlNet,2),
+                         'signed VoucherDetail sum, no allocation logic' From T t
+                  Union All Select 720,'7. Reconciliation','Difference', Round(t.Net-t.GlNet,2),
+                         Case When Abs(t.Net-t.GlNet)<0.005 Then 'RECONCILED at full precision'
+                              Else 'OUT OF BALANCE - investigate on page 697' End From T t
+                  Union All Select 800,'8. Exceptions','Open payable that cannot be aged', e.NoDueN,
+                         'items - control AR-B02' From Ex e
+                  Union All Select 810,'8. Exceptions','Payment cash unapplied over 90 days', e.Unapp90N,
+                         'items - control AR-R03' From Ex e
+                  Union All Select 820,'8. Exceptions','Opening items with no original bill date', e.OpenN,
+                         'items - control AR-O01' From Ex e
+                  Union All Select 830,'8. Exceptions','AP posted with no Panel', e.PanelN,
+                         'items - control AR-M01' From Ex e
+                  Union All Select 840,'8. Exceptions','Orphan allocations', e.OrphanN,
+                         'rows - control AR-A05, excluded from the analytical balance above' From Ex e
+                  Union All Select 900,'9. Management Actions','Apply the unapplied cash', Round(t.Unapp90,2),
+                         'AR-R03 - the single largest self-help item; reduces both sides of the ledger' From T t
+                  Union All Select 910,'9. Management Actions','Allocate against vendors holding both', Round(b.Adj,2),
+                         'AR-C02 - clears payable with no payment effort' From Both b
+                  Union All Select 920,'9. Management Actions','Obtain due dates for unaged payable', Round(t.NoAge,2),
+                         'AR-B02 - until then this exposure cannot be scheduled or chased' From T t
+                ) Order By Ord
+                ```
+            pageItemsToSubmit: [
+                P722_FROMDATE
+                P722_TODATE
+                P722_COMPANY
+                P722_LOCATION
+                P722_PANEL
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No payable data in this scope for the selected period.
+        }
+
+        column AMT (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Value
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+        )
+
+        column BASIS (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Basis
+            }
+            layout {
+                sequence: 50
+            }
+        )
+
+        column LINE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Line
+            }
+            layout {
+                sequence: 30
+            }
+        )
+
+        column ORD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Ord
+            }
+            layout {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        column SECTION (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Section
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+    )
+
+    pageItem P722_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.CompanyCode = c.CompanyCode
+                                  And v.AccountCode In (Select PartyCode From Party
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P722_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate,'MM'),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P722_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.LocationCode = l.LocationCode
+                                  And v.AccountCode In (Select PartyCode From Party
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode)
+                                  And (:P722_COMPANY Is Null Or v.CompanyCode = :P722_COMPANY))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P722_COMPANY
+            itemsToSubmit: P722_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P722_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            displayExtraValues: false
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P722_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Command Centre
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 710
+                items: {
+                    P710_FROMDATE: &P722_FROMDATE.
+                    P710_TODATE: &P722_TODATE.
+                    P710_COMPANY: &P722_COMPANY.
+                    P710_LOCATION: &P722_LOCATION.
+                    P710_PANEL: &P722_PANEL.
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

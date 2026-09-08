@@ -1,0 +1,93 @@
+searchConfig imart_module_search (
+    name: Imart_Module_search
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            SELECT 
+                 M.MODULECODE,
+                 M.MODULENAME as TITLE,
+                 'f?p=&APP_ID.:' || TO_CHAR(M.PAGENO) || ':&SESSION.:::::' TARGET,
+                 M.PAGENO,
+                 'Module --> '||MG.MODULEGROUPNAME as BADGE_VALUE,
+                 'YES' As IS_CURRENT,
+                 'u-color-' || MOD(rownum, 20 + 1) as MY_COLOR_CLASS,
+                 MG.MODULEGROUPNAME
+            FROM MODULE M 
+            LEFT JOIN MODULEGROUP MG ON M.MODULEGROUPCODE = MG.MODULEGROUPCODE
+            LEFT JOIN MODULEPRIVILEGE mp ON mp.MODULECODE = m.MODULECODE
+            WHERE MP.BOSSUSERCODE       = :GLOBAL_BOSSUSERCODE
+              AND MP.COMPANYCODE        = :GLOBAL_COMPANYCODE
+              AND MP.VIEWPRIVILEGE      = 'YES'
+              AND MP.COMPANYCODE         = :GLOBAL_COMPANYCODE
+              ;
+            ```
+        searchableColumns: [
+            TITLE
+            MODULECODE
+        ]
+    }
+    columnMapping {
+        primaryKey1Column: MODULECODE
+        titleColumn: TITLE
+        badgeColumn: BADGE_VALUE
+    }
+    link {
+        type: redirectThisApp
+        target: {
+            page: &PAGENO.
+        }
+    }
+    appearance {
+        cssClasses: &MY_COLOR_CLASS.
+    }
+)
+
+searchConfig transaction_search (
+    name: Transaction Search
+    searchQueryPrefix: TNO
+    source {
+        type: sqlQuery
+        sqlQuery:
+            ```sql
+            SELECT
+                 x.TNO,
+                 x.TRANSACTION_NO,
+                 x.TRANSACTION_DATE,
+                 x.BADGE_VALUE,
+                 GetDocumentStatusCode(x.BADGE_VALUE,x.TNO) AS STATUS,
+                 M.ENTRYPAGENO AS ENTRYPAGENO,
+                 'P'||M.ENTRYPAGENO||'_TNO' AS TARGETPAGEITEM,
+                 'u-color-' || MOD(rownum, 20 + 1) as MY_COLOR_CLASS    
+            FROM ERP_GLOBAL_SEARCH_VW x 
+            LEFT JOIN MODULE M ON X.BADGE_VALUE = M.MODULECODE
+            LEFT JOIN MODULEPRIVILEGE mp ON mp.MODULECODE = m.MODULECODE
+            WHERE MP.BOSSUSERCODE       = :GLOBAL_BOSSUSERCODE
+              AND MP.COMPANYCODE        = :GLOBAL_COMPANYCODE
+              AND MP.VIEWPRIVILEGE      = 'YES'
+              AND x.FINANCIALYEARCODE   = :GLOBAL_FINANCIALYEARCODE
+              AND x.COMPANYCODE         = :GLOBAL_COMPANYCODE
+            ```
+        searchableColumns: TRANSACTION_NO
+    }
+    columnMapping {
+        primaryKey1Column: TNO
+        titleColumn: TRANSACTION_NO
+        subtitleColumn: TRANSACTION_DATE
+        badgeColumn: BADGE_VALUE
+        customColumn1: STATUS
+    }
+    link {
+        type: redirectThisApp
+        target: {
+            page: &ENTRYPAGENO.
+            items: {
+                "&TARGETPAGEITEM.": &TNO.
+            }
+        }
+    }
+    appearance {
+        cssClasses: &MY_COLOR_CLASS.
+    }
+)
+

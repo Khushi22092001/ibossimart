@@ -1,0 +1,1090 @@
+page 405 (
+    name: "Daily Production With Diesel Average Report "
+    alias: DAILY-PRODUCTION-WITH-DIESEL-AVERAGE-REPORT
+    title: "Daily Production With Diesel Average Report "
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'CMPL/REPORT/dieselavg.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P405_FROMDATE').val());
+              var toDate = new Date($('#P405_TODATE').val());
+            
+              var reportParams = 
+                '&P405_COMPANY=' + $('#P405_COMPANY').val() + 
+                '&P405_LOCATION=' +  $('#P405_LOCATION').val() +
+                '&P405_FROMDATE=' +  $('#P405_FROMDATE').val() + 
+                '&P405_TODATE='  +  $('#P405_TODATE').val() + 
+                '&P405_EQUIPMENTGROUP=' + $('#P405_EQUIPMENTGROUP').val() + 
+                '&P405_SHIFT=' + $('#P405_SHIFT').val() + 
+                '&P405_DOORNO=' + $('#P405_DOORNO').val() 
+                  ;
+              
+              //var reportURL = 'http://192.168.1.202:7001/analytics/saw.dll?bipublisherEntry&Action=open&itemType=.xdo&bipPath=/' + reportName +
+              //var reportURL = 'http://192.168.1.202:7001/xmlpserver/CMPL/REPORT/PCReport.xdo?id=weblogic&passwd=webboss123&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              reportURL = 'http://115.242.138.210:7001/xmlpserver/'+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    css {
+        inline:
+            ```css
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region daily-production-with-diesel-average (
+        name: Daily Production With Diesel Average
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT ROWNUM  as SerialNo ,X.* FROM 
+                (
+                   Select --row_number() over(Order By a.Equipmentlogbookdate) SerialNo,
+                       GetLocationName(a.LocationCode) As Location,
+                       c.EquipmentId,
+                       a.EquipmentLogBookDate,
+                       --       j.JobTypeName,
+                       Min(a.OpeningWorkingHrs) As OpeningWorkingHrs,
+                       Max(a.ClosingWorkingHrs) As ClosingWorkingHrs,
+                       (Max(a.ClosingWorkingHrs) - Min(a.OpeningWorkingHrs)) As WorkingHrs,
+                       nvl(Sum(b.TotalTrip), 0) As TotalTrip,
+                       Case
+                         When (Max(a.ClosingWorkingHrs) - Min(a.OpeningWorkingHrs)) = 0 Then
+                          Sum(b.TotalTrip) / 1
+                         Else
+                          round(Sum(b.TotalTrip) /
+                                (Max(a.ClosingWorkingHrs) - Min(a.OpeningWorkingHrs)),
+                                2)
+                       End As AvgTrip,
+                       (getdailyproductionCapacity(a.companycode,
+                                                   a.locationcode,
+                                                   Null,
+                                                   c.manufacturemodelcode,
+                                                   a.EquipmentLogBookDate) *
+                       ((to_date(&P405_TODATE, 'DD-MON-YYYY') -
+                       TO_DATE(&P405_FROMDATE, 'DD-MON-YYYY')) + 1)) As "Required Quantity",
+                       
+                       Case
+                       
+                         When ROW_NUMBER()
+                          Over(Partition By
+                                   (Select Sum(c.quantity1)
+                                      From NecessitySlip b, NecessitySlipDetail c
+                                     Where b.tno = c.tno
+                                       And b.Locationcode = a.locationcode
+                                       And b.NecessitySlipDate = a.EquipmentLogBookDate
+                                       And b.shiftcode = 'DS') Order By
+                                   (Select Sum(c.quantity1)
+                                      From NecessitySlip b, NecessitySlipDetail c
+                                     Where b.tno = c.tno
+                                       And b.Locationcode = a.locationcode
+                                       And b.NecessitySlipDate = a.EquipmentLogBookDate
+                                       And b.shiftcode = 'DS')) = 1 Then
+                          (Select Sum(c.quantity1)
+                             From NecessitySlip b, NecessitySlipDetail c
+                            Where b.tno = c.tno
+                              And b.Locationcode = a.locationcode
+                              And b.NecessitySlipDate = a.EquipmentLogBookDate
+                              And b.shiftcode = 'DS')
+                         Else
+                          Null
+                       End As "Day Shift Diesel Qty",
+                       Case
+                         When ROW_NUMBER()
+                          Over(Partition By
+                                   (Select Sum(c.quantity1)
+                                      From NecessitySlip b, NecessitySlipDetail c
+                                     Where b.tno = c.tno
+                                       And b.Locationcode = a.locationcode
+                                       And b.NecessitySlipDate = a.EquipmentLogBookDate
+                                       And b.shiftcode = 'NS') Order By
+                                   (Select Sum(c.quantity1)
+                                      From NecessitySlip b, NecessitySlipDetail c
+                                     Where b.tno = c.tno
+                                       And b.Locationcode = a.locationcode
+                                       And b.NecessitySlipDate = a.EquipmentLogBookDate
+                                       And b.shiftcode = 'NS')) = 1 Then
+                          (Select Sum(c.quantity1)
+                             From NecessitySlip b, NecessitySlipDetail c
+                            Where b.tno = c.tno
+                              And b.Locationcode = a.locationcode
+                              And b.NecessitySlipDate = a.EquipmentLogBookDate
+                              And b.shiftcode = 'NS')
+                         Else
+                          Null
+                       End As "Night Shift Diesel Qty",
+                       Sum(d.nooftrips) As "V.LogBook Trips",
+                       
+                       sum(d.qty) As "Achived Quantity"
+                
+                  From EquipmentLogBook a,
+                       EquipmentLogBookDetail b,
+                       Equipment c, --, JobType j
+                       (Select aa.locationcode,
+                               bb.EquipmentTno,
+                               bb.Jobtypecode,
+                               aa.shiftcode,
+                               aa.vehiclelogbookdate,
+                               
+                               Sum(bb.nooftrips) As nooftrips,
+                               Sum(gettripaverageweight(aa.companycode,
+                                                        aa.locationcode,
+                                                        BB.JOBTYPECODE,
+                                                        DD.manufacturemodelcode,
+                                                        AA.vEHICLELogBookDate) *
+                                   bb.nooftrips) As qty
+                          From Vehiclelogbook       aa,
+                               VehicleLogBookDetail bb,
+                               CompanyVehicle       cc,
+                               Equipment            DD
+                         Where aa.tno = bb.tno
+                           And AA.VEHICLENO = CC.COMPANYVEHICLENO
+                           And CC.MODULETNO = DD.TNO
+                           And VehicleLogbookDate Between :P405_FROMDATE and :P405_TODATE
+                           And aa.locationcode = :P405_LOCATION
+                         Group By aa.locationcode,
+                                  bb.EquipmentTno,
+                                  bb.Jobtypecode,
+                                  aa.shiftcode,
+                                  aa.vehiclelogbookdate) d
+                 Where 1 = 1
+                   And a.TNo = b.TNo
+                   And a.EquipmentTNo = c.TNo
+                   And a.Locationcode = d.Locationcode
+                   And a.EquipmentLogBookDate = d.VehicleLogBookDate
+                   And c.tno = d.Equipmenttno
+                   And a.shiftcode = d.shiftcode
+                 
+                  and a.Equipmentlogbookdate between :P405_FROMDATE and :P405_TODATE
+                  and instr(':'||:P405_COMPANY||':',':'||a.CompanyCode||':') > 0
+                  and instr(':'||:P405_LOCATION||':',':'||a.LocationCode||':') > 0
+                  and ( :P405_DOORNO IS NULL OR instr(':'||:P405_DOORNO||':',':'||c.equipmentid||':') > 0 ) 
+                  and ( :P405_EQUIPMENTGROUP IS NULL OR instr(':'||:P405_EQUIPMENTGROUP||':',':'||c.EquipmentGroupCode||':') > 0 )
+                
+                /*   And ( :P5002_LOCATION IS NULL OR instr(':'||:P5002_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                   And ( :P5002_EQUIPMENTID IS NULL OR instr(':'||:P5002_EQUIPMENTID||':',':'||a.EquipmentTNo||':') > 0 )
+                   And ( :P5002_JOBTYPE IS NULL OR instr(':'||:P5002_JOBTYPE||':',':'||b.JobTypeCode||':') > 0)
+                   And ( :P5002_EQUIPMENTGROUP IS NULL OR instr(':'||:P5002_EQUIPMENTGROUP||':',':'||c.EQUIPMENTGROUPCODE||':') > 0)
+                */
+                 Group By GetLocationName(a.LocationCode),
+                          c.EquipmentId,
+                          a.EquipmentLogBookDate,
+                          --j.JobTypeName,
+                          A.LOCATIONCODE,
+                          getdailyproductionCapacity(a.companycode,
+                                                     a.locationcode,
+                                                     Null,
+                                                     c.manufacturemodelcode,
+                                                     a.EquipmentLogBookDate)
+                ) X
+                    ;
+                
+                ```
+        }
+        layout {
+            sequence: 70
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 19126510084427776
+        }
+
+        column AVGTRIP (
+            type: plainText
+            heading {
+                heading: Avg Trip
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column "Achived Quantity" (
+            type: plainText
+            heading {
+                heading: Achived Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BN
+            }
+        )
+
+        column CLOSINGWORKINGHRS (
+            type: plainText
+            heading {
+                heading: Closing Working Hrs
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column "Day Shift Diesel Qty" (
+            type: plainText
+            heading {
+                heading: Day Shift Diesel Qty
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column EQUIPMENTID (
+            type: plainText
+            heading {
+                heading: Door No
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column EQUIPMENTLOGBOOKDATE (
+            type: plainText
+            heading {
+                heading: Date
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column "Night Shift Diesel Qty" (
+            type: plainText
+            heading {
+                heading: Night Shift Diesel Qty
+                alignment: center
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column OPENINGWORKINGHRS (
+            type: plainText
+            heading {
+                heading: Opening Working Hrs
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column "Required Quantity" (
+            type: plainText
+            heading {
+                heading: Required Quantity
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serialno
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BO
+            }
+        )
+
+        column TOTALTRIP (
+            type: plainText
+            heading {
+                heading: Total Trip
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column "V.LogBook Trips" (
+            type: plainText
+            heading {
+                heading: V.logbook Trips
+                alignment: center
+            }
+            layout {
+                sequence: 330
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BM
+            }
+        )
+
+        column WORKINGHRS (
+            type: plainText
+            heading {
+                heading: Working Hrs
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Daily Production With Diesel Average
+        }
+
+        savedReport 109214 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn APXWS_CC_001 (
+                sequence: 12
+            )
+
+            displayColumn AVGTRIP (
+                sequence: 9
+            )
+
+            displayColumn "Achived Quantity" (
+                sequence: 11
+            )
+
+            displayColumn CLOSINGWORKINGHRS (
+                sequence: 6
+            )
+
+            displayColumn "Day Shift Diesel Qty" (
+                sequence: 13
+            )
+
+            displayColumn EQUIPMENTID (
+                sequence: 3
+            )
+
+            displayColumn EQUIPMENTLOGBOOKDATE (
+                sequence: 4
+            )
+
+            displayColumn LOCATION (
+                sequence: 2
+            )
+
+            displayColumn "Night Shift Diesel Qty" (
+                sequence: 14
+            )
+
+            displayColumn OPENINGWORKINGHRS (
+                sequence: 5
+            )
+
+            displayColumn "Required Quantity" (
+                sequence: 10
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn "V.LogBook Trips" (
+                sequence: 8
+            )
+
+            displayColumn WORKINGHRS (
+                sequence: 7
+            )
+
+            computation APXWS_CC_001 (
+                identifier: C01
+                source {
+                    expression: BA -  BN
+                    dataType: number
+                }
+                label {
+                    column: Short/Excess Quantity
+                }
+            )
+
+            sort (
+                column: ROWNUM
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: WORKINGHRS
+            )
+
+            aggregate (
+                column: TOTALTRIP
+            )
+
+            aggregate (
+                column: "Required Quantity"
+            )
+
+            aggregate (
+                column: "Achived Quantity"
+            )
+
+            aggregate (
+                column: "V.LogBook Trips"
+            )
+
+            aggregate (
+                column: APXWS_CC_001
+            )
+
+            aggregate (
+                column: "Day Shift Diesel Qty"
+            )
+
+            aggregate (
+                column: "Night Shift Diesel Qty"
+            )
+
+            aggregate (
+                function: count
+                column: ROWNUM
+            )
+
+        )
+
+    )
+
+    region daily-production-with-diesel-average-2 (
+        name: Daily Production With Diesel Average
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    pageItem P405_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'EQUIPMENTLOGBOOK'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P405_DOORNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Door No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select distinct
+                a.equipmentid d,
+                a.equipmentid r
+                from equipment a, EquipmentLogBook b
+                Where a.TNo = b.EquipmentTNo
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Equipment Name
+        }
+    )
+
+    pageItem P405_EQUIPMENTGROUP (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Group
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select distinct
+                a.EquipmentGroupName D,
+                a.EquipmentGroupCode R
+                from EquipmentGroup a , EquipmentLogBook b, Equipment c
+                Where a.EquipmentGroupCode = c.equipmentgroupcode
+                  and b.EquipmentTNo = c.TNo
+                Order by 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Equipment Group Name
+        }
+    )
+
+    pageItem P405_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-YYYY
+            width: 30
+            valuePlaceholder: Select From Date
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P405_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'EQUIPMENTLOGBOOK'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P405_SHIFT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Shift
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select distinct
+                s.shiftName d,
+                s.shiftcode r
+                from shift s,vehiclelogbook b
+                where s.shiftcode = b.shiftcode
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Working Shift
+        }
+    )
+
+    pageItem P405_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            formatMask: DD-MON-YYYY
+            width: 30
+            valuePlaceholder: Select To Date
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @daily-production-with-diesel-average
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+            ]
+            cssClasses: generate-pdf-button
+            icon: fa-file-pdf-o
+        }
+        behavior {
+            action: definedByDynamicAction
+            executeValidations: false
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @daily-production-with-diesel-average-2
+            slot: regionBody
+            startNewRow: false
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 30
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF()
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

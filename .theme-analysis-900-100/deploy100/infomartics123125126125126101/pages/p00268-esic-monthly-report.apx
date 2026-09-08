@@ -1,0 +1,499 @@
+page 268 (
+    name: ESIC Monthly Report
+    alias: ESIC-MONTHLY-REPORT
+    title: ESIC Monthly Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region esic-monthly-report (
+        name: ESIC Monthly Report
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    ROWNUM,
+                    uan,
+                    employeename,
+                    DaysWorked,
+                    esicearning,
+                    esiccontributionemployee,
+                    esiccontributionemployer
+                FROM
+                    (
+                        SELECT
+                             uan,
+                                    employeename,                    
+                                    sum(nvl(DaysWorked,0)) DaysWorked ,
+                                    sum(nvl(esicearning,0)) esicearning,
+                                    round((sum(nvl(esicearning,0))*0.75)/100,2) esiccontributionemployee,
+                                    round((sum(nvl(esicearning,0))*3.25)/100,2) esiccontributionemployer
+                                   
+                        FROM
+                            (
+                                SELECT
+                                    c.uan,
+                                    c.employeename,                    
+                                    b.salaryheadamount AS DaysWorked,
+                                    NULL               AS esicearning,
+                                    NULL               AS esiccontributionemployee,
+                                    null as esiccontributionemployer
+                                FROM
+                                    salary       a,
+                                    salarydetail b,
+                                    employee     c
+                                WHERE
+                                        a.tno = b.tno
+                                    AND a.employeecode = c.employeecode
+                --and a.tno =  54923442
+                                    AND b.salaryheadcode = 'TD'
+                                    and a.SALARYFROMDATE = :P268_FROMDATE
+                                    and a.SALARYTODATE = :P268_TODATE
+                                UNION ALL
+                                SELECT
+                                    c.uan,
+                                    c.employeename,
+                                    NULL               AS DaysWorked,
+                                    case when b.salaryheadamount <=21000 then
+                                    b.salaryheadamount
+                                    else 
+                                    0 
+                                    end  esicearning,
+                                    null               AS esiccontributionemployee,
+                                    NULL               AS esiccontributionemployer
+                                FROM
+                                    salary       a,
+                                    salarydetail b,
+                                    employee     c
+                                WHERE
+                                        a.tno = b.tno
+                                    AND a.employeecode = c.employeecode
+                --and a.tno =  54923442
+                                    AND b.salaryheadcode = 'GROSSSALARY'
+                                     and a.SALARYFROMDATE = :P268_FROMDATE
+                                    and a.SALARYTODATE = :P268_TODATE
+                              
+                            )
+                        GROUP BY
+                            uan,
+                            employeename
+                    )
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 174743585489344624
+        }
+
+        savedReport 880129 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @DAYSWORKED
+                layout {
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @ESICEARNING
+                layout {
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @ESICCONTRIBUTIONEMPLOYEE
+                layout {
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @ESICCONTRIBUTIONEMPLOYER
+                layout {
+                    sequence: 11
+                }
+            )
+
+            displayColumn (
+                column: @ROWNUM
+                layout {
+                    width: 77.66300000000001
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @UAN
+                layout {
+                    width: 242.674
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @EMPLOYEENAME
+                layout {
+                    sequence: 3
+                }
+            )
+
+        )
+
+        columnGroup employee-contribution (
+            heading: Employee Contribution
+        )
+
+        columnGroup employer-contribution (
+            heading: Employer Contribution
+        )
+
+        column DAYSWORKED (
+            type: numberField
+            heading {
+                heading: Days Worked
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: DAYSWORKED
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: textField
+            heading {
+                heading: Name Of Member
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EMPLOYEENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ESICCONTRIBUTIONEMPLOYEE (
+            type: numberField
+            heading {
+                heading: ESIC Contribution
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ESICCONTRIBUTIONEMPLOYEE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ESICCONTRIBUTIONEMPLOYER (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                databaseColumn: ESICCONTRIBUTIONEMPLOYER
+                dataType: number
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column ESICEARNING (
+            type: numberField
+            heading {
+                heading: ESIC Earning
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ESICEARNING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ROWNUM (
+            type: numberField
+            heading {
+                heading: SL No.
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ROWNUM
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column UAN (
+            type: textField
+            heading {
+                heading: UAN
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: UAN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: ESIC Monthly Report
+        }
+    )
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    pageItem P268_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P268_COMPANY (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P268_DOCTYPE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P268_FORMONTH (
+        type: popupLov
+        label {
+            label: For month
+            alignment: left
+        }
+        settings {
+            additionalOutputs: FROMDATE:P268_FROMDATE,TODATE:P268_TODATE
+        }
+        lov {
+            type: sharedComponent
+            lov: @formonth
+            nullDisplayValue: -Select-
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P268_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P268_LOCATION (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P268_TODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 80
+            region: @filter
+            slot: regionBody
+            column: 12
+            columnSpan: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

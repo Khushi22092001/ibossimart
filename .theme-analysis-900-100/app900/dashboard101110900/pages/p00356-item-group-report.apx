@@ -1,0 +1,544 @@
+page 356 (
+    name: Item Group Report
+    alias: ITEM-GROUP-REPORT
+    title: Item Group Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region item-group-master (
+        name: Item Group Master
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--accent1
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region item-group-report (
+        name: Item Group Report
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                row_number() over(order by e.ItemCode) SerialNo,
+                GetItemName(e.ParentCode) As ParentGroupName,
+                e.ItemCode,
+                e.ItemName,
+                e.ItemClassificationCode,
+                e.ProcurementStrategy,
+                e.OrderingPolicy,
+                sa.PartyName as StockAccount,
+                ca.PartyName as ConsumptionAccount,
+                cw.PartyName as CWIPAccount,
+                e.Remark
+                From Item e, ItemSpecification ee, Party sa, Party ca, Party cw
+                Where e.TNo = ee.TNo(+)
+                  and e.StockAccountCode = sa.PartyCode(+)
+                  and e.ConsumptionAccountCode = ca.PartyCode(+)
+                  and e.CWIPAccountCode = cw.PartyCode(+)
+                 -- and instr(':'||:P9_COMPANY||':',':'||e.CompanyCode||':') > 0
+                 -- and e.CompanyCode = :P9_COMPANY
+                  and e.ItemType = 'GROUP';
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: page
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            authorization: @candownload
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function(config) {
+                    config.defaultGridViewOptions = {
+                        //rowHeader: "sequence",
+                        pagination: {                                            
+                            showRange: true,
+                            showPageSelector: true,
+                            showPageLinks: false,
+                // uncomment to hide the first and last buttons
+                //            firstAndLastButtons: false
+                        }
+                    };
+                
+                    config.defaultIconViewOptions = {
+                        collectionClasses: "t-Cards t-Cards--compact t-Cards--displayIcons u-colors t-Cards--desc-2ln"
+                    };
+                    return config; // don't forget to return this!
+                }
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 73873528754731531
+        }
+
+        savedReport 740959 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SERIALNO
+                layout {
+                    width: 94
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @PARENTGROUPNAME
+                layout {
+                    width: 145
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @ITEMCODE
+                layout {
+                    show: false
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @ITEMNAME
+                layout {
+                    width: 216
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @ITEMCLASSIFICATIONCODE
+                layout {
+                    show: false
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @PROCUREMENTSTRATEGY
+                layout {
+                    width: 169
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @ORDERINGPOLICY
+                layout {
+                    width: 127
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @STOCKACCOUNT
+                layout {
+                    width: 278
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @CONSUMPTIONACCOUNT
+                layout {
+                    width: 228
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @CWIPACCOUNT
+                layout {
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @REMARK
+                layout {
+                    sequence: 11
+                }
+            )
+
+            sort (
+                column: @SERIALNO
+                sort {
+                    nulls: last
+                    sequence: 1
+                }
+            )
+
+            aggregate count (
+                column: @ITEMCODE
+                function: count
+            )
+
+            aggregate count-2 (
+                column: @SERIALNO
+                function: count
+                showGrandTotal: true
+            )
+
+        )
+
+        column CONSUMPTIONACCOUNT (
+            type: textarea
+            heading {
+                heading: Consumption Account
+            }
+            layout {
+                sequence: 80
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: CONSUMPTIONACCOUNT
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column CWIPACCOUNT (
+            type: textarea
+            heading {
+                heading: CWIP Account
+            }
+            layout {
+                sequence: 90
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: CWIPACCOUNT
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column ITEMCLASSIFICATIONCODE (
+            type: textField
+            heading {
+                heading: Itemclassificationcode
+            }
+            layout {
+                sequence: 40
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: ITEMCLASSIFICATIONCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ITEMCODE (
+            type: textField
+            heading {
+                heading: Itemcode
+            }
+            layout {
+                sequence: 20
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: ITEMCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ITEMNAME (
+            type: textarea
+            heading {
+                heading: Item Name
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: ITEMNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column ORDERINGPOLICY (
+            type: textField
+            heading {
+                heading: Ordering Policy
+            }
+            layout {
+                sequence: 60
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: ORDERINGPOLICY
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARENTGROUPNAME (
+            type: textarea
+            heading {
+                heading: Parent Group Name
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: PARENTGROUPNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PROCUREMENTSTRATEGY (
+            type: textField
+            heading {
+                heading: Procurement Strategy
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PROCUREMENTSTRATEGY
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column REMARK (
+            type: textarea
+            heading {
+                heading: Remark
+            }
+            layout {
+                sequence: 100
+            }
+            validation {
+                maxLength: 1000
+            }
+            source {
+                databaseColumn: REMARK
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SERIALNO (
+            type: numberField
+            heading {
+                heading: Serial No
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SERIALNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column STOCKACCOUNT (
+            type: textarea
+            heading {
+                heading: Stock Account
+            }
+            layout {
+                sequence: 70
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: STOCKACCOUNT
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Item Group Report
+        }
+    )
+
+)
+

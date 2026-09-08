@@ -1,0 +1,1686 @@
+page 262 (
+    name: MaintenanceOrderReport
+    alias: MAINTENANCEORDERREPORT
+    title: MaintenanceOrderReport
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            #MYID.a-GV-row.is-hover, .a-IRR-table tr:hover td{
+                background-color: #FFFACD;
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region maintenance-order (
+        name: Maintenance Order
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent1
+                t-Region--hiddenOverflow
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region master (
+        name: Master
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select
+                row_number() over(order by a.equipmentmaintenanceorderdate) SerialNo,
+                l.locationname,
+                d.doctypename,
+                c.companyname,
+                a.equipmentmaintenanceorderdate,
+                a.equipmentmaintenanceorderno,
+                moc.maintenanceordercompletiondate,
+                moc.maintenanceordercompletionno,
+                ses.serviceentrysheetno,
+                ses.serviceentrysheetdate,
+                a.notificationno,
+                e.equipmentid,
+                e.equipmentno,
+                e.equipmentname,
+                wc.workcentrename,
+                p.priorityname,
+                a.shorttext,
+                a.longtext,
+                a.estimatedcost,
+                a.controlkey,
+                mp.equipmentmaintenanceplanno,
+                a.basicstartdate,
+                a.orderfinishdate,
+                s.maintenancestrategyname,
+                mt.maintenancetypename as maintenancetype,
+                ac.activityname,
+                b.durationofoperation,
+                b.unitofmeasurementforduration,
+                i.itemname,
+                isp.itemspecificationname,
+                moid.quantity1,
+                moid.lastpurchaserate,
+                moid.amount,
+                a.isjobcardrequired
+                    from equipmentmaintenanceorder a,
+                         equipmentmaintenanceorderdtl b,
+                         MAINTENANCEORDERCOMPLETION MOC,
+                         SERVICEENTRYSHEET SES,
+                         location l,
+                         doctype d,
+                         company c,
+                         maintenancestrategy s,
+                         equipmentmaintenanceplan mp,
+                         priority p,
+                         workcentre wc,
+                         activity ac,
+                         equipment e,
+                         maintenancerequest r,
+                         maintenanceorderitemdetail moid,
+                         item i,
+                         itemspecification isp,
+                         MAINTENANCETYPE MT
+                where a.locationcode = l.locationcode(+)
+                and a.doctypecode = d.doctypecode(+)
+                and a.companycode = c.companycode(+)
+                and a.prioritycode = p.prioritycode(+)
+                and a.workcentrecode = wc.workcentrecode(+)
+                and mp.maintenancestrategycode = s.maintenancestrategycode(+)
+                and b.activitycode = ac.activitycode(+)
+                and a.equipmenttno = e.tno(+)
+                and a.maintenancerequesttno = r.tno(+)
+                and r.plantno = mp.tno(+)
+                AND r.maintenancetypecode = mt.maintenancetypecode(+)
+                and moid.itemcode = i.itemcode(+)
+                and moid.itemspecificationcode = isp.itemspecificationcode(+)
+                and a.tno = moc.equipmentmaintenanceordertno(+)
+                and a.tno = ses.equipmentmaintenanceordertno(+)
+                and a.tno = b.tno(+)
+                and b.tno = moid.tno(+)
+                and b.sno = moid.sno(+)
+                and a.equipmentmaintenanceorderdate between :P262_FROMDATE and :P262_TODATE
+                and ( :P262_DOCTYPE IS NULL OR instr(':'||:P262_DOCTYPE||':',':'||D.DocTypeCode||':') > 0 ) 
+                and (:P262_LOCATION IS NULL OR instr(':'||:P262_LOCATION||':',':'||L.locationcode||':') > 0)
+                and (:P262_COMPANY IS NULL OR instr(':'||:P262_COMPANY||':',':'||C.COMPANYCODE||':') > 0 ) 
+                and (:P262_EQUIPMENT IS NULL OR instr(':'||:P262_EQUIPMENT||':',':'||E.EQUIPMENTNAME||':') > 0)
+                and (:P262_MAINTENANCEPLANNO IS NULL OR instr(':'||:P262_MAINTENANCEPLANNO||':',':'||MP.EQUIPMENTMAINTENANCEPLANNO||':') > 0 ) 
+                and (:P262_EQUIPMENTNO IS NULL OR instr(':'||:P262_EQUIPMENTNO||':',':'||E.EQUIPMENTNO||':') > 0)
+                and ( :P262_PRIORITY IS NULL OR instr(':'||:P262_PRIORITY||':',':'||P.PRIORITYCode||':') > 0 ) 
+                and (:P262_ORDERNO IS NULL OR instr(':'||:P262_ORDERNO||':',':'||A.EQUIPMENTMAINTENANCEORDERNO||':') > 0)
+                and (:P262_MAINTENANCETYPE IS NULL OR instr(':'||:P262_MAINTENANCETYPE||':',':'||MT.MAINTENANCETYPECODE||':') > 0)
+                and ( :P262_CONTROLKEY IS NULL OR instr(':'||:P262_CONTROLKEY||':',':'||A.CONTROLKEY||':') > 0 ) 
+                and ( :P262_STRATEGY IS NULL OR instr(':'||:P262_STRATEGY||':',':'||S.MAINTENANCESTRATEGYCODE||':') > 0 ) 
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            flashback: false
+            reset: false
+            help: false
+            subscription: false
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 7237358886459938
+        }
+
+        column ACTIVITYNAME (
+            type: plainText
+            heading {
+                heading: Activity Name
+            }
+            layout {
+                sequence: 200
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#ACTIVITYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+            }
+            layout {
+                sequence: 300
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column BASICSTARTDATE (
+            type: plainText
+            heading {
+                heading: " Start Date"
+            }
+            layout {
+                sequence: 170
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#BASICSTARTDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Company Name
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#COMPANYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column CONTROLKEY (
+            type: plainText
+            heading {
+                heading: Control key
+            }
+            layout {
+                sequence: 150
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:140px">#CONTROLKEY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doc Type
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#DOCTYPENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DURATIONOFOPERATION (
+            type: plainText
+            heading {
+                heading: Duration of Operation
+            }
+            layout {
+                sequence: 210
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#DURATIONOFOPERATION#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column EQUIPMENTID (
+            type: plainText
+            heading {
+                heading: Equipment ID
+            }
+            layout {
+                sequence: 70
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#EQUIPMENTID#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column EQUIPMENTMAINTENANCEORDERDATE (
+            type: plainText
+            heading {
+                heading: Order Date
+            }
+            layout {
+                sequence: 40
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#EQUIPMENTMAINTENANCEORDERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column EQUIPMENTMAINTENANCEORDERNO (
+            type: plainText
+            heading {
+                heading: Maintenance Order No
+            }
+            layout {
+                sequence: 50
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:190px">#EQUIPMENTMAINTENANCEORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column EQUIPMENTMAINTENANCEPLANNO (
+            type: plainText
+            heading {
+                heading: "  Plan No"
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column EQUIPMENTNAME (
+            type: plainText
+            heading {
+                heading: Equipment Name
+            }
+            layout {
+                sequence: 90
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#EQUIPMENTNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column EQUIPMENTNO (
+            type: hidden
+            heading {
+                heading: Equipment No
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column ESTIMATEDCOST (
+            type: plainText
+            heading {
+                heading: Estimated Cost
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:140px">#ESTIMATEDCOST#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column ISJOBCARDREQUIRED (
+            type: plainText
+            heading {
+                heading: Is Job Card Required
+            }
+            layout {
+                sequence: 230
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#ISJOBCARDREQUIRED#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Item Name
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Item Specification
+            }
+            layout {
+                sequence: 260
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#ITEMSPECIFICATIONNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column LASTPURCHASERATE (
+            type: plainText
+            heading {
+                heading: Last Purchase Rate
+            }
+            layout {
+                sequence: 280
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#LASTPURCHASERATE#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location Name
+            }
+            layout {
+                sequence: 290
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LONGTEXT (
+            type: plainText
+            heading {
+                heading: Long Text
+            }
+            layout {
+                sequence: 130
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:170px">#PRIORITYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column MAINTENANCEORDERCOMPLETIONDATE (
+            type: plainText
+            heading {
+                heading: Maintenance Order Completion Date
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column MAINTENANCEORDERCOMPLETIONNO (
+            type: plainText
+            heading {
+                heading: Maintenance Order Completion No
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column MAINTENANCESTRATEGYNAME (
+            type: plainText
+            heading {
+                heading: Strategy Name
+            }
+            layout {
+                sequence: 190
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#MAINTENANCESTRATEGYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column MAINTENANCETYPE (
+            type: plainText
+            heading {
+                heading: Maintenancetype
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column NOTIFICATIONNO (
+            type: plainText
+            heading {
+                heading: Notification No
+            }
+            layout {
+                sequence: 60
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#NOTIFICATIONNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column ORDERFINISHDATE (
+            type: plainText
+            heading {
+                heading: " Finish Date"
+            }
+            layout {
+                sequence: 180
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#ORDERFINISHDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column PRIORITYNAME (
+            type: plainText
+            heading {
+                heading: Priority Name
+            }
+            layout {
+                sequence: 110
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#PRIORITYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Quantity1
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serial No
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column SERVICEENTRYSHEETDATE (
+            type: plainText
+            heading {
+                heading: Service Entry Sheet Date
+                alignment: center
+            }
+            layout {
+                sequence: 350
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column SERVICEENTRYSHEETNO (
+            type: plainText
+            heading {
+                heading: Service Entry Sheet No
+                alignment: center
+            }
+            layout {
+                sequence: 340
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column SHORTTEXT (
+            type: plainText
+            heading {
+                heading: Short Text
+            }
+            layout {
+                sequence: 120
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#SHORTTEXT#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column UNITOFMEASUREMENTFORDURATION (
+            type: plainText
+            heading {
+                heading: UOM for Duration
+            }
+            layout {
+                sequence: 220
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#UNITOFMEASUREMENTFORDURATION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column WORKCENTRENAME (
+            type: plainText
+            heading {
+                heading: Work Centre Name
+            }
+            layout {
+                sequence: 100
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#WORKCENTRENAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Master
+        }
+
+        savedReport 73988 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACTIVITYNAME (
+                sequence: 18
+            )
+
+            displayColumn AMOUNT (
+                sequence: 24
+            )
+
+            displayColumn BASICSTARTDATE (
+                sequence: 15
+            )
+
+            displayColumn COMPANYNAME (
+                sequence: 33
+            )
+
+            displayColumn CONTROLKEY (
+                sequence: 9
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 3
+            )
+
+            displayColumn DURATIONOFOPERATION (
+                sequence: 21
+            )
+
+            displayColumn EQUIPMENTID (
+                sequence: 7
+            )
+
+            displayColumn EQUIPMENTMAINTENANCEORDERDATE (
+                sequence: 5
+            )
+
+            displayColumn EQUIPMENTMAINTENANCEORDERNO (
+                sequence: 4
+            )
+
+            displayColumn EQUIPMENTMAINTENANCEPLANNO (
+                sequence: 14
+            )
+
+            displayColumn EQUIPMENTNAME (
+                sequence: 8
+            )
+
+            displayColumn ESTIMATEDCOST (
+                sequence: 13
+            )
+
+            displayColumn ISJOBCARDREQUIRED (
+                sequence: 23
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 25
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 26
+            )
+
+            displayColumn LASTPURCHASERATE (
+                sequence: 27
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn LONGTEXT (
+                sequence: 20
+            )
+
+            displayColumn MAINTENANCEORDERCOMPLETIONDATE (
+                sequence: 31
+            )
+
+            displayColumn MAINTENANCEORDERCOMPLETIONNO (
+                sequence: 32
+            )
+
+            displayColumn MAINTENANCESTRATEGYNAME (
+                sequence: 17
+            )
+
+            displayColumn MAINTENANCETYPE (
+                sequence: 12
+            )
+
+            displayColumn NOTIFICATIONNO (
+                sequence: 6
+            )
+
+            displayColumn ORDERFINISHDATE (
+                sequence: 16
+            )
+
+            displayColumn PRIORITYNAME (
+                sequence: 11
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 28
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SERVICEENTRYSHEETDATE (
+                sequence: 30
+            )
+
+            displayColumn SERVICEENTRYSHEETNO (
+                sequence: 29
+            )
+
+            displayColumn SHORTTEXT (
+                sequence: 19
+            )
+
+            displayColumn UNITOFMEASUREMENTFORDURATION (
+                sequence: 22
+            )
+
+            displayColumn WORKCENTRENAME (
+                sequence: 10
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+            aggregate (
+                column: ESTIMATEDCOST
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+            aggregate (
+                column: QUANTITY1
+            )
+
+            aggregate (
+                function: count
+                column: SERIALNO
+            )
+
+        )
+
+    )
+
+    pageItem P262_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'EQUIPMENTMAINTENANCEORDER'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P262_CONTROLKEY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Control key
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                CONTROLKEY D,
+                CONTROLKEY R   
+                FROM EQUIPMENTMAINTENANCEORDER
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 150
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Control Key
+        }
+    )
+
+    pageItem P262_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      dt.DocTypeName d,
+                      dt.DocTypeCode r
+                From  ModulePrivilege a, ModulePrivilegeDocType b, DocType dt, BossUser bu, ModuleDocType md, ModuleDocTypeDetail mdd
+                Where a.TNo = b.TNo(+)
+                  and (b.DocTypeCode = dt.DocTypeCode or b.DocTypeCode is null)
+                  and a.ModuleCode = md.ModuleCode
+                  and md.TNo = mdd.TNo
+                  and mdd.DocTypeCode = dt.DocTypeCode
+                  and a.ModuleCode = 'EQUIPMENTMAINTENANCEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                  and instr(':'||:P262_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order by 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P262_COMPANY
+            itemsToSubmit: P262_DOCTYPE
+        }
+        layout {
+            sequence: 60
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select DocType Name
+        }
+    )
+
+    pageItem P262_EQUIPMENT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                EQUIPMENTNAME D,
+                EQUIPMENTNAME R
+                FROM EQUIPMENT 
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 110
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 8
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Equipment Name
+        }
+    )
+
+    pageItem P262_EQUIPMENTNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Equipment No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                A.EQUIPMENTNO D,
+                A.EQUIPMENTNO R
+                FROM EQUIPMENT A,EQUIPMENTMAINTENANCEORDER B
+                WHERE A.TNO = B.EQUIPMENTTNO
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 120
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Equipment No
+        }
+    )
+
+    pageItem P262_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 25
+            valuePlaceholder: Select From Date
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P262_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'EQUIPMENTMAINTENANCEORDER'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Location Name
+        }
+    )
+
+    pageItem P262_MAINTENANCEPLANNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Plan No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                EQUIPMENTMAINTENANCEPLANNO D,
+                EQUIPMENTMAINTENANCEPLANNO R
+                FROM EQUIPMENTMAINTENANCEPLAN
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 140
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Maintenance Plan No
+        }
+    )
+
+    pageItem P262_MAINTENANCETYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                MAINTENANCETYPENAME D,
+                MAINTENANCETYPECODE R 
+                FROM MAINTENANCETYPE
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Maintenance Type
+        }
+    )
+
+    pageItem P262_ORDERNO (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Order No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                EQUIPMENTMAINTENANCEORDERNO D,
+                EQUIPMENTMAINTENANCEORDERNO R
+                FROM EQUIPMENTMAINTENANCEORDER
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Order No
+        }
+    )
+
+    pageItem P262_PRIORITY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Priority
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT DISTINCT
+                A.PRIORITYNAME D,
+                A.PRIORITYCODE R
+                FROM PRIORITY A,EQUIPMENTMAINTENANCEORDER B
+                WHERE A.PRIORITYCODE = B.PRIORITYCODE
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Priority
+        }
+    )
+
+    pageItem P262_STRATEGY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Strategy Name
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select MAINTENANCESTRATEGYNAME D, MAINTENANCESTRATEGYCODE R
+                  From MAINTENANCESTRATEGY ORDER BY 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 160
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: Select Strategy Name
+        }
+    )
+
+    pageItem P262_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @maintenance-order
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 35
+            valuePlaceholder: Select To Date
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 170
+            region: @maintenance-order
+            slot: regionBody
+            column: 10
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

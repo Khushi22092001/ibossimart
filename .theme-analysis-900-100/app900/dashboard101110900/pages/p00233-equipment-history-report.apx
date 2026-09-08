@@ -1,0 +1,1556 @@
+page 233 (
+    name: Equipment History Report
+    alias: EQUIPMENT-HISTORY-REPORT
+    title: Equipment History Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region equipment-history-report (
+        name: Equipment History Report
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: hspl-drawer
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region report (
+        name: Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                    a.LOCATIONCODE,
+                    a.DOCTYPECODE,
+                    a.COMPANYCODE,
+                    a.FINANCIALYEARCODE,
+                    a.EQUIPMENTNO,
+                    a.EQUIPMENTNAME,
+                    a.WORKCENTRECODE,
+                    a.DATEOFINSTALLATION,
+                    a.EQUIPMENTID,
+                    a.DRAWINGNO,
+                    a.MANUFACTURERSERIALNO,
+                    a.MANUFACTURERMODELNO,
+                    a.LANDMARK,
+                    a.WARRANTYEXPIRYDATE,
+                    a.ITEMCODE,
+                    a.ITEMSPECIFICATIONCODE,
+                    a.EQUIPMENTTYPECODE ,
+                    a.REMARK,
+                    a.EQUIPMENTDATE,
+                    a.ASSETNO,
+                    a.USEDSTOCKTNO ,
+                    a.MAINTAINEDBYCODE,
+                    a.PARENTEQUIPMENTTNO,
+                    a.CREATOR ,
+                    a.DEPARTMENTCODE,
+                    f.locationname,
+                    e.itemname || ' - ' || ee.itemspecificationname as itemname ,
+                    eq.Equipmenttypename,
+                    rq.departmentname,
+                    wc.workcentrename,
+                
+                
+                
+                    dd.RepairingRequisitionno,
+                    dd.RepairingRequisitiondate,
+                --    dd.remark,
+                    dd.StoreInRepairingItemNo,
+                    dd.StoreInRepairingItemdate,
+                    dd.gatepassno,
+                    dd.gatepassdate,
+                    dd.grnno,
+                    dd.grndate,
+                    dd.partyname,
+                    dd.StoreOutRepaireditemno,
+                    dd.StoreOutRepaireditemdate,
+                
+                    ee.Masterassetno,  
+                    ee.DetailAssetNo,
+                    ee.purchasebillno,
+                    ee.purchasebilldate ,
+                 --   ee.partyname       ,
+                    ee.LandingAmount,
+                
+                
+                     ff.purchaseorderno,
+                     ff.purchaseorderdate,
+                --     ff.grnno,
+                --     ff.grndate,
+                
+                
+                     gg.jobbillno,
+                     gg.jobbilldate,
+                     gg.storeinRepairingitemtno,
+                     gg.amount,
+                     gg.RepairingRequisitiontno
+                
+                
+                
+                
+                from 
+                     Equipment a, 
+                     location f, 
+                     item e, 
+                     itemspecification ee,
+                     Equipmenttype eq,
+                     department rq, 
+                     workcentre wc,
+                
+                     --
+                     
+                     ((Select
+                      A.tno ,
+                      a.RepairingRequisitionno,
+                      RepairingRequisitiondate,
+                      b.Equipmenttno,
+                      a.remark,
+                      c.StoreInRepairingItemNo,
+                      c.StoreInRepairingItemdate,
+                      d.gatepassno,
+                      d.gatepassdate,
+                      e.Grntno,
+                      e.grnno,
+                      e.grndate,
+                      f.partyname,
+                      g.StoreOutRepaireditemno,
+                      g.StoreOutRepaireditemdate
+                from 
+                      RepairingRequisition a,
+                      RepairingRequisitionDetail b,
+                      (select
+                			a.repairingRequisitiontno ,
+                			a.StoreInRepairingItemNo,
+                			a.StoreInRepairingItemdate
+                	   from StoreinRepairingitem a,StoreinRepairingItemdetail b
+                	   where
+                			a.tno = b.tno 
+                			and a.repairingRequisitiontno = :tno1
+                			and b.Equipmenttno = :Equipmenttno
+                                                                ) c,
+                       (	Select
+                  	   b.repairingRequisitiontno ,
+                  	   a.gatepassno,
+                  	   a.gatepassdate
+                  	   from 
+                  		GatePass a, StoreinRepairingitem b, gatepassequipmentdetail c
+                  	   where
+                  		a.StoreinRepairingItemTno = b.tno 
+                  		and a.tno = c.tno 
+                  		and b.repairingRequisitiontno  = :Tno1
+                  		and c.Equipmenttno = :Equipmenttno
+                  	                                        ) d ,
+                        (
+                        	Select
+                	   c.repairingRequisitiontno,
+                       a.Tno as Grntno,
+                	   a.grnno,
+                	   a.grndate
+                	from 
+                		grn a, GatePass b, StoreinRepairingitem c, grnequipmentdetail d
+                	where
+                		a.gatepasstno = b.tno 
+                		and b.StoreinRepairingItemTno = c.tno 
+                		and a.tno = d.tno 
+                		and c.repairingRequisitiontno  = :Tno1
+                		and d.Equipmenttno = :Equipmenttno
+                        ) e ,
+                        (
+                        	Select
+                	   a.tno ,
+                	   a.grnno,
+                	   a.grndate,
+                	   g.partyname,
+                       c.repairingRequisitiontno
+                	from 
+                		grn a, GatePass b, StoreinRepairingitem c, grnequipmentdetail d, party g
+                	where
+                		a.gatepasstno = b.tno 
+                		and b.StoreinRepairingItemTno = c.tno 
+                		and a.tno = d.tno 
+                		and b.partycode = g.partycode
+                		and c.repairingRequisitiontno  = :Tno1
+                		and d.Equipmenttno = :Equipmenttno
+                	
+                        ) f,
+                        (
+                        	select
+                			a.tno ,
+                            b.repairingRequisitiontno,
+                			a.StoreOutRepaireditemno,
+                			a.StoreOutRepaireditemdate
+                	from StoreOutRepaireditem a,StoreOutRepaireditemdetail b
+                	where
+                			a.tno = b.tno 
+                			and b.repairingRequisitiontno = :tno1
+                			and b.Equipmenttno = :Equipmenttno
+                        ) g
+                       where
+                       a.tno = b.tno
+                       and a.Tno = c.repairingRequisitiontno(+)
+                       and a.Tno = d.repairingRequisitiontno(+)
+                       and a.Tno = e.repairingRequisitiontno(+)
+                       and a.Tno = f.repairingRequisitiontno(+))) dd
+                
+                       --
+                       ,
+                       
+                       ( select 
+                       a.assetno as Masterassetno,  
+                       bb.Assetno as DetailAssetNo,
+                       e.grntno ,
+                       f.purchasebillno,
+                       f.purchasebilldate ,
+                       g.partyname       ,
+                       f.tno as purchasebilltno,
+                       b.amount as LandingAmount
+                from 
+                       asset a,
+                       Assetdetail b , 
+                       AssetCodeDetail bb, 
+                       issue c , 
+                       issuestockdetail d , 
+                       stock e, 
+                       Purchasebill f,
+                       Purchasebillgrndetail ff,
+                       Party g
+                where
+                       a.tno = b.tno 
+                       and b.tno = bb.tno 
+                       and b.issuetno = c.tno
+                       and c.tno = d.tno 
+                       and d.stocktno = e.tno 
+                       and f.tno = ff.tno 
+                       and e.grntno = ff.grntno 
+                       and f.partycode = g.partycode ) ee,
+                
+                --       
+                       
+                     (Select
+                     a.purchaseorderno,
+                     a.purchaseorderdate,
+                     b.tno as PBTno,
+                     g.Tno as Grntno,
+                     g.grnno,
+                     g.grndate
+                from 
+                      Purchaseorder a, purchasebilldetail b,GRN g
+                 where
+                      b.purchaseordertno = a.tno 
+                      and g.purchaseordertno = a.tno) ff,
+                
+                --
+                
+                    (select
+                     a.tno,
+                     a.jobbillno,
+                     a.jobbilldate,
+                     b.equipmenttno,
+                     b.storeinRepairingitemtno,
+                     b.amount,
+                     c.RepairingRequisitiontno
+                from 
+                     Jobbill a, jobbillequipmentdetail  b , storeinrepairingitem c
+                where
+                     a.tno = b.tno 
+                    and b.storeinrepairingitemtno = c.tno  ) gg
+                       
+                       
+                --       
+                --       
+                      
+                where
+                     a.locationcode = f.locationcode 
+                     and a.itemcode = e.itemcode
+                     and a.itemspecificationcode = ee.itemspecificationcode
+                     and a.equipmenttypecode = eq.equipmenttypecode
+                     and a.departmentcode = rq.departmentcode(+)
+                     and a.workcentrecode = wc.workcentrecode(+)
+                     and a.tno = dd.EquipmentTno(+)
+                     and dd.Grntno = ee.GrnTno(+)
+                     and dd.GrnTno = ff.GrnTno(+)
+                     and a.tno = gg.EquipmentTno(+)
+                 --   and a.CompanyCode = :p_CompanyCode
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        download {
+            authorization: @candownload
+        }
+        advanced {
+            savedReportMappingIdentifier: 21819271905257235
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+                alignment: center
+            }
+            layout {
+                sequence: 520
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AZ
+            }
+        )
+
+        column ASSETNO (
+            type: plainText
+            heading {
+                heading: Assetno
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column COMPANYCODE (
+            type: plainText
+            heading {
+                heading: Companycode
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+                alignment: center
+            }
+            layout {
+                sequence: 240
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column DATEOFINSTALLATION (
+            type: plainText
+            heading {
+                heading: Dateofinstallation
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DEPARTMENTCODE (
+            type: plainText
+            heading {
+                heading: Departmentcode
+                alignment: center
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        column DEPARTMENTNAME (
+            type: plainText
+            heading {
+                heading: Departmentname
+                alignment: center
+            }
+            layout {
+                sequence: 290
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column DETAILASSETNO (
+            type: plainText
+            heading {
+                heading: Detailassetno
+                alignment: center
+            }
+            layout {
+                sequence: 430
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AQ
+            }
+        )
+
+        column DOCTYPECODE (
+            type: plainText
+            heading {
+                heading: Doctypecode
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DRAWINGNO (
+            type: plainText
+            heading {
+                heading: Drawingno
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column EQUIPMENTDATE (
+            type: plainText
+            heading {
+                heading: Equipmentdate
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column EQUIPMENTID (
+            type: plainText
+            heading {
+                heading: Equipmentid
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column EQUIPMENTNAME (
+            type: plainText
+            heading {
+                heading: Equipmentname
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column EQUIPMENTNO (
+            type: plainText
+            heading {
+                heading: Equipmentno
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column EQUIPMENTTYPECODE (
+            type: plainText
+            heading {
+                heading: Equipmenttypecode
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column EQUIPMENTTYPENAME (
+            type: plainText
+            heading {
+                heading: Equipmenttypename
+                alignment: center
+            }
+            layout {
+                sequence: 280
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column FINANCIALYEARCODE (
+            type: plainText
+            heading {
+                heading: Financialyearcode
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column GATEPASSDATE (
+            type: plainText
+            heading {
+                heading: Gatepassdate
+                alignment: center
+            }
+            layout {
+                sequence: 360
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column GATEPASSNO (
+            type: plainText
+            heading {
+                heading: Gatepassno
+                alignment: center
+            }
+            layout {
+                sequence: 350
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column GRNDATE (
+            type: plainText
+            heading {
+                heading: Grndate
+                alignment: center
+            }
+            layout {
+                sequence: 380
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column GRNNO (
+            type: plainText
+            heading {
+                heading: Grnno
+                alignment: center
+            }
+            layout {
+                sequence: 370
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: Itemcode
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Itemname
+                alignment: center
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column JOBBILLDATE (
+            type: plainText
+            heading {
+                heading: Jobbilldate
+                alignment: center
+            }
+            layout {
+                sequence: 500
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AX
+            }
+        )
+
+        column JOBBILLNO (
+            type: plainText
+            heading {
+                heading: Jobbillno
+                alignment: center
+            }
+            layout {
+                sequence: 490
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AW
+            }
+        )
+
+        column LANDINGAMOUNT (
+            type: plainText
+            heading {
+                heading: Landingamount
+                alignment: center
+            }
+            layout {
+                sequence: 460
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AT
+            }
+        )
+
+        column LANDMARK (
+            type: plainText
+            heading {
+                heading: Landmark
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Locationcode
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Locationname
+                alignment: center
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column MAINTAINEDBYCODE (
+            type: plainText
+            heading {
+                heading: Maintainedbycode
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column MANUFACTURERMODELNO (
+            type: plainText
+            heading {
+                heading: Manufacturermodelno
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column MANUFACTURERSERIALNO (
+            type: plainText
+            heading {
+                heading: Manufacturerserialno
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column MASTERASSETNO (
+            type: plainText
+            heading {
+                heading: Masterassetno
+                alignment: center
+            }
+            layout {
+                sequence: 420
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column PARENTEQUIPMENTTNO (
+            type: plainText
+            heading {
+                heading: Parentequipmenttno
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Partyname
+                alignment: center
+            }
+            layout {
+                sequence: 390
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column PURCHASEBILLDATE (
+            type: plainText
+            heading {
+                heading: Purchasebilldate
+                alignment: center
+            }
+            layout {
+                sequence: 450
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column PURCHASEBILLNO (
+            type: plainText
+            heading {
+                heading: Purchasebillno
+                alignment: center
+            }
+            layout {
+                sequence: 440
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column PURCHASEORDERDATE (
+            type: plainText
+            heading {
+                heading: Purchaseorderdate
+                alignment: center
+            }
+            layout {
+                sequence: 480
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AV
+            }
+        )
+
+        column PURCHASEORDERNO (
+            type: plainText
+            heading {
+                heading: Purchaseorderno
+                alignment: center
+            }
+            layout {
+                sequence: 470
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AU
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: Remark
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column REPAIRINGREQUISITIONDATE (
+            type: plainText
+            heading {
+                heading: Repairingrequisitiondate
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column REPAIRINGREQUISITIONNO (
+            type: plainText
+            heading {
+                heading: Repairingrequisitionno
+                alignment: center
+            }
+            layout {
+                sequence: 310
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AE
+            }
+        )
+
+        column REPAIRINGREQUISITIONTNO (
+            type: plainText
+            heading {
+                heading: Repairingrequisitiontno
+                alignment: center
+            }
+            layout {
+                sequence: 530
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BA
+            }
+        )
+
+        column STOREINREPAIRINGITEMDATE (
+            type: plainText
+            heading {
+                heading: Storeinrepairingitemdate
+                alignment: center
+            }
+            layout {
+                sequence: 340
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AH
+            }
+        )
+
+        column STOREINREPAIRINGITEMNO (
+            type: plainText
+            heading {
+                heading: Storeinrepairingitemno
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AG
+            }
+        )
+
+        column STOREINREPAIRINGITEMTNO (
+            type: plainText
+            heading {
+                heading: Storeinrepairingitemtno
+                alignment: center
+            }
+            layout {
+                sequence: 510
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column STOREOUTREPAIREDITEMDATE (
+            type: plainText
+            heading {
+                heading: Storeoutrepaireditemdate
+                alignment: center
+            }
+            layout {
+                sequence: 410
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column STOREOUTREPAIREDITEMNO (
+            type: plainText
+            heading {
+                heading: Storeoutrepaireditemno
+                alignment: center
+            }
+            layout {
+                sequence: 400
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column USEDSTOCKTNO (
+            type: plainText
+            heading {
+                heading: Usedstocktno
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column WARRANTYEXPIRYDATE (
+            type: plainText
+            heading {
+                heading: Warrantyexpirydate
+                alignment: center
+            }
+            layout {
+                sequence: 140
+                columnAlignment: center
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column WORKCENTRECODE (
+            type: plainText
+            heading {
+                heading: Workcentrecode
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column WORKCENTRENAME (
+            type: plainText
+            heading {
+                heading: Workcentrename
+                alignment: center
+            }
+            layout {
+                sequence: 300
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Report
+        }
+
+        savedReport 222156 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 52
+            )
+
+            displayColumn ASSETNO (
+                sequence: 20
+            )
+
+            displayColumn COMPANYCODE (
+                sequence: 3
+            )
+
+            displayColumn CREATOR (
+                sequence: 24
+            )
+
+            displayColumn DATEOFINSTALLATION (
+                sequence: 8
+            )
+
+            displayColumn DEPARTMENTCODE (
+                sequence: 25
+            )
+
+            displayColumn DEPARTMENTNAME (
+                sequence: 29
+            )
+
+            displayColumn DETAILASSETNO (
+                sequence: 43
+            )
+
+            displayColumn DOCTYPECODE (
+                sequence: 2
+            )
+
+            displayColumn DRAWINGNO (
+                sequence: 10
+            )
+
+            displayColumn EQUIPMENTDATE (
+                sequence: 19
+            )
+
+            displayColumn EQUIPMENTID (
+                sequence: 9
+            )
+
+            displayColumn EQUIPMENTNAME (
+                sequence: 6
+            )
+
+            displayColumn EQUIPMENTNO (
+                sequence: 5
+            )
+
+            displayColumn EQUIPMENTTYPECODE (
+                sequence: 17
+            )
+
+            displayColumn EQUIPMENTTYPENAME (
+                sequence: 28
+            )
+
+            displayColumn FINANCIALYEARCODE (
+                sequence: 4
+            )
+
+            displayColumn GATEPASSDATE (
+                sequence: 36
+            )
+
+            displayColumn GATEPASSNO (
+                sequence: 35
+            )
+
+            displayColumn GRNDATE (
+                sequence: 38
+            )
+
+            displayColumn GRNNO (
+                sequence: 37
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 15
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 27
+            )
+
+            displayColumn ITEMSPECIFICATIONCODE (
+                sequence: 16
+            )
+
+            displayColumn JOBBILLDATE (
+                sequence: 50
+            )
+
+            displayColumn JOBBILLNO (
+                sequence: 49
+            )
+
+            displayColumn LANDINGAMOUNT (
+                sequence: 46
+            )
+
+            displayColumn LANDMARK (
+                sequence: 13
+            )
+
+            displayColumn LOCATIONCODE (
+                sequence: 1
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 26
+            )
+
+            displayColumn MAINTAINEDBYCODE (
+                sequence: 22
+            )
+
+            displayColumn MANUFACTURERMODELNO (
+                sequence: 12
+            )
+
+            displayColumn MANUFACTURERSERIALNO (
+                sequence: 11
+            )
+
+            displayColumn MASTERASSETNO (
+                sequence: 42
+            )
+
+            displayColumn PARENTEQUIPMENTTNO (
+                sequence: 23
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 39
+            )
+
+            displayColumn PURCHASEBILLDATE (
+                sequence: 45
+            )
+
+            displayColumn PURCHASEBILLNO (
+                sequence: 44
+            )
+
+            displayColumn PURCHASEORDERDATE (
+                sequence: 48
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 47
+            )
+
+            displayColumn REMARK (
+                sequence: 18
+            )
+
+            displayColumn REPAIRINGREQUISITIONDATE (
+                sequence: 32
+            )
+
+            displayColumn REPAIRINGREQUISITIONNO (
+                sequence: 31
+            )
+
+            displayColumn REPAIRINGREQUISITIONTNO (
+                sequence: 53
+            )
+
+            displayColumn STOREINREPAIRINGITEMDATE (
+                sequence: 34
+            )
+
+            displayColumn STOREINREPAIRINGITEMNO (
+                sequence: 33
+            )
+
+            displayColumn STOREINREPAIRINGITEMTNO (
+                sequence: 51
+            )
+
+            displayColumn STOREOUTREPAIREDITEMDATE (
+                sequence: 41
+            )
+
+            displayColumn STOREOUTREPAIREDITEMNO (
+                sequence: 40
+            )
+
+            displayColumn USEDSTOCKTNO (
+                sequence: 21
+            )
+
+            displayColumn WARRANTYEXPIRYDATE (
+                sequence: 14
+            )
+
+            displayColumn WORKCENTRECODE (
+                sequence: 7
+            )
+
+            displayColumn WORKCENTRENAME (
+                sequence: 30
+            )
+
+        )
+
+    )
+
+    pageItem P233_EQUIPMENTNO (
+        type: popupLov
+        label {
+            label: Equipment No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select EquipmentNo d,
+                Tno r
+                From 
+                Equipment;
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @equipment-history-report
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P233_REPAIRINGREQUISITIONTNO (
+        type: popupLov
+        label {
+            label: Repairing Requisition No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select RepairingrequisitionNo d,
+                tno r
+                From Repairingrequisition;
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @equipment-history-report
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 2
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 10
+            region: @equipment-history-report
+            slot: create
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

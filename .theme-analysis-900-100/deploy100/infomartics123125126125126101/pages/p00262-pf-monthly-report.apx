@@ -1,0 +1,567 @@
+page 262 (
+    name: PF Monthly Report
+    alias: PF-MONTHLY-REPORT
+    title: PF Monthly Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region pf-monthly-report (
+        name: PF Monthly Report
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT
+                    ROWNUM,
+                    uan,
+                    employeename,
+                    pfearning,
+                    contributionepf,
+                    epfdifference,
+                    pentionfund
+                FROM
+                    (
+                        SELECT
+                            uan,
+                            employeename,
+                            SUM(nvl(pfearning, 0))                                       pfearning,
+                            SUM(nvl(contributionepf, 0))                                 contributionepf,
+                            abs(SUM(nvl(contributionepf, 0)) - ((SUM(nvl(pfearning, 0))*8.33)/100) ) epfdifference,
+                            ((SUM(nvl(pfearning, 0))*8.33)/100  )                                  pentionfund
+                        FROM
+                            (
+                                SELECT
+                                    c.uan,
+                                    c.employeename,
+                                    case when b.salaryheadamount>= 15000 then
+                                    15000
+                                    else
+                                    b.salaryheadamount 
+                                    end AS pfearning,
+                                    NULL               AS contributionepf,
+                                    NULL               AS epfdifference,
+                                    NULL               AS pentionfund
+                                FROM
+                                    salary       a,
+                                    salarydetail b,
+                                    employee     c
+                                WHERE
+                                        a.tno = b.tno
+                                    AND a.employeecode = c.employeecode
+                --and a.tno =  54923442
+                                    AND b.salaryheadcode = 'BASIC'
+                                    and a.SALARYFROMDATE = :P262_FROMDATE
+                                    and a.SALARYTODATE = :P262_TODATE
+                                UNION ALL
+                                SELECT
+                                    c.uan,
+                                    c.employeename,
+                                    NULL               AS pfearning,
+                                    b.salaryheadamount AS contributionepf,
+                                    NULL               AS epfdifference,
+                                    NULL               AS pentionfund
+                                FROM
+                                    salary       a,
+                                    salarydetail b,
+                                    employee     c
+                                WHERE
+                                        a.tno = b.tno
+                                    AND a.employeecode = c.employeecode
+                --and a.tno =  54923442
+                                    AND b.salaryheadcode = 'PFEMPLOYEE'
+                                     and a.SALARYFROMDATE = :P262_FROMDATE
+                                    and a.SALARYTODATE = :P262_TODATE
+                                UNION ALL
+                                SELECT
+                                    c.uan,
+                                    c.employeename,
+                                    NULL               AS pfearning,
+                                    NULL               AS contributionepf,
+                                    NULL               AS epfdifference,
+                                    b.salaryheadamount AS pentionfund
+                                FROM
+                                    salary       a,
+                                    salarydetail b,
+                                    employee     c
+                                WHERE
+                                        a.tno = b.tno
+                                    AND a.employeecode = c.employeecode
+                --and a.tno =  54923442
+                                    AND b.salaryheadcode = 'PFEMPLOYER'
+                                     and a.SALARYFROMDATE = :P262_FROMDATE
+                                    and a.SALARYTODATE = :P262_TODATE
+                            )
+                        GROUP BY
+                            uan,
+                            employeename
+                    )
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 86695448343546909
+        }
+
+        savedReport 880129 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @ROWNUM
+                layout {
+                    width: 77.66300000000001
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @UAN
+                layout {
+                    width: 243.672
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @EMPLOYEENAME
+                layout {
+                    width: 265.3125
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @PFEARNING
+                layout {
+                    width: 170.674
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @CONTRIBUTIONEPF
+                layout {
+                    width: 183.67
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @EPFDIFFERENCE
+                layout {
+                    width: 185.66
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @PENTIONFUND
+                layout {
+                    sequence: 7
+                }
+            )
+
+        )
+
+        columnGroup employee-contribution (
+            heading: Employee Contribution
+        )
+
+        columnGroup employer-contribution (
+            heading: Employer Contribution
+        )
+
+        column CONTRIBUTIONEPF (
+            type: numberField
+            heading {
+                heading: Contribution EPF
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+                group: @employee-contribution
+            }
+            appearance {
+                width: 80
+            }
+            source {
+                databaseColumn: CONTRIBUTIONEPF
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EMPLOYEENAME (
+            type: textField
+            heading {
+                heading: Name Of Member
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                width: 130
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EMPLOYEENAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EPFDIFFERENCE (
+            type: numberField
+            heading {
+                heading: EPF Difference
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+                group: @employer-contribution
+            }
+            appearance {
+                width: 80
+            }
+            source {
+                databaseColumn: EPFDIFFERENCE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PENTIONFUND (
+            type: numberField
+            heading {
+                heading: Pension Fund <br> 8.33%
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+                group: @employer-contribution
+            }
+            appearance {
+                width: 80
+            }
+            source {
+                databaseColumn: PENTIONFUND
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PFEARNING (
+            type: numberField
+            heading {
+                heading: PF Earnings
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+                group: @employee-contribution
+            }
+            appearance {
+                width: 100
+            }
+            source {
+                databaseColumn: PFEARNING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column ROWNUM (
+            type: numberField
+            heading {
+                heading: SL No.
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: ROWNUM
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column UAN (
+            type: textField
+            heading {
+                heading: UAN
+            }
+            layout {
+                sequence: 20
+            }
+            appearance {
+                width: 70
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: UAN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: PF Monthly Report
+        }
+    )
+
+    pageItem P262_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P262_COMPANY (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P262_DOCTYPE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P262_FORMONTH (
+        type: popupLov
+        label {
+            label: For month
+            alignment: left
+        }
+        settings {
+            additionalOutputs: FROMDATE:P262_FROMDATE,TODATE:P262_TODATE
+        }
+        lov {
+            type: sharedComponent
+            lov: @formonth
+            nullDisplayValue: -Select-
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P262_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P262_LOCATION (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    pageItem P262_TODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 80
+            region: @filter
+            slot: regionBody
+            column: 12
+            columnSpan: 1
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction pagination (
+        name: Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

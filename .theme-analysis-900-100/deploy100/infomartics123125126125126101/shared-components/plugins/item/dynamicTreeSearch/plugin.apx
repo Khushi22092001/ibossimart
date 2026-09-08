@@ -1,0 +1,83 @@
+plugin dynamicTreeSearch (
+    name: Dynamic Tree Search
+    staticId: HR.BILOG.MGORICKI.DYNAMICTREE
+    type: item
+    component {
+        supports: pageItems
+        standardAttributes: [
+            visibleWidget
+            sessionStateChangeable
+            elementAttrs
+            widthAttrs
+            placeholderAttr
+        ]
+    }
+    source {
+        plsqlCode:
+            ```plsql
+            -------------------------------------------------------------------------
+            -- Author  : Marko Goricki
+            -- Mail    : mgoricki8@gmail.com
+            -- Blog    : http://apexbyg.blogspot.com/
+            -- Company : http://bilog.hr/
+            -- Created : 15.07.2015 12:00:00 PM
+            -- Purpose : Render function for APEX plugin that enables dynamic search of tree region
+            -- Version : v.1.0.0 
+            FUNCTION f_render_item(p_item                IN apex_plugin.t_page_item
+                                  ,p_plugin              IN apex_plugin.t_plugin
+                                  ,p_value               IN VARCHAR2
+                                  ,p_is_readonly         IN BOOLEAN
+                                  ,p_is_printer_friendly IN BOOLEAN)
+              RETURN apex_plugin.t_page_item_render_result 
+            IS
+              v_return apex_plugin.t_page_item_render_result;
+              v_onload_code varchar2(2000);
+            BEGIN
+              -- render item
+              sys.htp.prn('<input id="'||p_item.name||'" type="text" name="'||apex_plugin.get_input_name_for_page_item(p_is_multi_value => false)||'" class="'||p_item.element_css_classes||'"  size="'||p_item.element_width||'" maxlength="'||p_item.element_max_length||'" '||p_item.element_attributes||' value="'||sys.htf.escape_sc(p_value)||'" placeholder="'||p_item.placeholder||'" />');
+              
+              -- add JS code
+              apex_javascript.add_library(p_name      => 'hr.bilog.mgoricki.searchtree'    
+                                        , p_directory => p_plugin.file_prefix                            
+                                        , p_check_to_add_minified => TRUE
+                                        );   
+            
+              -- add onload code
+              v_onload_code := 'apex.jQuery("#'||sys.htf.escape_sc(p_item.name)||'").dynamicTreeSearch({'||
+                 apex_javascript.add_attribute('treeRegion', p_item.attribute_01)||
+                 apex_javascript.add_attribute('ajaxId', apex_plugin.get_ajax_identifier)||  
+                 apex_javascript.add_attribute('filterOnLoad', p_item.attribute_02)||          
+                 apex_javascript.add_attribute('delay', p_item.attribute_03, p_add_comma => FALSE)||'});'; 
+                        
+              apex_javascript.add_onload_code(p_code => v_onload_code);                              
+                
+                                         
+              RETURN v_return;
+            END;
+            
+            FUNCTION f_dummy (
+                p_item   in apex_plugin.t_page_item,
+                p_plugin in apex_plugin.t_plugin )
+              RETURN apex_plugin.t_page_item_ajax_result
+            IS
+            BEGIN
+              RETURN null;
+            END;
+            
+            ```
+    }
+    callbacks {
+        apiInterface: function
+        renderProcedureName: f_render_item
+        ajaxProcedureName: f_dummy
+    }
+    advanced {
+        substituteAttributeValues: true
+    }
+    information {
+        version: 1.0.0
+        aboutUrl: https://apex.oracle.com/pls/apex/f?p=apexbyg:treesearch
+        helpText: Item type Plug-In that enables dynamic search for APEX tree regions.
+    }
+)
+

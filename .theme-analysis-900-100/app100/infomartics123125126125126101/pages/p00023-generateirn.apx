@@ -1,0 +1,310 @@
+page 23 (
+    name: GENERATEIRN
+    alias: GENERATEIRN
+    title: GENERATEIRN
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        width: 600
+        height: 400
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region cancel-irn (
+        name: Cancel IRN
+        type: staticContent
+        layout {
+            sequence: 90
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        serverSideCondition {
+            type: item=value
+            item: P23_ACTION
+            value: CANCEL
+        }
+    )
+
+    pageItem P23_ACTION (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_CANCEL_REASON_CODE (
+        type: selectList
+        label {
+            label: Cancel Reason Code
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                IRNCANCELREASONNAME as d,
+                IRNCANCELREASONCODE as r
+                FROM IRNCANCELREASON
+                Order by 2
+                ```
+            nullDisplayValue: -- Select Cancel Reason --
+        }
+        layout {
+            sequence: 10
+            region: @cancel-irn
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            height: 1
+        }
+    )
+
+    pageItem P23_CANCEL_REMARK (
+        type: textarea
+        label {
+            label: Cancel Remark
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @cancel-irn
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 300
+            height: 5
+        }
+    )
+
+    pageItem P23_INVOICEDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_INVOICENO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_LOCATIONCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_MODULECODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_MODULETNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    pageItem P23_WITHEWAYBILL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            slot: contentBody
+        }
+    )
+
+    button cancel-irn (
+        buttonName: CANCEL_IRN
+        label: Cancel IRN
+        layout {
+            sequence: 30
+            region: @cancel-irn
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction cancel-the-irn (
+        name: Cancel the IRN
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel-irn
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    IF :P23_ACTION =  'CANCEL' then  
+                            RequestForCancelIRN(:P23_MODULETNO, :P23_CANCEL_REASON_CODE, :P23_CANCEL_REMARK);
+                    end if;
+                    ```
+                itemsToSubmit: [
+                    P23_MODULETNO
+                    P23_CANCEL_REASON_CODE
+                    P23_CANCEL_REMARK
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-submit-page (
+            action: submitPage
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction generateirn (
+        name: generateIRn
+        execution {
+            sequence: 30
+        }
+        when {
+            event: ready
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                      tmessage varchar2(2000);
+                      
+                    begin
+                    --:P23_WITHEWAYBILL  := 'YES';
+                        if :P23_ACTION = 'CHECK' then
+                           tmessage := GetEInvoiceValidation(:P23_MODULETNO);
+                           raise_application_error(-20000,' '||tmessage);
+                        ELSIF UPPER(:P23_ACTION) =  'REQUESTIRN' then
+                          --raise_application_error(-20001,' WITH WAY BILL '||:P23_WITHEWAYBILL|| ' THIS IS NOT ERROR. REQUEST FOR IRN DONE');
+                           RequestForIRN(:P23_MODULETNO, :P23_WITHEWAYBILL);
+                          -- raise_application_error(-20001,' '|| 'THIS IS NOT ERROR. REQUEST FOR IRN DONE with '||:P23_WITHEWAYBILL);
+                        ELSIF :P23_ACTION =  'GETIRN' then
+                            RequestForGeneratedIRN(:P23_MODULETNO);
+                        ELSIF :P23_ACTION =  'CANCEL' then  
+                            -- RequestForCancelIRN(:P23_MODULETNO, :P23_CANCEL_REASON_CODE, :P23_CANCEL_REMARK);
+                            NULL;
+                        end if;
+                    end;
+                    ```
+                itemsToSubmit: [
+                    P23_TNO
+                    P23_ACTION
+                    P23_MODULETNO
+                    P23_MODULECODE
+                    P23_LOCATIONCODE
+                    P23_INVOICENO
+                    P23_INVOICEDATE
+                    P23_WITHEWAYBILL
+                ]
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: closeDialog
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 16024211440730217
+        }
+    )
+
+)
+

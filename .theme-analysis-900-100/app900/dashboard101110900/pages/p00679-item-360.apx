@@ -1,0 +1,2014 @@
+page 679 (
+    name: Item 360
+    alias: ITEM-360
+    title: Item 360
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText:
+            ```html
+            ITEM 360 — data contract.
+            
+            GRAIN: ITEM *AND* UNIT OF MEASURE. The subject is the pair
+            (P679_ITEMCODE, P679_UOM) — the same grain as the Item Procurement report on
+            page 683 that drills here, so the figures tie to the clicked row exactly. One
+            item booked in two units is two separate subjects, because rates across units
+            are not comparable and quantities across units cannot be summed.
+            
+            THE ~NONE~ SENTINEL. Bill lines with no unit recorded arrive as the literal
+            string '~NONE~', never as NULL. A NULL would be read by this page as "all units"
+            and would total the wrong population — the row would silently show more than the
+            row that was clicked. Decoded on arrival with
+                nvl(d.RateMeasuringUnitCode,'~NONE~') = :P679_UOM
+            The same applies to P679_SPEC on the optional specification narrowing.
+            
+            REALISED RATE — THE THREE-LEVEL LADDER. Every rate on this page is money booked
+            divided by quantity booked. It is NEVER an average of the stored Rate column,
+            which mixes rate bases.
+                L — filtered bill LINES (Quantity1 > 0 and Amount > 0)
+                B — one realised rate per BILL: SUM(Amt)/SUM(Qty)
+                A — the aggregate: AvgRate = SUM(Amt)/SUM(Qty) across bills;
+                    Min/Max/Last are per-BILL rates
+            AvgRate is a value-weighted mean, so a one-kilogram bill is not weighted like a
+            forty-tonne one. LastRate uses KEEP (DENSE_RANK LAST ORDER BY BillDate, BillTno)
+            so "the most recent rate" is deterministic when several bills share a date.
+            
+            THIS LADDER IS COPIED, NOT SHARED. Pages 679 and 681 each carry an inlined copy —
+            APEXlang has no shared-SQL construct. The copies MUST be kept in sync by
+            discipline: a figure clicked on 683 must reconcile on 679, and a specification
+            row clicked on 679 must reconcile on 681. In any rebuild, factor this into a
+            database view or function so the copies cannot drift apart.
+            
+            PREMIUM IS ARITHMETIC ONLY. The vendor comparison ranks suppliers by what was
+            actually paid. It is NOT quality-adjusted, because this ERP holds no quality or
+            service rating to adjust with. Keep that caveat in any rebuild.
+            
+            PANEL SECURITY. Scalar-subquery form on every region, as elsewhere in the suite.
+            
+            READ-ONLY. Every region is a SELECT.
+            ```
+    }
+
+    region command-header (
+        name: Item 360
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                  '<div class="ds-purchase-head">'
+                  || '<div class="ds-purchase-head-eyebrow">Item 360</div>'
+                  || '<h1 class="ds-purchase-head-title">'
+                     || apex_escape.html(nvl((Select i.ItemName From Item i
+                                               Where i.ItemCode = :P679_ITEMCODE),
+                                             nvl(:P679_ITEMCODE,'No item selected')))
+                     || '</h1>'
+                  || '<p class="ds-purchase-head-sub">What this item cost, from whom, and '
+                  || 'against which specification. Every rate here is money booked divided '
+                  || 'by quantity booked, within this one unit of measure.</p>'
+                  || '<div class="ds-purchase-head-context">'
+                  -- The unit is part of the SUBJECT, not a filter, so it is stated first.
+                  || '<span class="ds-purchase-head-chip">Unit <b>'
+                     || apex_escape.html(
+                          Case When :P679_UOM = '~NONE~' Then 'No unit recorded'
+                               Else nvl((Select m.MeasuringUnitName From MeasuringUnit m
+                                          Where m.MeasuringUnitCode = :P679_UOM),
+                                        nvl(:P679_UOM,'All units')) End)
+                     || '</b></span>'
+                  || Case When :P679_SPEC Is Not Null
+                          Then '<span class="ds-purchase-head-chip">Specification <b>'
+                               || apex_escape.html(
+                                    Case When :P679_SPEC = '~NONE~' Then 'No specification recorded'
+                                         Else nvl((Select s.ItemSpecificationName
+                                                     From ItemSpecification s
+                                                    Where s.ItemSpecificationCode = :P679_SPEC),
+                                                  :P679_SPEC) End)
+                               || '</b></span>'
+                          Else '' End
+                  || '<span class="ds-purchase-head-chip">Period <b>'
+                     || apex_escape.html(:P679_FROMDATE) || ' &rarr; '
+                     || apex_escape.html(:P679_TODATE) || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Company <b>'
+                     || apex_escape.html(nvl(GetCompanyName(:P679_COMPANY),'All companies'))
+                     || '</b></span>'
+                  || '<span class="ds-purchase-head-chip">Location <b>'
+                     || apex_escape.html(nvl(GetLocationName(:P679_LOCATION),'All locations'))
+                     || '</b></span>'
+                  || Case
+                       When (Select GetUserPanelAB_apex() From dual) Is Not Null
+                       Then '<span class="ds-purchase-head-chip">Panel <b>'
+                            || apex_escape.html((Select GetUserPanelAB_apex() From dual))
+                            || ' (enforced)</b></span>'
+                       Else '<span class="ds-purchase-head-chip">Panel <b>'
+                            || apex_escape.html(nvl(:P679_PANEL,'A + B')) || '</b></span>'
+                     End
+                  || '<span class="ds-purchase-head-chip ds-purchase-head-chip--live">Last buy <b>'
+                     || apex_escape.html(nvl(to_char(
+                          (Select Max(h.PurchaseBillDate)
+                             From PurchaseBill h
+                             Join PurchaseBillDetail d On d.TNo = h.TNo
+                            Where d.ItemCode = :P679_ITEMCODE
+                              And (:P679_UOM Is Null
+                                   Or nvl(d.RateMeasuringUnitCode,'~NONE~') = :P679_UOM)
+                              And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                   Or h.Panel = (Select GetUserPanelAB_apex() From dual))),
+                          'DD-Mon-RRRR'),'never bought'))
+                     || '</b></span>'
+                  || '</div></div>' As HEAD
+                From dual
+                ```
+            pageItemsToSubmit: [
+                P679_ITEMCODE
+                P679_UOM
+                P679_SPEC
+                P679_FROMDATE
+                P679_TODATE
+                P679_COMPANY
+                P679_LOCATION
+                P679_PANEL
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-purchase-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: Header unavailable.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Whole header as one HTML string. The unit chip decodes the ~NONE~ sentinel to a readable phrase rather than printing the sentinel.
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p679Filters
+        }
+    )
+
+    region item-kpi (
+        name: Item KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With L As (
+                  -- Level 1: filtered bill LINES. The guards matter — a line with zero
+                  -- quantity or zero value would divide to nonsense or drag the mean.
+                  Select h.TNo BillTno, h.PurchaseBillDate BillDate, h.PartyCode,
+                         d.Amount Amt, d.Quantity1 Qty
+                    From PurchaseBill h
+                    Join PurchaseBillDetail d On d.TNo = h.TNo
+                   Where d.ItemCode = :P679_ITEMCODE
+                     And (:P679_UOM  Is Null
+                          Or nvl(d.RateMeasuringUnitCode,'~NONE~') = :P679_UOM)
+                     And (:P679_SPEC Is Null
+                          Or nvl(d.ItemSpecificationCode,'~NONE~') = :P679_SPEC)
+                     And h.PurchaseBillDate
+                         Between to_date(:P679_FROMDATE,'DD-MM-RRRR')
+                             And to_date(:P679_TODATE,'DD-MM-RRRR')
+                     And nvl(d.Quantity1,0) > 0
+                     And nvl(d.Amount,0)    > 0
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or h.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And (:P679_PANEL Is Null Or h.Panel = :P679_PANEL)
+                     And (:P679_COMPANY  Is Null Or h.CompanyCode  = :P679_COMPANY)
+                     And (:P679_LOCATION Is Null Or h.LocationCode = :P679_LOCATION)
+                     And (:P679_SUPPLIER Is Null Or h.PartyCode    = :P679_SUPPLIER)),
+                B As (
+                  -- Level 2: one realised rate per BILL.
+                  Select BillTno, BillDate,
+                         Sum(Amt) Amt, Sum(Qty) Qty,
+                         Sum(Amt) / Sum(Qty) BillRate
+                    From L
+                   Group By BillTno, BillDate),
+                A As (
+                  -- Level 3: the aggregate. AvgRate is value-weighted; Min/Max/Last are
+                  -- per-BILL rates.
+                  Select Count(*) Bills,
+                         Sum(Amt) Spend,
+                         Sum(Qty) Qty,
+                         Sum(Amt) / Sum(Qty) AvgRate,
+                         Min(BillRate) MinRate,
+                         Max(BillRate) MaxRate,
+                         Max(BillRate) KEEP (DENSE_RANK LAST
+                                             Order By BillDate, BillTno) LastRate,
+                         Max(BillDate) LastBuy
+                    From B),
+                V As (Select Count(Distinct PartyCode) Vendors From L)
+                Select
+                  '<div class="ds-kpi ds-kpi--value" title="SUM(PurchaseBillDetail.Amount) '
+                  || 'for this item in this unit. Must equal the Spend column on the Item '
+                  || 'Procurement report that drilled here.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-inr"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Purchase Value</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.Spend,0) >= 10000000
+                             Then 'Rs ' || to_char(Round(a.Spend/10000000,2),'FM99G990D00') || ' Cr'
+                             When nvl(a.Spend,0) >= 100000
+                             Then 'Rs ' || to_char(Round(a.Spend/100000,2),'FM99G990D00') || ' L'
+                             Else 'Rs ' || to_char(nvl(a.Spend,0),'FM99G99G990D00') End
+                     || '</span>'
+                  || '<span class="ds-kpi-sub">' || to_char(nvl(v.Vendors,0),'FM999G999')
+                     || ' suppliers used</span>'
+                  || '</span></div>' As KPI1,
+                  '<div class="ds-kpi ds-kpi--bill" title="Number of bills carrying this item '
+                  || 'in this unit — how often it is actually bought.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-repeat"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Purchase Frequency</span>'
+                  || '<span class="ds-kpi-n">' || to_char(nvl(a.Bills,0),'FM999G999') || '</span>'
+                  || '<span class="ds-kpi-sub">bills carrying this item</span>'
+                  || '</span></div>' As KPI2,
+                  '<div class="ds-kpi ds-kpi--input" title="SUM(Quantity1) IN THIS UNIT ONLY. '
+                  || 'This figure is meaningful only within the unit named in the header — it '
+                  || 'is never added to a quantity in another unit.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-cubes"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Quantity Purchased</span>'
+                  || '<span class="ds-kpi-n">'
+                     || to_char(nvl(a.Qty,0),'FM999G999G990D000') || '</span>'
+                  || '<span class="ds-kpi-sub">in '
+                     || apex_escape.html(
+                          Case When :P679_UOM = '~NONE~' Then 'lines with no unit recorded'
+                               Else nvl((Select m.MeasuringUnitName From MeasuringUnit m
+                                          Where m.MeasuringUnitCode = :P679_UOM),
+                                        'the selected unit') End)
+                     || '</span>'
+                  || '</span></div>' As KPI3,
+                  '<div class="ds-kpi ds-kpi--move" title="SUM(Amount)/SUM(Quantity1) — total '
+                  || 'money divided by total quantity. A VALUE-WEIGHTED mean, deliberately '
+                  || 'not an average of per-bill rates.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-balance-scale"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Avg Realised Rate</span>'
+                  || '<span class="ds-kpi-n">Rs '
+                     || to_char(Round(a.AvgRate,2),'FM99G99G990D00') || '</span>'
+                  || '<span class="ds-kpi-sub">money booked / quantity booked</span>'
+                  || '</span></div>' As KPI4,
+                  '<div class="ds-kpi ds-kpi--struct" title="The realised rate on the most '
+                  || 'recent bill, resolved with KEEP DENSE_RANK LAST on bill date then bill '
+                  || 'key so it is deterministic when several bills share a date.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-tag"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Last Purchase Rate</span>'
+                  || '<span class="ds-kpi-n">Rs '
+                     || to_char(Round(a.LastRate,2),'FM99G99G990D00') || '</span>'
+                  || '<span class="ds-kpi-sub">'
+                     || nvl(to_char(a.LastBuy,'DD-Mon-RRRR'),'no purchase in period')
+                     || '</span>'
+                  || '</span></div>' As KPI5,
+                  -- A WIDE SPREAD IS ADVERSE, so this card takes the risk accent.
+                  '<div class="ds-kpi ds-kpi--risk" title="100 * (dearest - cheapest) / '
+                  || 'cheapest, on per-BILL realised rates. A wide spread on a high-spend '
+                  || 'item is worth investigating — it may be timing, grade or supplier.">'
+                  || '<span class="ds-kpi-ic"><span class="fa fa-arrows-h"></span></span>'
+                  || '<span class="ds-kpi-body">'
+                  || '<span class="ds-kpi-t">Price Spread</span>'
+                  || '<span class="ds-kpi-n">'
+                     || Case When nvl(a.MinRate,0) > 0
+                             Then to_char(Round(100*(a.MaxRate-a.MinRate)/a.MinRate,1),'FM99999990D0')
+                                  || '%'
+                             Else '<span class="ds-muted">not measurable</span>' End
+                     || '</span>'
+                  || '<span class="ds-kpi-sub">Rs '
+                     || to_char(Round(a.MinRate,2),'FM99G99G990D00') || ' &rarr; Rs '
+                     || to_char(Round(a.MaxRate,2),'FM99G99G990D00') || '</span>'
+                  || '</span></div>' As KPI6
+                From A a Cross Join V v
+                ```
+            pageItemsToSubmit: [
+                P679_ITEMCODE
+                P679_UOM
+                P679_SPEC
+                P679_SUPPLIER
+                P679_FROMDATE
+                P679_TODATE
+                P679_COMPANY
+                P679_LOCATION
+                P679_PANEL
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
+        }
+        messages {
+            whenNoDataFound: This item was not bought in the selected period, unit and scope.
+        }
+
+        column KPI1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Purchase Value. Reconciliation anchor against the Spend column on the 683 Item Procurement row that drilled here.
+            }
+        )
+
+        column KPI2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Purchase frequency — bill count, not line count, so a multi-line bill counts once.
+            }
+        )
+
+        column KPI3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Quantity WITHIN the selected unit only. The sub-line names the unit so the number is never read as a cross-unit total.
+            }
+        )
+
+        column KPI4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Avg realised rate — value-weighted mean. Must match the Avg Realised Rate on the 683 row that drilled here.
+            }
+        )
+
+        column KPI5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Most recent per-bill rate, made deterministic by the KEEP DENSE_RANK LAST tie-break on bill key.
+            }
+        )
+
+        column KPI6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Price spread. Takes the risk accent because a wide spread is adverse — colour follows cost, not arithmetic.
+            }
+        )
+
+    )
+
+    region item-master (
+        name: Item Master
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 10 Seq, 'Item name' As ATTRIBUTE,
+                       apex_escape.html(i.ItemName) As VALUE
+                  From Item i Where i.ItemCode = :P679_ITEMCODE
+                Union All
+                Select 20, 'Item code', apex_escape.html(i.ItemCode)
+                  From Item i Where i.ItemCode = :P679_ITEMCODE
+                Union All
+                Select 30, 'Parent group',
+                       nvl((Select apex_escape.html(p.ItemName) From Item p
+                             Where p.ItemCode = i.ParentCode),
+                           '<span class="ds-muted">top of the hierarchy</span>')
+                  From Item i Where i.ItemCode = :P679_ITEMCODE
+                Union All
+                Select 35, 'Item category',
+                       nvl((Select apex_escape.html(c.ItemCategoryName) From ItemCategory c
+                             Where c.ItemCategoryCode = i.ItemCategoryCode),
+                           '<span class="ds-muted">not categorised</span>')
+                  From Item i Where i.ItemCode = :P679_ITEMCODE
+                Union All
+                Select 40, 'Stock unit',
+                       nvl((Select apex_escape.html(m.MeasuringUnitName) From MeasuringUnit m
+                             Where m.MeasuringUnitCode = i.MeasuringUnitCode1),
+                           '<span class="ds-muted">not recorded</span>')
+                  From Item i Where i.ItemCode = :P679_ITEMCODE
+                Union All
+                Select 50, 'Alternate unit',
+                       nvl((Select apex_escape.html(m.MeasuringUnitName) From MeasuringUnit m
+                             Where m.MeasuringUnitCode = i.MeasuringUnitCode2),
+                           '<span class="ds-muted">not recorded</span>')
+                  From Item i Where i.ItemCode = :P679_ITEMCODE
+                Union All
+                Select 60, 'Specifications on file',
+                       to_char((Select Count(*) From ItemSpecification s
+                                 Where s.ItemSpecificationCode In
+                                       (Select Distinct d.ItemSpecificationCode
+                                          From PurchaseBillDetail d
+                                         Where d.ItemCode = :P679_ITEMCODE)))
+                  From dual
+                Union All
+                Select 70, 'HSN codes seen',
+                       nvl((Select listagg(x.HsnCode, ', ') Within Group (Order By x.HsnCode)
+                              From (Select Distinct s.HsnCode
+                                      From ItemSpecification s
+                                      Join PurchaseBillDetail d
+                                        On d.ItemSpecificationCode = s.ItemSpecificationCode
+                                     Where d.ItemCode = :P679_ITEMCODE
+                                       And s.HsnCode Is Not Null) x),
+                           '<span class="ds-muted">not recorded</span>')
+                  From dual
+                Order By 1
+                ```
+            pageItemsToSubmit: P679_ITEMCODE
+        }
+        layout {
+            sequence: 35
+            slot: body
+            columnSpan: 5
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYNoPagination
+        }
+        messages {
+            whenNoDataFound: No master record found for this item code.
+        }
+
+        column ATTRIBUTE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Attribute
+            }
+            layout {
+                sequence: 10
+            }
+            comments {
+                comments: Curated list. Attributes this ERP does not populate are omitted entirely rather than listed blank.
+            }
+        )
+
+        column SEQ (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            type: hidden
+            layout {
+                sequence: 5
+            }
+            comments {
+                comments: Attribute order. Must stay projected so APEX cannot eliminate the ORDER BY.
+            }
+        )
+
+        column VALUE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Value
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Where a master field is genuinely empty the cell says "not recorded" in the muted style, never a bare blank.
+            }
+        )
+
+    )
+
+    region item-specs (
+        name: Specification Mix
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With L As (
+                  Select h.TNo BillTno, h.PurchaseBillDate BillDate, h.PartyCode,
+                         nvl(d.ItemSpecificationCode,'~NONE~') Spec,
+                         d.Amount Amt, d.Quantity1 Qty
+                    From PurchaseBill h
+                    Join PurchaseBillDetail d On d.TNo = h.TNo
+                   Where d.ItemCode = :P679_ITEMCODE
+                     And (:P679_UOM Is Null
+                          Or nvl(d.RateMeasuringUnitCode,'~NONE~') = :P679_UOM)
+                     And h.PurchaseBillDate
+                         Between to_date(:P679_FROMDATE,'DD-MM-RRRR')
+                             And to_date(:P679_TODATE,'DD-MM-RRRR')
+                     And nvl(d.Quantity1,0) > 0
+                     And nvl(d.Amount,0)    > 0
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or h.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And (:P679_PANEL Is Null Or h.Panel = :P679_PANEL)
+                     And (:P679_COMPANY  Is Null Or h.CompanyCode  = :P679_COMPANY)
+                     And (:P679_LOCATION Is Null Or h.LocationCode = :P679_LOCATION)),
+                B As (
+                  Select Spec, BillTno, BillDate,
+                         Sum(Amt) Amt, Sum(Qty) Qty,
+                         Sum(Amt) / Sum(Qty) BillRate
+                    From L
+                   Group By Spec, BillTno, BillDate),
+                A As (
+                  Select Spec,
+                         Count(*) Bills,
+                         Sum(Amt) Spend,
+                         Sum(Qty) Qty,
+                         Sum(Amt) / Sum(Qty) AvgRate,
+                         Min(BillRate) MinRate,
+                         Max(BillRate) MaxRate,
+                         Max(BillDate) LastBuy
+                    From B
+                   Group By Spec),
+                V As (Select Spec, Count(Distinct PartyCode) Vendors From L Group By Spec)
+                Select
+                  a.Spec As SPECCODE,
+                  Case When a.Spec = '~NONE~'
+                       Then '<span class="ds-muted">No specification recorded</span>'
+                       Else apex_escape.html(
+                              nvl((Select s.ItemSpecificationName From ItemSpecification s
+                                    Where s.ItemSpecificationCode = a.Spec), a.Spec))
+                  End As SPECIFICATION,
+                  v.Vendors As VENDORS,
+                  a.Bills As BILLS,
+                  a.Qty As QUANTITY,
+                  a.Spend As SPEND,
+                  Round(a.AvgRate,2) As AVG_RATE,
+                  Round(a.MinRate,2) As MIN_RATE,
+                  Round(a.MaxRate,2) As MAX_RATE,
+                  a.LastBuy As LAST_BUY,
+                  '<span class="ds-sharecell"><span class="ds-bar ds-bar--gold"><i style="width:'
+                  || to_char(Round(100 * a.Spend / Nullif(Sum(a.Spend) Over (),0),1),'FM99999990D0')
+                  || '%"></i></span><b>'
+                  || to_char(Round(100 * a.Spend / Nullif(Sum(a.Spend) Over (),0),1),'FM99999990D0')
+                  || '%</b></span>' As SHARE_OF_ITEM
+                From A a
+                Join V v On v.Spec = a.Spec
+                Order By a.Spend Desc
+                ```
+            pageItemsToSubmit: [
+                P679_ITEMCODE
+                P679_UOM
+                P679_FROMDATE
+                P679_TODATE
+                P679_COMPANY
+                P679_LOCATION
+                P679_PANEL
+            ]
+        }
+        layout {
+            sequence: 36
+            slot: body
+            startNewRow: false
+            columnSpan: 7
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--horizontalBorders
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZWithPagination
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No specification of this item was bought in the selected period and scope.
+        }
+
+        column AVG_RATE (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Avg Rate
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: Value-weighted realised rate for the specification. Must match the Avg Realised Rate KPI on page 681 when this row is clicked.
+            }
+        )
+
+        column BILLS (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Bills
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            comments {
+                comments: How many bills carried this specification.
+            }
+        )
+
+        column LAST_BUY (
+            reportColumnQueryId: 10
+            derivedColumn: N
+            heading {
+                heading: Last Buy
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY
+            }
+            comments {
+                comments: Most recent bill date carrying this specification.
+            }
+        )
+
+        column MAX_RATE (
+            reportColumnQueryId: 9
+            derivedColumn: N
+            heading {
+                heading: Highest
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: Dearest per-bill realised rate for this specification.
+            }
+        )
+
+        column MIN_RATE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Lowest
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: Cheapest per-bill realised rate for this specification.
+            }
+        )
+
+        column QUANTITY (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            comments {
+                comments: Quantity within the page's selected unit. Safe to total down this column only because the unit is fixed for the whole page.
+            }
+        )
+
+        column SHARE_OF_ITEM (
+            reportColumnQueryId: 11
+            derivedColumn: N
+            heading {
+                heading: Share of Item Spend
+            }
+            layout {
+                sequence: 100
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Share bar computed on spend, which is the only additive measure at this grain.
+            }
+        )
+
+        column SPECCODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            layout {
+                sequence: 5
+            }
+            comments {
+                comments: Drill key to page 681, already wrapped in the ~NONE~ sentinel so a blank specification travels as its own group rather than as "all".
+            }
+        )
+
+        column SPECIFICATION (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            type: link
+            heading {
+                heading: Specification
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 681
+                    items: {
+                        P681_ITEMCODE: &P679_ITEMCODE.
+                        P681_SPEC: #SPECCODE#
+                        P681_UOM: &P679_UOM.
+                        P681_FROMDATE: &P679_FROMDATE.
+                        P681_TODATE: &P679_TODATE.
+                        P681_COMPANY: &P679_COMPANY.
+                        P681_LOCATION: &P679_LOCATION.
+                        P681_PANEL: &P679_PANEL.
+                    }
+                    clearCache: 681
+                    debug: NO
+                }
+                linkText: #SPECIFICATION#
+            }
+            security {
+                escapeSpecialChars: false
+            }
+            comments {
+                comments: Drills to Specification 360. The supplier filter is deliberately NOT carried — the point of that page is to compare every supplier of the specification.
+            }
+        )
+
+        column SPEND (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Spend
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G990D00
+            }
+            comments {
+                comments: Spend per specification. Summing this column reproduces the Purchase Value KPI.
+            }
+        )
+
+        column VENDORS (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Vendors
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990
+            }
+            comments {
+                comments: Distinct suppliers of this specification. A single vendor on a high-share specification is a concentration risk.
+            }
+        )
+
+    )
+
+    region price-trend (
+        name: Realised Rate by Month
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select to_char(Trunc(h.PurchaseBillDate,'MM'),'Mon-RR') MONTH_LABEL,
+                       Round(Sum(d.Amount) / Nullif(Sum(d.Quantity1),0), 2) RATE,
+                       Trunc(h.PurchaseBillDate,'MM') SORT_KEY
+                  From PurchaseBill h
+                  Join PurchaseBillDetail d On d.TNo = h.TNo
+                 Where d.ItemCode = :P679_ITEMCODE
+                   And (:P679_UOM  Is Null
+                        Or nvl(d.RateMeasuringUnitCode,'~NONE~') = :P679_UOM)
+                   And (:P679_SPEC Is Null
+                        Or nvl(d.ItemSpecificationCode,'~NONE~') = :P679_SPEC)
+                   And h.PurchaseBillDate
+                       Between to_date(:P679_FROMDATE,'DD-MM-RRRR')
+                           And to_date(:P679_TODATE,'DD-MM-RRRR')
+                   And nvl(d.Quantity1,0) > 0
+                   And nvl(d.Amount,0)    > 0
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or h.Panel = (Select GetUserPanelAB_apex() From dual))
+                   And (:P679_PANEL Is Null Or h.Panel = :P679_PANEL)
+                   And (:P679_COMPANY  Is Null Or h.CompanyCode  = :P679_COMPANY)
+                   And (:P679_LOCATION Is Null Or h.LocationCode = :P679_LOCATION)
+                   And (:P679_SUPPLIER Is Null Or h.PartyCode    = :P679_SUPPLIER)
+                 Group By Trunc(h.PurchaseBillDate,'MM')
+                 Order By SORT_KEY
+                ```
+            pageItemsToSubmit: [
+                P679_ITEMCODE
+                P679_UOM
+                P679_SPEC
+                P679_SUPPLIER
+                P679_FROMDATE
+                P679_TODATE
+                P679_COMPANY
+                P679_LOCATION
+                P679_PANEL
+            ]
+        }
+        layout {
+            sequence: 55
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 270
+        }
+        messages {
+            whenNoDataFound: This item was not bought in the selected period, so no rate can be plotted.
+        }
+
+        series rate (
+            name: Realised Rate
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: MONTH_LABEL
+                value: RATE
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Realised Rate (Rs)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region rule-master (
+        name: Item Master and Specifications
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Master Record &amp; Specification Mix</h2>
+                  <p>What the item master records, and how spend splits across the
+                     specifications actually bought. Fields this ERP does not populate are
+                     omitted rather than shown blank &mdash; a blank reads as missing data,
+                     an absence reads as "not recorded here". Each specification drills to
+                     Specification 360.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-pulse (
+        name: Item Position
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>What This Item Cost</h2>
+                  <p>Headline position for this item in this unit of measure. Average
+                     realised rate is total money divided by total quantity &mdash; a
+                     value-weighted mean, <em>not</em> an average of per-bill rates, which
+                     would weight a one-kilogram bill like a forty-tonne one.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 15
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-trend (
+        name: Rate Over Time
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Realised Rate by Month</h2>
+                  <p>The rate actually achieved each month, on the same money-over-quantity
+                     basis as the cards above. A rising line is adverse.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region rule-vendor (
+        name: Vendor Comparison
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-purchase-section">
+                  <h2>Who Supplies It, and at What Rate</h2>
+                  <p>Every supplier of this item ranked cheapest first, with the premium each
+                     carries over the best source. This is an <em>arithmetic</em> comparison
+                     of what was actually paid &mdash; it is <strong>not</strong>
+                     quality-adjusted, because this ERP holds no quality or service rating to
+                     adjust with. The table deliberately ignores the Supplier filter so every
+                     vendor stays visible.</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/blank-with-attributes
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region vendor-compare (
+        name: Vendor Comparison
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With L As (
+                  Select h.TNo BillTno, h.PurchaseBillDate BillDate, h.PartyCode,
+                         d.Amount Amt, d.Quantity1 Qty
+                    From PurchaseBill h
+                    Join PurchaseBillDetail d On d.TNo = h.TNo
+                   Where d.ItemCode = :P679_ITEMCODE
+                     And (:P679_UOM  Is Null
+                          Or nvl(d.RateMeasuringUnitCode,'~NONE~') = :P679_UOM)
+                     And (:P679_SPEC Is Null
+                          Or nvl(d.ItemSpecificationCode,'~NONE~') = :P679_SPEC)
+                     And h.PurchaseBillDate
+                         Between to_date(:P679_FROMDATE,'DD-MM-RRRR')
+                             And to_date(:P679_TODATE,'DD-MM-RRRR')
+                     And nvl(d.Quantity1,0) > 0
+                     And nvl(d.Amount,0)    > 0
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null
+                          Or h.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And (:P679_PANEL Is Null Or h.Panel = :P679_PANEL)
+                     And (:P679_COMPANY  Is Null Or h.CompanyCode  = :P679_COMPANY)
+                     And (:P679_LOCATION Is Null Or h.LocationCode = :P679_LOCATION)),
+                B As (
+                  Select PartyCode, BillTno, BillDate,
+                         Sum(Amt) Amt, Sum(Qty) Qty,
+                         Sum(Amt) / Sum(Qty) BillRate
+                    From L
+                   Group By PartyCode, BillTno, BillDate),
+                A As (
+                  Select PartyCode,
+                         Count(*) Bills,
+                         Sum(Amt) Spend,
+                         Sum(Qty) Qty,
+                         Sum(Amt) / Sum(Qty) AvgRate,
+                         Min(BillRate) MinRate,
+                         Max(BillRate) MaxRate,
+                         Max(BillRate) KEEP (DENSE_RANK LAST
+                                             Order By BillDate, BillTno) LastRate,
+                         Min(BillDate) FirstBuy,
+                         Max(BillDate) LastBuy
+                    From B
+                   Group By PartyCode)
+                Select
+                  a.PartyCode As PARTYCODE,
+                  GetPartyName(a.PartyCode) As SUPPLIER,
+                  a.Bills As BILLS,
+                  a.Qty As QUANTITY,
+                  a.Spend As SPEND,
+                  Round(a.AvgRate,2)  As AVG_RATE,
+                  Round(a.MinRate,2)  As MIN_RATE,
+                  Round(a.MaxRate,2)  As MAX_RATE,
+                  Round(a.LastRate,2) As LAST_RATE,
+                  -- Premium over the CHEAPEST source for this item. Arithmetic only.
+                  Round(100 * (a.AvgRate - Min(a.AvgRate) Over ())
+                            / Nullif(Min(a.AvgRate) Over (),0), 1) As PREMIUM_PCT,
+                  a.FirstBuy As FIRST_BUY,
+                  a.LastBuy  As LAST_BUY
+                From A a
+                Order By a.AvgRate
+                ```
+            pageItemsToSubmit: [
+                P679_ITEMCODE
+                P679_UOM
+                P679_SPEC
+                P679_FROMDATE
+                P679_TODATE
+                P679_COMPANY
+                P679_LOCATION
+                P679_PANEL
+            ]
+        }
+        layout {
+            sequence: 45
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No supplier billed this item in the selected period, unit and scope.
+        }
+        advanced {
+            savedReportMappingIdentifier: 21534839070436227
+        }
+
+        column AVG_RATE (
+            type: plainText
+            heading {
+                heading: Avg Realised Rate
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+            comments {
+                comments: The ranking measure — value-weighted, so a large bill counts for more than a token one.
+            }
+        )
+
+        column BILLS (
+            type: plainText
+            heading {
+                heading: Bills
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+            comments {
+                comments: How many bills this supplier raised for the item.
+            }
+        )
+
+        column FIRST_BUY (
+            type: plainText
+            heading {
+                heading: First Buy
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+            comments {
+                comments: Earliest bill from this supplier for the item in the period.
+            }
+        )
+
+        column LAST_BUY (
+            type: plainText
+            heading {
+                heading: Last Buy
+            }
+            layout {
+                sequence: 110
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: L
+            }
+            comments {
+                comments: Most recent bill. A distant date next to a low premium may mean the good rate is stale.
+            }
+        )
+
+        column LAST_RATE (
+            type: plainText
+            heading {
+                heading: Last Rate
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+            comments {
+                comments: Most recent per-bill rate from this supplier, deterministically resolved.
+            }
+        )
+
+        column MAX_RATE (
+            type: plainText
+            heading {
+                heading: Highest
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+            comments {
+                comments: Dearest per-bill rate from this supplier.
+            }
+        )
+
+        column MIN_RATE (
+            type: plainText
+            heading {
+                heading: Lowest
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+            comments {
+                comments: Cheapest per-bill rate from this supplier.
+            }
+        )
+
+        column PARTYCODE (
+            type: hidden
+            heading {
+                heading: Party Code
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            comments {
+                comments: Technical drill key. Never displayed.
+            }
+        )
+
+        column PREMIUM_PCT (
+            type: plainText
+            heading {
+                heading: Premium vs Best %
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM9990D0
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+            comments {
+                comments: How much dearer than the cheapest source. ARITHMETIC ONLY — not quality-adjusted, because this ERP holds no quality or service rating. Zero marks the best source.
+            }
+        )
+
+        column QUANTITY (
+            type: plainText
+            heading {
+                heading: Quantity
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G990D000
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+            comments {
+                comments: Quantity in the page's fixed unit, so this column is comparable down the rows.
+            }
+        )
+
+        column SPEND (
+            type: plainText
+            heading {
+                heading: Spend
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM99G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+            comments {
+                comments: Money booked with this supplier for the item. Summing this column reproduces the Purchase Value KPI.
+            }
+        )
+
+        column SUPPLIER (
+            type: link
+            heading {
+                heading: Supplier
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 669
+                    items: {
+                        P669_SUPPLIER: #PARTYCODE#
+                        P669_FROMDATE: &P679_FROMDATE.
+                        P669_TODATE: &P679_TODATE.
+                        P669_COMPANY: &P679_COMPANY.
+                        P669_LOCATION: &P679_LOCATION.
+                        P669_PANEL: &P679_PANEL.
+                    }
+                    clearCache: 669
+                    debug: NO
+                }
+                linkText: #SUPPLIER#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+            comments {
+                comments: Drills to Supplier 360 for the WHOLE supplier — the item and specification are deliberately not carried, because that page is a supplier dossier, not an item view.
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AVG_RATE (
+                sequence: 6
+            )
+
+            displayColumn BILLS (
+                sequence: 3
+            )
+
+            displayColumn FIRST_BUY (
+                sequence: 11
+            )
+
+            displayColumn LAST_BUY (
+                sequence: 12
+            )
+
+            displayColumn LAST_RATE (
+                sequence: 9
+            )
+
+            displayColumn MAX_RATE (
+                sequence: 8
+            )
+
+            displayColumn MIN_RATE (
+                sequence: 7
+            )
+
+            displayColumn PARTYCODE (
+                sequence: 1
+            )
+
+            displayColumn PREMIUM_PCT (
+                sequence: 10
+            )
+
+            displayColumn QUANTITY (
+                sequence: 4
+            )
+
+            displayColumn SPEND (
+                sequence: 5
+            )
+
+            displayColumn SUPPLIER (
+                sequence: 2
+            )
+
+        )
+
+    )
+
+    pageItem P679_COMPANY (
+        type: popupLov
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From PurchaseBill h
+                                Where h.CompanyCode = c.CompanyCode
+                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                       Or h.Panel = (Select GetUserPanelAB_apex() From dual)))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Narrows every region to one company.
+        }
+    )
+
+    pageItem P679_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 9
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Start of the reporting period. Arrives from the page that drilled here.
+        }
+    )
+
+    pageItem P679_ITEMCODE (
+        type: popupLov
+        label {
+            label: Item
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct i.ItemName || ' (' || i.ItemCode || ')' d, i.ItemCode r
+                  From PurchaseBillDetail d
+                  Join Item i On i.ItemCode = d.ItemCode
+                 Order By 1
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Half the subject of this page. Populated from bill lines, so every entry returns rows.
+        }
+    )
+
+    pageItem P679_LOCATION (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From PurchaseBill fb
+                                Where fb.LocationCode = l.LocationCode
+                                  And (:P679_COMPANY Is Null
+                                       Or fb.CompanyCode = :P679_COMPANY)
+                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
+                                       Or fb.Panel = (Select GetUserPanelAB_apex() From dual)))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P679_COMPANY
+            itemsToSubmit: P679_COMPANY
+        }
+        layout {
+            sequence: 80
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Cascades from Company.
+        }
+    )
+
+    pageItem P679_PANEL (
+        type: selectList
+        label {
+            label: Panel
+            alignment: left
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:A;A,B;B
+            nullDisplayValue: A + B
+        }
+        layout {
+            sequence: 90
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 7
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: expression
+            plsqlExpression: GetUserPanelAB_apex() Is Null
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Hidden when your login is already bound to a panel. The select list is the control; the SQL predicate on every region is the enforcement.
+        }
+    )
+
+    pageItem P679_SPEC (
+        type: selectList
+        label {
+            label: Specification
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                       Case When d.ItemSpecificationCode Is Null Then 'No specification recorded'
+                            Else nvl((Select s.ItemSpecificationName From ItemSpecification s
+                                       Where s.ItemSpecificationCode = d.ItemSpecificationCode),
+                                     d.ItemSpecificationCode) End d,
+                       nvl(d.ItemSpecificationCode,'~NONE~') r
+                  From PurchaseBillDetail d
+                 Where d.ItemCode = :P679_ITEMCODE
+                 Order By 1
+                ```
+            nullDisplayValue: All specifications
+        }
+        cascadingLov {
+            parentItems: P679_ITEMCODE
+            itemsToSubmit: P679_ITEMCODE
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 5
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Optional narrowing. The Specification Mix report below always shows every specification regardless of this setting, so the mix stays readable.
+        }
+    )
+
+    pageItem P679_SUPPLIER (
+        type: popupLov
+        label {
+            label: Supplier
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct GetPartyName(h.PartyCode) d, h.PartyCode r
+                  From PurchaseBill h
+                  Join PurchaseBillDetail d On d.TNo = h.TNo
+                 Where d.ItemCode = :P679_ITEMCODE
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or h.Panel = (Select GetUserPanelAB_apex() From dual))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All suppliers
+        }
+        cascadingLov {
+            parentItems: P679_ITEMCODE
+            itemsToSubmit: P679_ITEMCODE
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 7
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Narrows the KPI cards and the rate trend. The Vendor Comparison deliberately IGNORES this filter — a comparison filtered to one vendor has nothing to compare.
+        }
+    )
+
+    pageItem P679_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: End of the reporting period.
+        }
+    )
+
+    pageItem P679_UOM (
+        type: selectList
+        label {
+            label: Unit
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                       Case When d.RateMeasuringUnitCode Is Null Then 'No unit recorded'
+                            Else nvl((Select m.MeasuringUnitName From MeasuringUnit m
+                                       Where m.MeasuringUnitCode = d.RateMeasuringUnitCode),
+                                     d.RateMeasuringUnitCode) End d,
+                       nvl(d.RateMeasuringUnitCode,'~NONE~') r
+                  From PurchaseBillDetail d
+                 Where d.ItemCode = :P679_ITEMCODE
+                 Order By 1
+                ```
+            nullDisplayValue: All units (rates not comparable)
+        }
+        cascadingLov {
+            parentItems: P679_ITEMCODE
+            itemsToSubmit: P679_ITEMCODE
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 2
+        }
+        appearance {
+            template: @/optional-above
+            templateOptions: #DEFAULT#
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: The other half of the subject. Leaving this blank mixes units, and the rates then are NOT comparable — the null display value says so.
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 100
+            region: @filter-bar
+            slot: regionBody
+            column: 1
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button back-to-analytics (
+        buttonName: BACKTOANALYTICS
+        label: Purchase Analytics
+        layout {
+            sequence: 110
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+            column: 3
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 683
+                items: {
+                    P683_FROMDATE: &P679_FROMDATE.
+                    P683_TODATE: &P679_TODATE.
+                    P683_COMPANY: &P679_COMPANY.
+                    P683_LOCATION: &P679_LOCATION.
+                    P683_PANEL: &P679_PANEL.
+                }
+                clearCache: 683
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

@@ -1,0 +1,264 @@
+appProcess attachment-preview (
+    name: attachment_preview
+    type: executeCode
+    source {
+        plsqlCode:
+            ```plsql
+            DECLARE
+              vBlob blob;
+              vmimetype varchar2(500);
+              vtno    number;
+              vfilename varchar2(100);
+              vsno   number;
+            BEGIN
+            SELECT 
+            A.TNO,
+            A.ATTACHMENTBLOB,
+            --nvl(A.ATTACHMENTBLOB,GetAttachmentFileasBlob(a.FileName)) as AttachmentBlob,
+            a.modulesno,
+            CASE
+              WHEN upper(A.FILENAME) LIKE '%DOCX%' then
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              WHEN upper(A.FILENAME) LIKE '%DOC' then
+               'application/msword'
+              when UPPER(a.filename) like '%JPG' then
+               'image/jpeg'
+              when UPPER(a.filename) like '%JPEG' then
+               'image/jpeg'
+              when UPPER(a.filename) like '%PDF' then
+                'application/pdf'
+              when UPPER(a.filename) like '%TXT' then
+                'text/plain'
+              when UPPER(a.filename) like '%XLS' then
+                'application/vnd.ms-excel'
+              when UPPER(a.filename) like '%XLSX' then
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+              when UPPER(a.filename) like '%PPT' then
+                'application/vnd.ms-powerpoint'
+              when UPPER(a.filename) like '%PPTX' then
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+              when UPPER(a.filename) like '%PNG' then
+               'image/png'
+              when UPPER(a.filename) like '%TIF%' then
+               'image/tiff'
+            end mimetype,
+            A.FILENAME
+            
+            into vtno,vblob,vsno,vmimetype,vfilename
+            FROM MODULEATTACHMENT A 
+            where a.MODULETNO = :P9995_tno
+              AND (:P9995_sno IS NULL OR A.MODULESNO=:P9995_sno);
+              --vfilename := '              
+              owa_util.mime_header(vmimetype,false);
+              htp.p('Content-Length: ' || dbms_lob.getlength(vBlob)); 
+              owa_util.http_header_close;  
+              wpg_docload.download_file(vBlob);
+              exception 
+              when no_data_found then
+               null;
+            END;
+            ```
+    }
+    execution {
+        sequence: 1
+        point: ajaxCallback
+    }
+    security {
+        authorizationScheme: mustNotBePublicUser
+    }
+)
+
+appProcess get-binary-file (
+    name: GET_BINARY_FILE
+    type: executeCode
+    source {
+        plsqlCode:
+            ```plsql
+            DECLARE
+                l_blob          BLOB;
+                l_mime_type     VARCHAR2(200);
+                l_file_name     VARCHAR2(200);
+                v_tno           NUMBER := apex_application.g_x01;
+            BEGIN
+            
+                SELECT FILE_DATA, MIME_TYPE, FILE_NAME 
+                INTO   l_blob, l_mime_type, l_file_name
+                FROM   BINARY_STORE
+                WHERE  TNO = v_tno
+                ORDER BY TNO DESC
+                FETCH FIRST 1 ROW ONLY;
+            
+                owa_util.mime_header(nvl(l_mime_type, 'application/octet-stream'), FALSE);
+                htp.p('Content-Length: ' || dbms_lob.getlength(l_blob));
+                htp.p('Content-Disposition: inline; filename="' || l_file_name || '"'); 
+                owa_util.http_header_close;
+            
+                wpg_docload.download_file(l_blob);
+            EXCEPTION
+                WHEN OTHERS THEN
+                    htp.p('Error: File not found.');
+            END;
+            ```
+    }
+    execution {
+        sequence: 1
+        point: ajaxCallback
+    }
+    security {
+        authorizationScheme: mustNotBePublicUser
+    }
+)
+
+appProcess get-file (
+    name: GET_FILE
+    type: executeCode
+    source {
+        plsqlCode:
+            ```plsql
+            DECLARE
+              vBlob blob;
+              vmimetype varchar2(500);
+              vtno    number;
+              vfilename varchar2(100);
+              vsno   number;
+            BEGIN
+            SELECT 
+            A.TNO,
+            A.ATTACHMENTBLOB,
+            --nvl(A.ATTACHMENTBLOB,GetAttachmentFileasBlob(a.FileName)) as AttachmentBlob,
+            a.modulesno,
+            CASE
+              WHEN upper(A.FILENAME) LIKE '%DOCX%' then
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              WHEN upper(A.FILENAME) LIKE '%DOC' then
+               'application/msword'
+              when UPPER(a.filename) like '%JPG' then
+               'image/jpeg'
+              when UPPER(a.filename) like '%JPEG' then
+               'image/jpeg'
+              when UPPER(a.filename) like '%PDF' then
+                'application/pdf'
+              when UPPER(a.filename) like '%TXT' then
+                'text/plain'
+              when UPPER(a.filename) like '%XLS' then
+                'application/vnd.ms-excel'
+              when UPPER(a.filename) like '%XLSX' then
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+              when UPPER(a.filename) like '%PPT' then
+                'application/vnd.ms-powerpoint'
+              when UPPER(a.filename) like '%PPTX' then
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+              when UPPER(a.filename) like '%PNG' then
+               'image/png'
+              when UPPER(a.filename) like '%TIF%' then
+               'image/tiff'
+            end mimetype,
+            A.FILENAME
+            
+            into vtno,vblob,vsno,vmimetype,vfilename
+            FROM MODULEATTACHMENT A 
+            where  A.MODULESNO=:ATTACHMENTMODULESNO;
+              --vfilename := '              
+              owa_util.mime_header(vmimetype,false);
+              htp.p('Content-Length: ' || dbms_lob.getlength(vBlob)); 
+              owa_util.http_header_close;  
+              wpg_docload.download_file(vBlob);
+              exception 
+              when no_data_found then
+               null;
+            END;
+            ```
+    }
+    execution {
+        sequence: 1
+        point: ajaxCallback
+    }
+    security {
+        authorizationScheme: mustNotBePublicUser
+    }
+)
+
+appProcess get-module-info (
+    name: GET_MODULE_INFO
+    type: executeCode
+    source {
+        plsqlCode:
+            ```plsql
+            DECLARE
+                v_input        			VARCHAR2(200) := apex_application.g_x01; -- Value from Search Box
+                v_module_part  			VARCHAR2(100);
+                v_transaction_part  	VARCHAR2(200);
+                v_report_page  			NUMBER;
+                v_form_page    			NUMBER;
+                v_table_name   			VARCHAR2(100);
+                v_actual_tno   			NUMBER;
+                v_first_slash  			NUMBER;
+                v_sql          			VARCHAR2(1000);
+            BEGIN
+            
+                v_first_slash := INSTR(v_input, '/');
+            
+                IF v_first_slash > 0 THEN
+                    v_module_part := UPPER(TRIM(SUBSTR(v_input, 1, v_first_slash - 1)));
+                    v_transaction_part := TRIM(SUBSTR(v_input, v_first_slash + 1));
+                ELSE
+                    v_module_part := UPPER(TRIM(v_input));
+                END IF;
+            
+                SELECT PAGENO, ENTRYPAGENO
+                  INTO v_report_page, v_form_page
+                  FROM MODULE
+                 WHERE UPPER(MODULECODE) = v_module_part 
+                    OR UPPER(MODULENAME) = v_module_part;
+                
+                HTP.P(v_report_page);
+            
+            EXCEPTION
+                WHEN NO_DATA_FOUND THEN 
+                    HTP.P('ERROR: Module "' || v_module_part || '" not found');
+                WHEN OTHERS THEN 
+                    HTP.P('ERROR: Unexpected Application Error');
+            END;
+            ```
+    }
+    execution {
+        sequence: 1
+        point: ajaxCallback
+    }
+    security {
+        authorizationScheme: mustNotBePublicUser
+    }
+)
+
+appProcess prepare-url (
+    name: PREPARE_URL
+    type: executeCode
+    source {
+        plsqlCode:
+            ```plsql
+            declare
+               result varchar2(2000);
+            begin
+               result:=apex_util.prepare_url(apex_application.g_x01);
+               apex_json.open_object;
+               apex_json.write('success', true);
+               apex_json.write('url', result);
+               apex_json.close_object;
+            exception
+             when others then
+               apex_json.open_object;
+               apex_json.write('success', false);
+               apex_json.write('message', sqlerrm);
+               apex_json.close_object;
+            end;
+            ```
+    }
+    execution {
+        sequence: 1
+        point: ajaxCallback
+    }
+    security {
+        authorizationScheme: mustNotBePublicUser
+    }
+)
+

@@ -1,0 +1,1064 @@
+page 58 (
+    name: Item Master List
+    alias: ITEM-MASTER-LIST
+    title: Item Master List
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            #MYID .t-fht-thead{
+              overflow: auto !important;
+            }
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--accent15
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+    )
+
+    region item-master (
+        name: Item Master
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                E.TNO,
+                it.itemtypeName As MaterialGroup,
+                --||' ~ '||e.ParentCode
+                e.ItemCode,
+                e.ItemName,
+                e.ItemClassificationCode,
+                GETMEASURINGUNITNAME(e.MeasuringUnitCode1) AS MeasuringUnitCode1,
+                GETMEASURINGUNITNAME(e.MeasuringUnitCode2) AS MeasuringUnitCode2,
+                itn.ItemNatureName,
+                sa.PartyName as StockAccount,
+                ca.PartyName as ConsumptionAccount,
+                cw.PartyName as CWIPAccount,
+                e.BulkDensity,
+                ee.MultiPlyingFactor,
+                e.IsEquipment,
+                e.SerialNoRequired,
+                ee.ItemSpecificationCode,
+                ee.ItemSpecificationName,
+                ee.HSNCODE,
+                ee.QualityRequired,
+                ee.IsWeighmentRequired,
+                GetEmployeeName(bu.employeecode)||' ( '||e.Creator||' )' as ItemCreator,
+                e.CreationTime as ItemCreationTime,
+                GetEmployeeName(bu2.employeecode)||' ( '||ee.Creator||' )' as ItemSpecificationCreator,
+                ee.CreatedOn as ItemSpecificationCreationTime,
+                e.Remark,
+                ic.ItemClassName,
+                icat.ItemCategoryName,
+                GETDOCUMENTSTATUSCODE('ITEM',E.TNO) AS Status
+                From Item e, ItemSpecification ee, ItemNature itn, Party sa, Party ca, Party cw, BossUser bu, BossUser bu2, ItemType it, ItemClass ic, ItemCategory icat
+                Where e.TNo = ee.TNo(+)
+                  and e.ItemNatureCode = itn.ItemNatureCode(+)
+                  and e.StockAccountCode = sa.PartyCode(+)
+                  and e.ConsumptionAccountCode = ca.PartyCode(+)
+                  and e.CWIPAccountCode = cw.PartyCode(+)
+                  and e.itemtype = it.itemtypecode(+)
+                  and e.itemclasscode = ic.itemclasscode(+)
+                  and e.itemcategorycode = icat.ItemCategoryCode(+)
+                  and ( :P58_Company is NUll or instr(':'||:P58_COMPANY||':',':'||e.CompanyCode||':') > 0)
+                 -- and e.CompanyCode = :P58_COMPANY
+                  and e.Creator = bu.LoginName(+)
+                  and ee.Creator = bu2.LoginName(+)
+                  --and instr(':'||:P58_ITEMTYPE||':',':'||e.ItemType||':') > 0
+                 -- changed on 28-may-2022
+                 -- and (:P58_GROUP IS NULL OR instr(':'||:P58_GROUP||':',':'||e.ParentCode||':') > 0 ) 
+                  and (:P58_ITEMNATURE is null or e.ItemNatureCode = :P58_ITEMNATURE)
+                  and (:P58_ITEMCATEGORY is null or e.ITEMCATEGORYCODE = :P58_ITEMCATEGORY)
+                  and ( :P58_ITEMTYPE is null or e.itemtype = :P58_ITEMTYPECODE)
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: MYID
+            regionDisplaySelector: true
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 59
+                items: {
+                    P59_TNO: #TNO#
+                }
+                clearCache: 59
+            }
+            linkIcon: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        actionsMenu {
+            rowsPerPage: false
+            flashback: false
+            reset: false
+            subscription: false
+        }
+        download {
+            formats: [
+                csv
+                html
+            ]
+        }
+        componentAdvanced {
+            emailFromAddress: erp@pbsoil.com
+            maxRowsPerPageInSelector: 1000
+        }
+        advanced {
+            savedReportMappingIdentifier: 34161333533123702
+        }
+
+        column BULKDENSITY (
+            type: hidden
+            heading {
+                heading: BULK DENSITY
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column CONSUMPTIONACCOUNT (
+            type: plainText
+            heading {
+                heading: CONSUMPTION ACCOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CWIPACCOUNT (
+            type: plainText
+            heading {
+                heading: CWIP ACCOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column HSNCODE (
+            type: plainText
+            heading {
+                heading: HSNCODE
+                alignment: center
+            }
+            layout {
+                sequence: 160
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column ISEQUIPMENT (
+            type: hidden
+            heading {
+                heading: IS EQUIPMENT
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column ISWEIGHMENTREQUIRED (
+            type: hidden
+            heading {
+                heading: WEIGHMENT REQUIRED
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column ITEMCATEGORYNAME (
+            type: plainText
+            heading {
+                heading: ITEM CATEGORY
+            }
+            layout {
+                sequence: 270
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        column ITEMCLASSIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: ITEM TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column ITEMCLASSNAME (
+            type: plainText
+            heading {
+                heading: ITEM CLASS
+            }
+            layout {
+                sequence: 260
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: MATERIAL CODE
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ITEMCREATIONTIME (
+            type: plainText
+            heading {
+                heading: ITEM CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column ITEMCREATOR (
+            type: plainText
+            heading {
+                heading: ITEM CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: MATERIAL_NAME
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ITEMNATURENAME (
+            type: plainText
+            heading {
+                heading: ITEM_NATURE
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: ITEM SPECIFICATION CODE
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column ITEMSPECIFICATIONCREATIONTIME (
+            type: plainText
+            heading {
+                heading: ITEM SPECIFICATION CREATION TIME
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MON-YYYY HH:MIPM
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column ITEMSPECIFICATIONCREATOR (
+            type: plainText
+            heading {
+                heading: ITEM SPECIFICATION CREATOR
+                alignment: center
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column ITEMSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: SPECIFICATION NAME
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column MATERIALGROUP (
+            type: plainText
+            heading {
+                heading: ITEM_TYPE
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column MEASURINGUNITCODE1 (
+            type: plainText
+            heading {
+                heading: BASE UNIT
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column MEASURINGUNITCODE2 (
+            type: plainText
+            heading {
+                heading: ISSUE UNIT
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column MULTIPLYINGFACTOR (
+            type: plainText
+            heading {
+                heading: MULTI PLYING FACTOR
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column QUALITYREQUIRED (
+            type: hidden
+            heading {
+                heading: QUALITY REQUIRED
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: REMARK
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column SERIALNOREQUIRED (
+            type: hidden
+            heading {
+                heading: SERIALNO REQUIRED
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: STATUS
+            }
+            layout {
+                sequence: 280
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column STOCKACCOUNT (
+            type: plainText
+            heading {
+                heading: STOCK  ACCOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 250
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Y
+            }
+        )
+
+        savedReport 21697 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CONSUMPTIONACCOUNT (
+                sequence: 14
+            )
+
+            displayColumn CWIPACCOUNT (
+                sequence: 15
+            )
+
+            displayColumn HSNCODE (
+                sequence: 10
+            )
+
+            displayColumn ITEMCATEGORYNAME (
+                sequence: 20
+            )
+
+            displayColumn ITEMCLASSIFICATIONCODE (
+                sequence: 5
+            )
+
+            displayColumn ITEMCLASSNAME (
+                sequence: 21
+            )
+
+            displayColumn ITEMCODE (
+                sequence: 3
+            )
+
+            displayColumn ITEMCREATIONTIME (
+                sequence: 17
+            )
+
+            displayColumn ITEMCREATOR (
+                sequence: 16
+            )
+
+            displayColumn ITEMNAME (
+                sequence: 4
+            )
+
+            displayColumn ITEMNATURENAME (
+                sequence: 12
+            )
+
+            displayColumn ITEMSPECIFICATIONCODE (
+                sequence: 8
+            )
+
+            displayColumn ITEMSPECIFICATIONCREATIONTIME (
+                sequence: 19
+            )
+
+            displayColumn ITEMSPECIFICATIONCREATOR (
+                sequence: 18
+            )
+
+            displayColumn ITEMSPECIFICATIONNAME (
+                sequence: 9
+            )
+
+            displayColumn MATERIALGROUP (
+                sequence: 2
+            )
+
+            displayColumn MEASURINGUNITCODE1 (
+                sequence: 6
+            )
+
+            displayColumn MEASURINGUNITCODE2 (
+                sequence: 7
+            )
+
+            displayColumn MULTIPLYINGFACTOR (
+                sequence: 11
+            )
+
+            displayColumn REMARK (
+                sequence: 22
+            )
+
+            displayColumn STATUS (
+                sequence: 1
+            )
+
+            displayColumn STOCKACCOUNT (
+                sequence: 13
+            )
+
+            sort (
+                column: MATERIALGROUP
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: ITEMCODE
+                sort {
+                    sequence: 2
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P58_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'ITEM'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Company
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P58_ITEMCATEGORY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item Category
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: "SELECT ITEMCATEGORYNAME D, ITEMCATEGORYCODE R FROM ITEMCATEGORY ORDER BY 1 "
+            nullDisplayValue: --Item Category--
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P58_ITEMNATURE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item Nature
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: SELECT ITEMNATURENAME d, ITEMNATURECODE r FROM ITEMNATURE ORDER BY 1
+            nullDisplayValue: --  Item Nature --
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P58_ITEMTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 1
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+            autocompleteResultsMaxHeight: 20
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select itemtypename d, itemtypecode r from itemtype order by 1
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 75
+            valuePlaceholder: Item Type
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Add New
+        layout {
+            sequence: 80
+            region: @item-master
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--iconLeft
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 59
+                clearCache: 59
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button home (
+        buttonName: Home
+        label: Home
+        layout {
+            sequence: 70
+            region: @item-master
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: #DEFAULT#
+            icon: fa-window-close-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1
+                clearCache: 1
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction hide-nav (
+        name: hide nav
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

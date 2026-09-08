@@ -1,0 +1,1378 @@
+page 196 (
+    name: Production List
+    alias: PRODUCTION-LIST
+    title: Production List
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region production (
+        name: Production
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--accent15
+                t-Region--hiddenOverflow
+            ]
+        }
+    )
+
+    region production-list (
+        name: Production List
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                WITH filtered_prod AS (
+                    -- Pre-filter the main transaction table to reduce the workload
+                    SELECT * FROM Production
+                    WHERE ProductionDate BETWEEN :P196_FROMDATE AND :P196_TODATE
+                      AND (:P196_COMPANY IS NULL OR CompanyCode = :P196_COMPANY) -- Simplified for performance
+                      AND (:P196_LOCATION IS NULL OR LocationCode = :P196_LOCATION)
+                      AND (:P196_DOCTYPE IS NULL OR DocTypeCode = :P196_DOCTYPE)
+                )
+                SELECT 
+                    a.Tno, 
+                    (SELECT Companyname FROM Company WHERE CompanyCode = a.CompanyCode) as Companyname,
+                    a.Financialyearcode, 
+                    (SELECT Locationname FROM Location WHERE LocationCode = a.LocationCode) as Locationname,
+                    (SELECT Doctypename FROM DocType WHERE DocTypeCode = a.DocTypeCode) as Doctypename,
+                    a.Productionno, a.Productiondate, a.Remark, 
+                    (SELECT Productioncentrename FROM ProductionCentre WHERE ProductionCentreCode = a.ProductionCentreCode) as Productioncentrename,
+                    (SELECT Shiftname FROM Shift WHERE ShiftCode = a.ShiftCode) as Shiftname,
+                    (SELECT Employeename FROM Employee WHERE EmployeeCode = a.ShiftInChargeCode) AS ShiftInCharge,
+                    (SELECT ItemName FROM Item WHERE ItemCode = a.ItemCode) as ItemName,
+                    a.ITEMSPECIFICATIONCODE,
+                    (SELECT Partyname FROM Party WHERE PartyCode = a.ContractorCode) AS Contractor,
+                    (SELECT JobOrderNo FROM JobOrder WHERE Tno = a.JobOrderTno) as JobOrderNo,
+                    a.CREATIONTIME, a.CREATOR,
+                    -- Raw Material Data
+                    l.ItemName AS InputItem, 
+                    iss.ItemSpecificationName AS InputSpecificationName, 
+                    b.Description AS Inputdescription, 
+                    b.Quantity1 AS InputQty1, b.Quantity2 AS InputQty2, 
+                    b.LossPercent, b.LossQuantity1, b.LossQuantity2,
+                    -- Finished Goods Data
+                    m.ItemName AS Outputitem, 
+                    isf.ItemSpecificationName AS OutputSpecs, 
+                    c.Description AS Outputdescription, 
+                    c.Quantity1 AS OutputQty1, c.Quantity2 AS OutputQty2,
+                    NVL(dsd.DocumentStatusCode, 'STATUS') as Status
+                FROM filtered_prod a
+                JOIN ProductionRaw b ON a.Tno = b.Tno
+                JOIN ProductionFinished c ON a.Tno = c.Tno
+                LEFT JOIN Item l ON b.ItemCode = l.ItemCode
+                LEFT JOIN Item m ON c.ItemCode = m.ItemCode
+                LEFT JOIN ItemSpecification iss ON b.ItemSpecificationCode = iss.ItemSpecificationCode
+                LEFT JOIN ItemSpecification isf ON c.ItemSpecificationCode = isf.ItemSpecificationCode
+                LEFT JOIN DocumentStatusDetail dsd ON a.Tno = dsd.ModuleTno
+                WHERE 
+                    -- Filtering on Item/Specs via the child tables
+                    (:P196_ITEM IS NULL OR b.ItemCode = :P196_ITEM OR c.ItemCode = :P196_ITEM)
+                    AND (:P196_ITEMSPECIFICATION IS NULL OR b.ItemSpecificationCode = :P196_ITEMSPECIFICATION OR c.ItemSpecificationCode = :P196_ITEMSPECIFICATION);
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: ProdListIR
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 197
+                items: {
+                    P197_TNO: \#TNO#\
+                }
+                action: resetPagination
+            }
+            linkIcon: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 4335062222024768
+        }
+
+        column COMPANYNAME (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 185
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BG
+            }
+        )
+
+        column CONTRACTOR (
+            type: plainText
+            heading {
+                heading: Contractor
+            }
+            layout {
+                sequence: 255
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BN
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: Creationtime
+            }
+            layout {
+                sequence: 39
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AM
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+            }
+            layout {
+                sequence: 45
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AS
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doc Type
+            }
+            layout {
+                sequence: 205
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BI
+            }
+        )
+
+        column FINANCIALYEARCODE (
+            type: plainText
+            heading {
+                heading: Financialyearcode
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column INPUTDESCRIPTION (
+            type: plainText
+            heading {
+                heading: Input Description
+            }
+            layout {
+                sequence: 325
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BU
+            }
+        )
+
+        column INPUTITEM (
+            type: plainText
+            heading {
+                heading: Input Item
+            }
+            layout {
+                sequence: 305
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BS
+            }
+        )
+
+        column INPUTQTY1 (
+            type: plainText
+            heading {
+                heading: Input Qty 1
+                alignment: end
+            }
+            layout {
+                sequence: 285
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BQ
+            }
+        )
+
+        column INPUTQTY2 (
+            type: plainText
+            heading {
+                heading: Input Qty 2
+                alignment: end
+            }
+            layout {
+                sequence: 295
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BR
+            }
+        )
+
+        column INPUTSPECIFICATIONNAME (
+            type: plainText
+            heading {
+                heading: Input Specification
+            }
+            layout {
+                sequence: 315
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BT
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Item
+            }
+            layout {
+                sequence: 395
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CB
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ITEMSPECIFICATIONCODE (
+            type: plainText
+            heading {
+                heading: Itemspecificationcode
+            }
+            layout {
+                sequence: 385
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CA
+            }
+        )
+
+        column JOBORDERNO (
+            type: plainText
+            heading {
+                heading: Job Order No.
+            }
+            layout {
+                sequence: 265
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BO
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 195
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BH
+            }
+        )
+
+        column LOSSPERCENT (
+            type: plainText
+            heading {
+                heading: Losspercent
+                alignment: end
+            }
+            layout {
+                sequence: 105
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AY
+            }
+        )
+
+        column LOSSQUANTITY1 (
+            type: plainText
+            heading {
+                heading: Loss Quantity 1
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column LOSSQUANTITY2 (
+            type: plainText
+            heading {
+                heading: Loss Quantity 2
+                alignment: end
+            }
+            layout {
+                sequence: 11
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column OUTPUTDESCRIPTION (
+            type: plainText
+            heading {
+                heading: Output Description
+            }
+            layout {
+                sequence: 355
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BX
+            }
+        )
+
+        column OUTPUTITEM (
+            type: plainText
+            heading {
+                heading: Output Item
+            }
+            layout {
+                sequence: 335
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BV
+            }
+        )
+
+        column OUTPUTQTY1 (
+            type: plainText
+            heading {
+                heading: Output Qty1
+                alignment: end
+            }
+            layout {
+                sequence: 365
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BY
+            }
+        )
+
+        column OUTPUTQTY2 (
+            type: plainText
+            heading {
+                heading: Output Qty2
+                alignment: end
+            }
+            layout {
+                sequence: 375
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: BZ
+            }
+        )
+
+        column OUTPUTSPECS (
+            type: plainText
+            heading {
+                heading: Output Specification
+            }
+            layout {
+                sequence: 345
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BW
+            }
+        )
+
+        column PRODUCTIONCENTRENAME (
+            type: plainText
+            heading {
+                heading: Production Centre
+            }
+            layout {
+                sequence: 215
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BJ
+            }
+        )
+
+        column PRODUCTIONDATE (
+            type: plainText
+            heading {
+                heading: Production Date
+            }
+            layout {
+                sequence: 7
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column PRODUCTIONNO (
+            type: plainText
+            heading {
+                heading: Production No.
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: Remark
+            }
+            layout {
+                sequence: 16
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column SHIFTINCHARGE (
+            type: plainText
+            heading {
+                heading: Shift In Charge
+            }
+            layout {
+                sequence: 235
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BL
+            }
+        )
+
+        column SHIFTNAME (
+            type: plainText
+            heading {
+                heading: Shift
+            }
+            layout {
+                sequence: 225
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+            }
+            layout {
+                sequence: 405
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CC
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 0
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Production List
+        }
+
+        savedReport 43555 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn COMPANYNAME (
+                sequence: 1
+            )
+
+            displayColumn CONTRACTOR (
+                sequence: 10
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 27
+            )
+
+            displayColumn CREATOR (
+                sequence: 26
+            )
+
+            displayColumn DOCTYPENAME (
+                sequence: 4
+            )
+
+            displayColumn INPUTDESCRIPTION (
+                sequence: 14
+            )
+
+            displayColumn INPUTITEM (
+                sequence: 12
+            )
+
+            displayColumn INPUTQTY1 (
+                sequence: 15
+            )
+
+            displayColumn INPUTQTY2 (
+                sequence: 16
+            )
+
+            displayColumn INPUTSPECIFICATIONNAME (
+                sequence: 13
+            )
+
+            displayColumn JOBORDERNO (
+                sequence: 11
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 3
+            )
+
+            displayColumn LOSSPERCENT (
+                sequence: 24
+            )
+
+            displayColumn LOSSQUANTITY1 (
+                sequence: 22
+            )
+
+            displayColumn LOSSQUANTITY2 (
+                sequence: 23
+            )
+
+            displayColumn OUTPUTDESCRIPTION (
+                sequence: 19
+            )
+
+            displayColumn OUTPUTITEM (
+                sequence: 17
+            )
+
+            displayColumn OUTPUTQTY1 (
+                sequence: 20
+            )
+
+            displayColumn OUTPUTQTY2 (
+                sequence: 21
+            )
+
+            displayColumn OUTPUTSPECS (
+                sequence: 18
+            )
+
+            displayColumn PRODUCTIONCENTRENAME (
+                sequence: 7
+            )
+
+            displayColumn PRODUCTIONDATE (
+                sequence: 6
+            )
+
+            displayColumn PRODUCTIONNO (
+                sequence: 5
+            )
+
+            displayColumn REMARK (
+                sequence: 25
+            )
+
+            displayColumn SHIFTINCHARGE (
+                sequence: 9
+            )
+
+            displayColumn SHIFTNAME (
+                sequence: 8
+            )
+
+            displayColumn STATUS (
+                sequence: 2
+            )
+
+        )
+
+    )
+
+    pageItem P196_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'CCINVOICE'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order by 1
+                  ;
+                
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @production
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Select Company Name
+        }
+    )
+
+    pageItem P196_DOCTYPE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Doc Type
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct a.DoctypeName as d, 
+                                a.DoctypeCode as r
+                    From Production b
+                    JOIN Doctype a ON a.DoctypeCode = b.DoctypeCode
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @production
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P196_FROMDATE (
+        type: datePickerJquery
+        label {
+            label: From Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 50
+            region: @production
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: trunc(sysdate) - 4
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P196_ITEM (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct a.ItemName as d,
+                                a.ItemCode as r
+                        From Item a;
+                               
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @production
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P196_ITEMSPECIFICATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Item Specification
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct a.ItemSpecificationName as d,
+                                a.ItemSpecificationCode as r
+                        From ItemSpecification a;
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @production
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P196_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct a.LocationName as d, 
+                                a.LocationCode as r
+                    From Location a, Production b
+                    Where a.LocationCode = b.LocationCode (+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @production
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P196_SHIFT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Shift
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct a.ShiftName as d,
+                                a.ShiftCode as r
+                       From Shift a, Production b
+                       Where a.ShiftCode = b.ShiftCode (+)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @production
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P196_TODATE (
+        type: datePickerJquery
+        label {
+            label: To Date
+            alignment: left
+        }
+        settings {
+            show: both
+            navigationListFor: monthAndYear
+        }
+        layout {
+            sequence: 60
+            region: @production
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 15
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: trunc(sysdate)
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button create (
+        buttonName: Create
+        label: Add New
+        layout {
+            sequence: 20
+            region: @production-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--iconLeft
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 197
+                clearCache: 197
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                DECLARE
+                  tModuleFlow number;
+                  tmp         number;
+                  tmp1        number;
+                BEGIN
+                   select count(*) into tmp1 from ModuleFlow a where a.modulecode = getmodulecodeforpageno(:APP_PAGE_ID);
+                   if nvl(tmp1,0) > 0 then
+                        select 
+                            count(*) into tModuleFlow
+                        from ModuleFlow a, ModuleFlowUser b, Bossuser c
+                        where a.tno = b.tno
+                          and b.bossusercode = c.bossusercode
+                          and a.Modulecode = getmodulecodeforpageno(:APP_PAGE_ID)
+                          and c.bossusername = :APP_USER
+                          ;
+                
+                          if nvl(tModuleFlow,0) > 0 then
+                             return(TRUE) ;
+                          else
+                             return(FALSE);
+                          end if;
+                     else
+                            Select
+                            	COUNT(*) into tmp 
+                            From Module a, ModulePrivilege b, BossUser c
+                            Where a.ModuleCode = b.ModuleCode
+                            	and b.BossUsercode = c.BossUserCode
+                            	and c.LoginName = :GLOBAL_LOGINNAME
+                                and a.ModuleCode= getmodulecodeforpageno(:APP_PAGE_ID)
+                            	and b.CompanyCode = :GLOBAL_COMPANYCODE
+                            	and b.InsertPrivilege = 'YES' ;
+                            if nvl(tmp,0) > 0 then
+                               return(TRUE);
+                            else
+                               return(FALSE);
+                            end if;
+                      end if;
+                              
+                END;
+                ```
+        }
+    )
+
+    button home (
+        buttonName: Home
+        label: Home
+        layout {
+            sequence: 10
+            region: @production-list
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: #DEFAULT#
+            icon: fa-window-close-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 1
+                clearCache: 1
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 90
+            region: @production
+            slot: regionBody
+            column: 11
+            columnSpan: 2
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction edit-report-dialog-closed (
+        name: Edit Report - Dialog Closed
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: region
+            region: @production-list
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @production-list
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction hide-nav (
+        name: Hide nav
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

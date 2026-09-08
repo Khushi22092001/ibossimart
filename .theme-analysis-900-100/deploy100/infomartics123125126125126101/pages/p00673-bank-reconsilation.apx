@@ -1,0 +1,3005 @@
+page 673 (
+    name: Bank Reconsilation
+    alias: BANK-RECONSILATION
+    title: Bank Reconsilation
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P673_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/BankReconsilation1.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P673_VOUCHERFROMDATE').val());
+              var toDate = new Date($('#P673_VOUCHERTODATE').val());
+              var companycode ,global_companycode;
+              
+             
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+                 global_companycode='&GLOBAL_COMPANYCODE.';
+              } 
+            
+            var reportParams = 
+                  '&P_FROMDATE='+ $('#P673_VOUCHERFROMDATE').val()+
+                  '&P_TODATE=' + $('#P673_VOUCHERTODATE').val() +
+                  '&P_BANKCODE=' +$('#P673_BANKCODE').val() +  
+                  '&P_RADIOGROUP=' +$('#P673_RADIOGROUP').val() +
+                  '&GLOBAL_COMPANYCODE=' +global_companycode
+                  ;
+             
+            //alert($v('P673_PARTY'));
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P673_BIREPORTURL').val()
+              var reportName =  'BankReconsilation1.xdo';
+              var outputFormat = 'pdf';
+            var companycode ,global_companycode;
+              
+              {
+                 companycode='&GLOBAL_COMPANYCODE.';
+                 global_companycode='&GLOBAL_COMPANYCODE.';
+              } 
+            
+            
+            //   var reportParams = 
+            //     '"_paramsP_TNO":"' + $('#P673_TNO').val() 
+            //       ;
+            
+            var reportParams = 
+                     '"_paramsP_FROMDATE":"' +$('#P673_VOUCHERFROMDATE').val() + '",' + 
+                     '"_paramsP_TODATE":"' +$('#P673_VOUCHERTODATE').val() + '",' + 
+            	 '"_paramsP_BANKCODE":"' + $('#P673_BANKCODE').val() + '",' + 
+            	 '"_paramsP_RADIOGROUP":"' + $('#P673_RADIOGROUP').val() + '",' + 
+                     '"_paramsGLOBAL_COMPANYCODE":"' +global_companycode;
+                 
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+        inline:
+            ```css
+            .t-TreeNav--styleA .a-TreeView-node--topLevel ul,
+            .t-TreeNav--styleB .a-TreeView-node--topLevel ul {
+              --a-treeview-node-padding-y: 0.40rem !important;
+              --a-treeview-node-font-size: 1.00rem !important; 
+            }
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region bank-reconsilation (
+        name: Bank Reconsilation
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: beforeNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noUI
+            ]
+        }
+    )
+
+    region common-fields (
+        name: Common Fields
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: afterNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noBorder
+            ]
+        }
+        accessibility {
+            landmarkType: region
+        }
+    )
+
+    region detail (
+        name: Detail
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select 
+                A.TNO,
+                a.sno,
+                a.VOUCHERDATE,
+                g.DocTypeName || ' - ' ||  f.VOUCHERNO As VoucherNo,
+                p.partyname as "Account Name",
+                decode( a.amount - abs(a.amount), 0, NULL, A.AMOUNT * (-1)) As Dr,
+                decode( a.amount - abs(a.amount), 0,A.AMOUNT, NULL) As Cr,
+                a.RECONSILATIONDATE ,
+                a.RECONSILATIONRemark
+                 
+                From VoucherDetail a, MoneyTransferMode e, Voucher f, DocType g,
+                (
+                				select  a.tno,
+                                        a.sno,
+                						b.SNo dsno,
+                						b.AccountCode,
+                                        getpartyname(b.accountcode) as PartyName
+                				from VoucherDetail a, VoucherDetail b
+                				where  a.TNO = b.TNO
+                						and a.Amount > 0
+                						and b.Amount < 0
+                				union all
+                				select  a.tno,
+                                        a.sno,
+                						b.SNo dsno,
+                						b.AccountCode,
+                                        getpartyname(b.accountcode) as PartyName
+                				from VoucherDetail a, VoucherDetail b
+                				where  a.TNO = b.TNO
+                						and a.Amount < 0
+                						and b.Amount > 0
+                				order by 1
+                		) p
+                Where a.MoneyTransferModeCode = e.MoneyTransferModeCode(+)
+                and a.TNo = f.TNO
+                and a.tno = p.tno
+                and a.sno = p.sno
+                and f.DocTypeCode = g.DocTypeCode
+                and a.AccountCode = :P673_BankCode
+                and (a.CompanyCode is null or a.CompanyCode = :global_CompanyCode)
+                and f.CompanyCode = :global_CompanyCode
+                and a.VoucherDate between :P673_VoucherFromDate and :P673_VoucherToDate
+                and (
+                    :P673_RADIOGROUP = 'BOTH'
+                    or ( :P673_RADIOGROUP = 'NOTRECONSILED' and a.RECONSILATIONDATE is null )
+                    or ( :P673_RADIOGROUP = 'RECONSILED' and a.RECONSILATIONDATE is not null )
+                )
+                ```
+            pageItemsToSubmit: [
+                P673_VOUCHERFROMDATE
+                P673_VOUCHERTODATE
+                P673_BANKCODE
+                P673_RADIOGROUP
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                update
+                delete
+            ]
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        heading {
+            fixedTo: region
+            fixedReportHeight: 300
+        }
+        advanced {
+            savedReportMappingIdentifier: 32410308425119124
+        }
+
+        savedReport 325357 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @RECONSILATIONDATE
+                layout {
+                    width: 122.785
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @VOUCHERDATE
+                layout {
+                    width: 108
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    frozen: true
+                    width: 40
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @SNO
+                layout {
+                    show: false
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @"Account Name"
+                layout {
+                    width: 314.99
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @TNO
+                layout {
+                    show: false
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @VOUCHERNO
+                layout {
+                    width: 262
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @DR
+                layout {
+                    width: 186.788
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @CR
+                layout {
+                    width: 191.788
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @RECONSILATIONREMARK
+                layout {
+                    sequence: 10
+                }
+            )
+
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column "Account Name" (
+            type: textarea
+            heading {
+                heading: Account Name
+            }
+            layout {
+                sequence: 100
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: Account Name
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column CR (
+            type: numberField
+            heading {
+                heading: Cr
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+            }
+            layout {
+                sequence: 140
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99,99,99,999.99
+            }
+            source {
+                databaseColumn: CR
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column DR (
+            type: numberField
+            heading {
+                heading: Dr
+                alignment: end
+            }
+            settings {
+                numberAlignment: end
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99,99,99,999.99
+            }
+            validation {
+                maxLength: 40
+            }
+            source {
+                databaseColumn: DR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+        )
+
+        column RECONSILATIONDATE (
+            type: datePicker
+            heading {
+                heading: Reconsilation Date
+            }
+            settings {
+                minDate: item
+                minItem: P673_VOUCHERDATE
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                databaseColumn: RECONSILATIONDATE
+                dataType: date
+            }
+            advanced {
+                htmlDomId: RECONSILATIONDATE
+            }
+        )
+
+        column RECONSILATIONREMARK (
+            type: textField
+            heading {
+                heading: Reconsilation Remark
+            }
+            layout {
+                sequence: 160
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: RECONSILATIONREMARK
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SNO (
+            type: numberField
+            heading {
+                heading: Sno
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: SNO
+                dataType: number
+                primaryKey: true
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TNO (
+            type: numberField
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VOUCHERDATE (
+            type: datePicker
+            heading {
+                heading: Voucher Date
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                databaseColumn: VOUCHERDATE
+                dataType: date
+            }
+            advanced {
+                htmlDomId: VOUCHERDATE
+            }
+        )
+
+        column VOUCHERNO (
+            type: link
+            heading {
+                heading: Voucher No
+            }
+            layout {
+                sequence: 120
+            }
+            link {
+                target: {
+                    page: 156
+                    items: {
+                        P156_TNO: &TNO.
+                        P156_CALLEDFROMPAGE: 673
+                        P156_CALLEDFROMTNO: &P673_TNO.
+                        P156_FROMDATE: &P673_VOUCHERFROMDATE.
+                        P156_TODATE: &P673_VOUCHERTODATE.
+                        P156_PARTYCODE: &P673_BANKCODE.
+                    }
+                }
+                linkText: &VOUCHERNO.
+            }
+            source {
+                databaseColumn: VOUCHERNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Detail
+        }
+    )
+
+    region summary (
+        name: Summary
+        type: staticContent
+        layout {
+            sequence: 160
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    pageItem P673_ALLOWEDBACK (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 610
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_ALLOWEDFORWARD (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 620
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_ASONOURBOOKCREDIT (
+        type: numberField
+        label {
+            label: New
+            alignment: left
+        }
+        settings {
+            numberAlignment: end
+        }
+        layout {
+            sequence: 100
+            region: @summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: 999G999G999G999G990D00
+            width: 30
+        }
+    )
+
+    pageItem P673_ASONOURBOOKDEBIT (
+        type: numberField
+        label {
+            label: As On Balance as per Our Book
+            alignment: left
+        }
+        settings {
+            numberAlignment: end
+        }
+        layout {
+            sequence: 90
+            region: @summary
+            slot: regionBody
+            alignment: left
+            column: 7
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: 999G999G999G999G990D00
+            width: 30
+        }
+    )
+
+    pageItem P673_ASONPASSBOOKCREDIT (
+        type: numberField
+        label {
+            label: New
+            alignment: left
+        }
+        settings {
+            numberAlignment: end
+        }
+        layout {
+            sequence: 140
+            region: @summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: 999G999G999G999G990D00
+            width: 30
+        }
+    )
+
+    pageItem P673_ASONPASSBOOKDEBIT (
+        type: numberField
+        label {
+            label: As On Balance as per PassBook
+            alignment: left
+        }
+        settings {
+            numberAlignment: end
+        }
+        layout {
+            sequence: 130
+            region: @summary
+            slot: regionBody
+            alignment: left
+            column: 7
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: 999G999G999G999G990D00
+            width: 30
+        }
+    )
+
+    pageItem P673_BANKCODE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Bank
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select partyname d, partycode r
+                from party where partytypecode='BANK'
+                and getdocumentstatuscode('PARTY',TNO)='ACTIVE'
+                ORDER BY 1
+                ```
+        }
+        layout {
+            sequence: 60
+            region: @bank-reconsilation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+    )
+
+    pageItem P673_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P673_CALLEDFROMPAGE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: 659
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P673_CALLEDFROMTNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_FORMSTATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                declare
+                	begin
+                	If :P673_TNO is null then
+                		return('NEWRECORD');
+                	else
+                		return('EDITRECORD');
+                	End if;
+                	end ;
+                ```
+        }
+    )
+
+    pageItem P673_MODULEFLOW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P673_MONEYTRANSFERMODECODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @bank-reconsilation
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_ONTHETABLE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @common-fields
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P673_PASSFAILREMARK (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_RADIOGROUP (
+        type: radioGroup
+        label {
+            label: Radiogroup
+            alignment: left
+        }
+        settings {
+            noOfCols: 4
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC2:Not Reconsiled;NOTRECONSILED,Reconsiled;RECONSILED,Both;BOTH,Reconsilation Date Filter;RECONSILATIONDATE
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 70
+            region: @bank-reconsilation
+            slot: regionBody
+            alignment: left
+            column: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+        source {
+            used: always
+        }
+        default {
+            type: static
+            staticValue: NOTRECONSILED
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P673_SELECTEDRADIOGROUP (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 630
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P673_TNO), 'Status')
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P673_STATUSRIGHT (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select B.STATUSPRIVILEGE
+                  From module a, moduleprivilege b, bossuser c
+                 Where a.modulecode = b.modulecode
+                   And b.bossusercode = c.bossusercode
+                   And c.loginname = :GLOBAL_LOGINNAME
+                   And A.ENTRYPAGENO = :APP_PAGE_ID
+                   AND B.COMPANYCODE = :GLOBAL_COMPANYCODE
+                ```
+        }
+    )
+
+    pageItem P673_TNO (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @bank-reconsilation
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_UNRECONSILEDCREDIT (
+        type: numberField
+        label {
+            label: New
+            alignment: left
+        }
+        settings {
+            numberAlignment: end
+        }
+        layout {
+            sequence: 120
+            region: @summary
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: 999G999G999G999G990D00
+            width: 30
+        }
+    )
+
+    pageItem P673_UNRECONSILEDDEBIT (
+        type: numberField
+        label {
+            label: Unclear / Not Reconsile
+            alignment: left
+        }
+        settings {
+            numberAlignment: end
+        }
+        layout {
+            sequence: 110
+            region: @summary
+            slot: regionBody
+            alignment: left
+            column: 7
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: 999G999G999G999G990D00
+            width: 30
+        }
+    )
+
+    pageItem P673_VOUCHERDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @bank-reconsilation
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_VOUCHERFROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @bank-reconsilation
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+        sessionState {
+            storage: user
+        }
+    )
+
+    pageItem P673_VOUCHERNO (
+        type: hidden
+        layout {
+            sequence: 50
+            region: @bank-reconsilation
+            slot: regionBody
+        }
+    )
+
+    pageItem P673_VOUCHERTODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @bank-reconsilation
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        source {
+            used: always
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 100
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-arrow-circle-o-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 130
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: NEWRECORD
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 110
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-trash-o
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button fail (
+        buttonName: Fail
+        label: Fail
+        layout {
+            sequence: 60
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-down
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button flow (
+        buttonName: Flow
+        label: FLow
+        layout {
+            sequence: 70
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-workflow
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 162
+                items: {
+                    P162_TNO: &P71_TNO.
+                }
+                clearCache: 162
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button pass (
+        buttonName: Pass
+        label: Pass
+        layout {
+            sequence: 50
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-up
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        advanced {
+            htmlDomId: PASS
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button print (
+        buttonName: PRINT_1
+        label: Print
+        layout {
+            sequence: 90
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-print
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @bank-reconsilation
+            slot: regionBody
+            startNewRow: false
+            column: 11
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        advanced {
+            htmlDomId: REFRESH
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 120
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save-as
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button status (
+        buttonName: Status
+        label: &P118_STATUS.
+        layout {
+            sequence: 80
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-comments-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 164
+                clearCache: 164
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P673_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    dynamicAction after-enter-reconsilation-date (
+        name: "After Enter Reconsilation Date "
+        execution {
+            sequence: 130
+        }
+        when {
+            event: focusout
+            selectionType: columns
+            interactiveGrid: @detail
+            columns: RECONSILATIONDATE
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    BEGIN
+                      if :RECONSILATIONDATE > :P673_VOUCHERDATE then
+                            --:RECONSILATIONDATE := :VOUCHERDATE;
+                            raise_application_error(-20005,'Reconsilation Date Should Not Less than Voucher Date');
+                        end if;
+                    END;
+                    ```
+                itemsToSubmit: VOUCHERDATE
+                itemsToReturn: RECONSILATIONDATE
+                showProcessing: true
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-execute-plsql-code-2 (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    --raise_application_error(-20000,'tno '||:tno||' sno '||:sno);
+                    update VoucherDetail a
+                    		set a.ReconsilationDate = :ReconsilationDate
+                    		where a.TNo = :TNo
+                    		  and a.SNO = :SNo
+                    ;
+                    --				RefreshBalance;
+                    ```
+                itemsToSubmit: [
+                    TNO
+                    SNO
+                    RECONSILATIONDATE
+                ]
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: items
+                items: [
+                    P673_ASONOURBOOKDEBIT
+                    P673_ASONOURBOOKCREDIT
+                    P673_ASONPASSBOOKDEBIT
+                    P673_ASONPASSBOOKCREDIT
+                    P673_UNRECONSILEDDEBIT
+                    P673_UNRECONSILEDCREDIT
+                ]
+            }
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :VOUCHERDATE,:RECONSILATIONDATE FROM DUAL
+                itemsToSubmit: [
+                    VOUCHERDATE
+                    RECONSILATIONDATE
+                ]
+            }
+            affectedElements {
+                selectionType: columns
+                columns: [
+                    VOUCHERDATE
+                    RECONSILATIONDATE
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action refresh-balance (
+            name: Refresh Balance
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                    		tOpeningAmount Number;
+                    		tClosingAmount Number;
+                    		
+                    		tUnreconsiledDebit1 Number;
+                    		tUnreconsiledDebit2 Number;
+                    		
+                    		tUnreconsiledCredit1 Number;		
+                    		tUnreconsiledCredit2 Number;
+                    		
+                    		tFinancialYearBegin Date;
+                    BEGIN
+                      	if :P673_VoucherToDate is not null and :P673_BankCode is not null then
+                      			--
+                      			tOpeningAmount := getAccountCLOSING(:P673_BankCode, :P673_VoucherToDate, null, :GLOBAL_Companycode );
+                      			
+                      			if tOpeningAmount < 0 then
+                      				
+                      					:P673_AsOnOurBookDebit := abs(tOpeningAmount );
+                      					:P673_AsOnOurBookCredit := null;
+                      					
+                      			else
+                      				
+                      					:P673_AsOnOurBookDebit := null;
+                      					:P673_AsOnOurBookCredit := tOpeningAmount;  
+                      									
+                      			end if;
+                      			
+                      			--
+                      			select min(a.FinancialYearBegin) into tFinancialYearBegin from FinancialYear a where :P673_VoucherToDate between a.FinancialYearBegin and a.FinancialYearEnd;
+                      			--
+                      			select 
+                      					-1 * sum(a.Amount) into tUnreconsiledDebit1
+                      			from VoucherDetail a
+                      			where a.AccountCode = :P673_BankCode
+                      					and a.VoucherDate >= tFinancialYearBegin
+                      					and ( a.Companycode is null or a.CompanyCode = :GLOBAL_CompanyCode)
+                      					and a.VoucherDate <= :P673_VoucherToDate
+                      					and a.Amount < 0 
+                      					and ( a.ReconsilationDate is null or a.ReconsilationDate > :P673_VoucherToDate )
+                                        and exists ( select 1 from voucher aa where aa.companycode = :Global_companycode and aa.tno = a.tno)
+                      			;
+                      			----
+                      			Select
+                    						sum(abs(b.ChequeAmount)) into tUnreconsiledDebit2
+                    				From AccountOpening a, AccountOpeningCheque b
+                    				Where a.Tno = b.Tno
+                    						--and nvl(a.OpeningAmount, 0) < 0
+                    						and nvl(b.ChequeAmount, 0) < 0
+                    						and a.AccountCode = :P673_BankCode
+                    						and a.AccountOpeningDate >= tFinancialYearBegin
+                    						and a.CompanyCode = :GLOBAL_CompanyCode
+                    						and a.AccountOpeningDate <= :P673_VoucherToDate
+                    						and ( b.ReconsilationDate is null or b.ReconsilationDate > :P673_VoucherToDate )
+                    				;
+                      			:P673_UNRECONSILEDDEBIT := nvl(tUnreconsiledDebit1, 0) + nvl(tUnreconsiledDebit2, 0);
+                      			--
+                      			select 
+                      					sum(a.Amount) into tUnreconsiledCredit1
+                      			from VoucherDetail a
+                      			where a.AccountCode = :P673_BankCode
+                      					and a.VoucherDate >= tFinancialYearBegin
+                      					and ( a.CompanyCode is null or a.CompanyCode = :GLOBAL_CompanyCode)
+                      					and a.VoucherDate <= :P673_VoucherToDate
+                      					and a.Amount > 0 
+                      					and ( a.ReconsilationDate is null or a.ReconsilationDate > :P673_VoucherToDate )
+                                        and exists ( select 1 from voucher aa where aa.companycode = :Global_companycode and aa.tno = a.tno)
+                      
+                      			;
+                      			----
+                      			Select
+                    						sum(abs(b.ChequeAmount)) into tUnreconsiledCredit2
+                    				From AccountOpening a, AccountOpeningCheque b
+                    				Where a.Tno = b.Tno
+                    						--and nvl(a.OpeningAmount, 0) > 0
+                    						and nvl(b.ChequeAmount, 0) > 0
+                    						and a.AccountCode = :P673_BankCode
+                    						and a.AccountOpeningDate >= tFinancialYearBegin
+                    						and a.CompanyCode = :GLOBAL_CompanyCode
+                    						and a.AccountOpeningDate <= :P673_VoucherToDate
+                    						and ( b.ReconsilationDate is null or b.ReconsilationDate > :P673_VoucherToDate )
+                    				;
+                      			:P673_UNRECONSILEDCREDIT := nvl(tUnreconsiledCredit1, 0) + nvl(tUnreconsiledCredit2, 0); 			
+                      			--
+                      			tClosingAmount := nvl(tOpeningAmount, 0) + nvl(:P673_UNRECONSILEDDEBIT, 0) - nvl(:P673_UNRECONSILEDCREDIT, 0);
+                      	  	if tClosingAmount < 0 then
+                      					:P673_AsOnPassBookDebit := abs(tClosingAmount);
+                      					:P673_AsOnPassBookCredit := null;
+                      	  	else
+                      					:P673_AsOnPassBookDebit := null;
+                      					:P673_AsOnPassBookCredit := tClosingAmount;  	  			
+                      			end if;
+                      			
+                      			--
+                      	end if;
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P673_BANKCODE
+                    P673_VOUCHERFROMDATE
+                    P673_VOUCHERTODATE
+                ]
+                itemsToReturn: [
+                    P673_UNRECONSILEDDEBIT
+                    P673_UNRECONSILEDCREDIT
+                    P673_ASONPASSBOOKDEBIT
+                    P673_ASONPASSBOOKCREDIT
+                    P673_ASONOURBOOKDEBIT
+                    P673_ASONOURBOOKCREDIT
+                ]
+                showProcessing: true
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction click-refresh (
+        name: click refresh
+        execution {
+            sequence: 140
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var button = document.getElementById('REFRESH');
+                        setTimeout(button.click(),50);
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction delete-unsaved-data (
+        name: Delete unsaved data
+        execution {
+            sequence: 50
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    delete from TOUREXPENSEDETAIL a
+                        where not exists (
+                            select 1 from TOUREXPENSE  aa  
+                            where aa.tno = a.tno
+                        );
+                    
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P673_CALLEDFROMPAGE').getValue();
+                    var y = apex.item('P673_CALLEDFROMTNO').getValue();
+                    
+                    //var url = "f?p=#APP_ID#:80:#SESSION#::NO:RP,80:P156_TNO,P156_CALLEDFROMPAGE,P156_FORMSTATUS:#P156_TNO#,#P156_CALLEDFROMPAGE#,#P156_FORMSTATUS#";
+                    
+                    
+                    var url = "f?p=#APP_ID#:#2002#:#SESSION#::NO:RP,#2002#:P#2002#_TNO:#P2002_TNO#";
+                    //:P2002_TNO:#P2002_TNO#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    
+                    url = url.replace("#P2002_TNO#", y);
+                    //window.alert(x);
+                    //window.alert(y);
+                    //window.alert(url);
+                    
+                    
+                    //call
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction delete-unsaved-record-from-detail-table (
+        name: delete unsaved record from detail table
+        execution {
+            sequence: 110
+        }
+        when {
+            event: ready
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    delete from TOUREXPENSEDETAIL a
+                        where not exists (
+                            select 1 from TOUREXPENSE  aa  
+                            where aa.tno = a.tno
+                        );
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction disable-delete-update-if-status-is-active (
+        name: DISABLE DELETE UPDATE IF STATUS IS ACTIVE
+        execution {
+            sequence: 70
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.DELETEPRIVILEGE= 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: item=value
+                item: P673_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 70
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from loadingadvice aa where aa.purchaseordertno = :P673_TNO;
+            }
+        )
+
+        action native-disable-4 (
+            action: disable
+            execution {
+                sequence: 80
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from paymentadvice aa where aa.moduletno = :P673_TNO;
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.DELETEPRIVILEGE= 'YES'
+                       and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-print-button (
+        name: Disable Print Button
+        execution {
+            sequence: 100
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.PRINTPRIVILEGE= 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.PRINTPRIVILEGE= 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-save-button-for-updateprivillege (
+        name: DISABLE SAVE BUTTON FOR UPDATEPRIVILLEGE
+        execution {
+            sequence: 80
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'NO'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.UPDATEPRIVILEGE = 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 50
+            }
+            serverSideCondition {
+                type: item=value
+                item: P673_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from loadingadvice aa where aa.purchaseordertno = :P673_TNO;
+            }
+        )
+
+        action native-disable-4 (
+            action: disable
+            execution {
+                sequence: 70
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from paymentadvice aa where aa.moduletno = :P673_TNO;
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'YES'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.UPDATEPRIVILEGE = 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-status-button (
+        name: Disable Status Button
+        execution {
+            sequence: 90
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.STATUSPRIVILEGE = 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.STATUSPRIVILEGE = 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction documentstatus (
+        name: DocumentStatus
+        execution {
+            sequence: 40
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @status
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item=value
+                item: P673_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item!=value
+                item: P673_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    SetDocumentStatusCode(GetModuleCodeForPageNo(:APP_PAGE_ID),:P673_TNO,:P673_STATUS);
+                    
+                    
+                    ```
+                itemsToSubmit: P673_STATUS
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $('#STATUS span').text('');
+                    $('#STATUS').text($v('P673_STATUS'));
+                    
+                    
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code-2 (
+            action: executeJsCode
+            settings {
+                jsCode: location.reload()
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P164_DOCUMENTSTATUSCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P673_STATUS
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction enable-disable-pass-fail-flow (
+        name: Enable Disable Pass/Fail/Flow
+        execution {
+            sequence: 60
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 10
+            }
+            clientSideCondition {
+                type: item=value
+                item: P673_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            clientSideCondition {
+                type: item=value
+                item: P673_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 30
+            }
+            clientSideCondition {
+                type: item=value
+                item: P673_MODULEFLOW
+                value: NO
+            }
+        )
+
+    )
+
+    dynamicAction fail (
+        name: Fail
+        execution {
+            sequence: 30
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @fail
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    		cursor cPassFail is
+                    				select
+                    						a.TNo,
+                    						a.TokenNo										
+                    				from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    				where a.ModuleFlowTNo = b.TNo
+                    						and b.TNo = c.TNo
+                    						and a.BossUserCode = c.BossUserCode
+                    						and c.BossUserCode = d.BossUserCode
+                    						and a.ModuleTNo = ':P'||to_char(:APP_PAGE_ID)||'_TNo'
+                    						and d.LoginName = User
+                    						and a.isPass is null
+                    						and a.IsFail is null
+                    						and a.IsForwarded is null
+                    						and a.IsRebounded is null																				
+                    		;
+                    		vPassFail cPassFail%rowtype;
+                        
+                        tTokenNo NUMBER;
+                        TMP VARCHAR2(100) := :P60_TNO;
+                    begin
+                    		open cPassFail;
+                    		fetch cPassFail into vPassFail;
+                    		if cPassFail%FOUND then
+                    				tTokenNo := vPassFail.TokenNo;
+                    				close cPassFail;
+                    
+                               	
+                    				update PassFail a
+                    				set a.IsFail = 'YES',
+                    						a.remark = ':P'||to_char(:APP_PAGE_ID)||'_PASSFAILREMARK'
+                    				where a.TNo = vPassFail.TNo;
+                    				
+                    				SendBackPassFail(tTokenNo , TMP );
+                    		    		
+                    				
+                    				commit;
+                    		else
+                    				close cPassFail;
+                    		end if;
+                    
+                    	
+                    end;
+                    ```
+                itemsToSubmit: P673_PURCHASEORDERNO
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P673_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction hide-nav (
+        name: Hide nav
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction open-print (
+        name: "open print "
+        execution {
+            sequence: 150
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @print
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: select :P673_VOUCHERFROMDATE,:P673_VOUCHERTODATE,:P673_BANKCODE,:P673_RADIOGROUP from dual
+                itemsToSubmit: [
+                    P673_VOUCHERFROMDATE
+                    P673_VOUCHERTODATE
+                    P673_BANKCODE
+                    P673_RADIOGROUP
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P673_VOUCHERFROMDATE
+                    P673_VOUCHERTODATE
+                    P673_BANKCODE
+                    P673_RADIOGROUP
+                ]
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action open-print (
+            name: open print
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P673_VOUCHERFROMDATE').getValue();
+                    var y = '673';
+                    var z = 'CALLED';
+                    var x1 = apex.item('P673_VOUCHERTODATE').getValue();
+                    var x2 = apex.item('P673_BANKCODE').getValue();
+                    var x3 = apex.item('P673_RADIOGROUP').getValue();
+                    
+                    var url = "f?p=#APP_ID#:272:#SESSION#::NO:RP,272:P272_FROMDATE,P272_TODATE,P272_BANKCODE,P272_RADIOGROUP:#P673_FROMDATE#,#P673_TODATE#,#P673_BANKCODE#,#P673_RADIOGROUP#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#P673_FROMDATE#", x);
+                    url = url.replace("#P673_TODATE#", x1);
+                    url = url.replace("#P673_BANKCODE#", x2);
+                    url = url.replace("#P673_RADIOGROUP#", x3);
+                    
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    ```
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction pass (
+        name: Pass
+        execution {
+            sequence: 20
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @pass
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                      tModuleCode  Varchar2(30);
+                      TMP          vARCHAR2(100) ;--:= :P80_PICKUPREQUESTNO;
+                    cursor cPassFail is
+                    		select
+                    				a.TNo
+                    		from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    		where a.ModuleFlowTNo = b.TNo
+                    				and b.TNo = c.TNo
+                    				and a.BossUserCode = c.BossUserCode
+                    				and c.BossUserCode = d.BossUserCode
+                    				and a.ModuleTNo = ':P'||:APP_PAGE_ID||'_TNo'
+                    				and d.LoginName = User
+                    				and a.isPass is null
+                    				and a.IsFail is null
+                    				and a.IsForwarded is null
+                    				and a.IsRebounded is null										
+                    ;
+                    vPassFail cPassFail%rowtype;
+                    BEGIN
+                    
+                        select
+                        	d.ModuleCode, ':P'||:APP_PAGE_ID||'_'||labelcolumnname 
+                                    into tModuleCode,tmp
+                        from Location a, ModuleLocationDetail b , ModuleLocation c, Module d 
+                        where a.LocationCode = b.LocationCode
+                        	and b.tno = c.tno
+                        	and c.ModuleCode = d.ModuleCode --'DELIVERYCHALLANRETURN'
+                        	and c.CompanyCode = :global_CompanyCode
+                            and d.EntryPageNo = :APP_PAGE_ID
+                            ;
+                    
+                    			
+                    	open cPassFail;
+                    	fetch cPassFail into vPassFail;
+                    	if cPassFail%FOUND then
+                    			
+                    		
+                    			update PassFail a
+                    			set a.IsPass = 'YES',
+                    				a.remark = ':P'||:APP_PAGE_ID||'_PASSFAILREMARK'
+                    			where a.TNo = vPassFail.TNo;
+                    			
+                    			close cPassFail;
+                    			
+                    			
+                    			SendPassFailForward(tModuleCode, ':P'||:APP_PAGE_ID||'_TNo' , TMP, :global_CompanyCode );
+                    
+                                 if :P673_STATUS = 'ACTIVE' then
+                            
+                                    CREATEPAYMENTADVICEFORPO(:P673_TNO);
+                    
+                                  end if;
+                    
+                        end if;
+                    END;
+                    ```
+                itemsToSubmit: P673_STATUS
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P673_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh-balance (
+        name: Refresh Balance
+        execution {
+            sequence: 120
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @detail
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :P673_VOUCHERFROMDATE,:P673_VOUCHERTODATE,:P673_BANKCODE,:P673_RADIOGROUP FROM DUAL
+                itemsToSubmit: [
+                    P673_VOUCHERFROMDATE
+                    P673_VOUCHERTODATE
+                    P673_BANKCODE
+                    P673_RADIOGROUP
+                    P673_SELECTEDRADIOGROUP
+                ]
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P673_VOUCHERFROMDATE
+                    P673_VOUCHERTODATE
+                    P673_BANKCODE
+                    P673_RADIOGROUP
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action refresh-balance (
+            name: Refresh Balance
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                    		tOpeningAmount Number;
+                    		tClosingAmount Number;
+                    		
+                    		tUnreconsiledDebit1 Number;
+                    		tUnreconsiledDebit2 Number;
+                    		
+                    		tUnreconsiledCredit1 Number;		
+                    		tUnreconsiledCredit2 Number;
+                    		
+                    		tFinancialYearBegin Date;
+                    BEGIN
+                      	if :P673_VoucherToDate is not null and :P673_BankCode is not null then
+                      			--
+                      			tOpeningAmount := getAccountCLOSING(:P673_BankCode, :P673_VoucherToDate, null, :GLOBAL_Companycode );
+                      			
+                      			if tOpeningAmount < 0 then
+                      				
+                      					:P673_AsOnOurBookDebit := abs(tOpeningAmount );
+                      					:P673_AsOnOurBookCredit := null;
+                      					
+                      			else
+                      				
+                      					:P673_AsOnOurBookDebit := null;
+                      					:P673_AsOnOurBookCredit := tOpeningAmount;  
+                      									
+                      			end if;
+                      			
+                      			--
+                      			select min(a.FinancialYearBegin) into tFinancialYearBegin from FinancialYear a where :P673_VoucherToDate between a.FinancialYearBegin and a.FinancialYearEnd;
+                      			--
+                      			select 
+                      					-1 * sum(a.Amount) into tUnreconsiledDebit1
+                      			from VoucherDetail a
+                      			where a.AccountCode = :P673_BankCode
+                      					and a.VoucherDate >= tFinancialYearBegin
+                      					and ( a.Companycode is null or a.CompanyCode = :GLOBAL_CompanyCode)
+                      					and a.VoucherDate <= :P673_VoucherToDate
+                      					and a.Amount < 0 
+                      					and ( a.ReconsilationDate is null or a.ReconsilationDate > :P673_VoucherToDate )
+                                        and exists ( select 1 from voucher aa where aa.companycode = :Global_companycode and aa.tno = a.tno)
+                      			;
+                      			----
+                      			Select
+                    						sum(abs(b.ChequeAmount)) into tUnreconsiledDebit2
+                    				From AccountOpening a, AccountOpeningCheque b
+                    				Where a.Tno = b.Tno
+                    						--and nvl(a.OpeningAmount, 0) < 0
+                    						and nvl(b.ChequeAmount, 0) < 0
+                    						and a.AccountCode = :P673_BankCode
+                    						and a.AccountOpeningDate >= tFinancialYearBegin
+                    						and a.CompanyCode = :GLOBAL_CompanyCode
+                    						and a.AccountOpeningDate <= :P673_VoucherToDate
+                    						and ( b.ReconsilationDate is null or b.ReconsilationDate > :P673_VoucherToDate )
+                    				;
+                      			:P673_UNRECONSILEDDEBIT := nvl(tUnreconsiledDebit1, 0) + nvl(tUnreconsiledDebit2, 0);
+                      			--
+                      			select 
+                      					sum(a.Amount) into tUnreconsiledCredit1
+                      			from VoucherDetail a
+                      			where a.AccountCode = :P673_BankCode
+                      					and a.VoucherDate >= tFinancialYearBegin
+                      					and ( a.CompanyCode is null or a.CompanyCode = :GLOBAL_CompanyCode)
+                      					and a.VoucherDate <= :P673_VoucherToDate
+                      					and a.Amount > 0 
+                      					and ( a.ReconsilationDate is null or a.ReconsilationDate > :P673_VoucherToDate )
+                                        and exists ( select 1 from voucher aa where aa.companycode = :Global_companycode and aa.tno = a.tno)
+                      
+                      			;
+                      			----
+                      			Select
+                    						sum(abs(b.ChequeAmount)) into tUnreconsiledCredit2
+                    				From AccountOpening a, AccountOpeningCheque b
+                    				Where a.Tno = b.Tno
+                    						--and nvl(a.OpeningAmount, 0) > 0
+                    						and nvl(b.ChequeAmount, 0) > 0
+                    						and a.AccountCode = :P673_BankCode
+                    						and a.AccountOpeningDate >= tFinancialYearBegin
+                    						and a.CompanyCode = :GLOBAL_CompanyCode
+                    						and a.AccountOpeningDate <= :P673_VoucherToDate
+                    						and ( b.ReconsilationDate is null or b.ReconsilationDate > :P673_VoucherToDate )
+                    				;
+                      			:P673_UNRECONSILEDCREDIT := nvl(tUnreconsiledCredit1, 0) + nvl(tUnreconsiledCredit2, 0); 			
+                      			--
+                      			tClosingAmount := nvl(tOpeningAmount, 0) + nvl(:P673_UNRECONSILEDDEBIT, 0) - nvl(:P673_UNRECONSILEDCREDIT, 0);
+                      	  	if tClosingAmount < 0 then
+                      					:P673_AsOnPassBookDebit := abs(tClosingAmount);
+                      					:P673_AsOnPassBookCredit := null;
+                      	  	else
+                      					:P673_AsOnPassBookDebit := null;
+                      					:P673_AsOnPassBookCredit := tClosingAmount;  	  			
+                      			end if;
+                      			
+                      			--
+                      	end if;
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P673_BANKCODE
+                    P673_VOUCHERFROMDATE
+                    P673_VOUCHERTODATE
+                ]
+                itemsToReturn: [
+                    P673_UNRECONSILEDDEBIT
+                    P673_UNRECONSILEDCREDIT
+                    P673_ASONPASSBOOKDEBIT
+                    P673_ASONPASSBOOKCREDIT
+                    P673_ASONOURBOOKDEBIT
+                    P673_ASONOURBOOKCREDIT
+                ]
+                showProcessing: true
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-radio-group (
+        name: set radio group
+        execution {
+            sequence: 160
+        }
+        when {
+            selectionType: items
+            items: P673_RADIOGROUP
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P673_RADIOGROUP
+                itemsToSubmit: P673_RADIOGROUP
+            }
+            affectedElements {
+                selectionType: items
+                items: P673_SELECTEDRADIOGROUP
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-submit-page (
+            action: submitPage
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    dynamicAction vr-date (
+        name: Vr.Date
+        execution {
+            sequence: 170
+        }
+        when {
+            event: region/interactiveGrid/interactivegridselectionchange
+            selectionType: region
+            region: @detail
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var pSno,
+                    model = this.data.model;
+                    
+                    pSNO = model.getValue( this.data.selectedRecords[0], "VOUCHERDATE");
+                    
+                    apex.item( "P673_VOUCHERDATE" ).setValue (pSNO);
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process bank-reconsilation-save-interactive-grid-data (
+        name: Bank Reconsilation - Save Interactive Grid Data
+        type: interactiveGridAutoRowProcessing
+        editableRegion: @detail
+        target {
+            targetType: tableView
+            tableName: VOUCHERDETAIL
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 32411278121119133
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    process get-document-no (
+        name: Get Document No
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+                    tmp         number ;
+                begin
+                     if :P673_Tno is null then
+                        Select GlobalTno.NextVal into :P673_Tno From Dual;
+                     end if;
+                    ----
+                    if :P673_TOUREXPENSENO is null then
+                            SetDocNoNext(
+                					tModuleCode,
+                					:global_CompanyCode,
+                					:global_FinancialYearCode,
+                					:P673_LocationCode,
+                					:P673_DocTypeCode,
+                					NULL,
+                					TO_DATE(:P673_TOUREXPENSEDATE, 'DD-MM-RRRR')
+                				);
+                        :P673_TOUREXPENSENO := GetDocNo(
+                                    tModuleCode,
+                                    :global_CompanyCode,
+                                    :global_FinancialYearCode,
+                                    :P673_LocationCode,
+                                    :P673_DocTypeCode,
+                                    NULL,
+                                    TO_DATE(:P673_TOUREXPENSEDATE, 'DD-MM-RRRR')
+                                    );
+                    end if;
+                    
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 32477149432360296
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    process get-tno (
+        name: Get TNo
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                If :P673_TNO is null then
+                    :P673_TNO := GlobalTNo.nextval;
+                    :P673_FORMSTATUS := 'NEWRECORD';
+                  
+                else
+                    :P673_FORMSTATUS := 'EDITRECORD';
+                   
+                End if;
+                
+                :P673_STATUS := nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P673_TNO), 'Status');
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 32476341111360296
+        }
+    )
+
+    process getonthetable (
+        name: GetOnTheTable
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                tmp  number;
+                tmp1 number;
+                begin
+                 -------- Checking Module Flow Prepared Or Not 
+                   select count(*) into tmp1 from moduleflow where modulecode = getModuleCodeForPageNo(:APP_PAGE_ID) and getdocumentstatuscode('MODULEFLOW',TNO)='ACTIVE';
+                   if nvl(tmp1,0) > 0 then
+                       :P673_MODULEFLOW := 'YES';
+                   else
+                       :P673_MODULEFLOW := 'NO';
+                   end if;
+                  
+                  ----- Checking On The Table 
+                   select count(*) into tmp from onthetable_apex where moduletno = :P673_TNO and loginname = :GLOBAL_LOGINNAME;
+                   if nvl(tmp,0) > 0 then
+                      :P673_ONTHETABLE := 'YES' ;
+                   else
+                       :P673_ONTHETABLE := 'NO';
+                   end if;
+                end;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 32476741255360296
+        }
+    )
+
+    process send-pass-fail (
+        name: "Send Pass Fail "
+        type: executeCode
+        source {
+            plsqlCode: sendpassfailforward(getModuleCodeForPageNo(:APP_PAGE_ID) , :P673_TNO, :P673_PURCHASEORDERNO||' :', :GLOBAL_COMPANYCODE);
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 32477589885360297
+        }
+        serverSideCondition {
+            whenButtonPressed: @create
+        }
+    )
+
+)
+
