@@ -47,6 +47,90 @@
   }
 })();
 
+/* Material In: live required-field checklist in the compact right assistant. */
+(function () {
+  if (!document.documentElement.classList.contains('page-69')) return;
+  var required = [
+    ['P69_LOCATIONCODE', 'Location'],
+    ['P69_MATERIALINDATE', 'Material In Date'],
+    ['P69_DOCTYPECODE', 'Doc Type'],
+    ['P69_PARTYCODE', 'Party'],
+    ['P69_REFDOCTYPECODE', 'Ref Doc Type'],
+    ['P69_REFDOCNO', 'Ref Doc No']
+  ];
+  function hasValue(id) {
+    try { return !!String(apex.item(id).getValue() || '').trim(); }
+    catch (e) { var el = document.getElementById(id); return !!(el && String(el.value || '').trim()); }
+  }
+  function render() {
+    var assistant = document.querySelector('.mi-assistant');
+    if (!assistant) return;
+    var warning = assistant.querySelector('.mi-warning');
+    var panel = assistant.querySelector('.mi-required-panel');
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.className = 'mi-required-panel';
+      panel.innerHTML = '<h3><span class="fa fa-asterisk" aria-hidden="true"></span> Required Fields <b></b></h3><div class="mi-required-panel-list"></div>';
+      if (warning) warning.insertAdjacentElement('afterend', panel);
+      else assistant.querySelector('.mi-assistant-body').appendChild(panel);
+    }
+    var done = 0;
+    panel.querySelector('.mi-required-panel-list').innerHTML = required.map(function (item) {
+      var complete = hasValue(item[0]);
+      if (complete) done++;
+      return '<div class="mi-required-row' + (complete ? ' is-complete' : '') + '">' +
+        '<span class="mi-required-check">' + (complete ? '&#10003;' : '') + '</span>' +
+        '<span>' + item[1] + '</span><small>' + (complete ? 'Completed' : 'Required') + '</small></div>';
+    }).join('');
+    panel.querySelector('h3 b').textContent = done + '/' + required.length;
+  }
+  function init() {
+    render(); setTimeout(render, 350); setTimeout(render, 1000);
+    document.addEventListener('input', render, true);
+    document.addEventListener('change', render, true);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+/* Material In: compact live completion meter in the existing notice bar. */
+(function () {
+  if (!document.documentElement.classList.contains('page-69')) return;
+  var fields = [
+    'P69_LOCATIONCODE', 'P69_MATERIALINDATE', 'P69_DOCTYPECODE',
+    'P69_PARTYCODE', 'P69_REFDOCTYPECODE', 'P69_REFDOCNO'
+  ];
+  function valueOf(id) {
+    try { return String(apex.item(id).getValue() || '').trim(); }
+    catch (e) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+  }
+  function updateMeter() {
+    var message = document.querySelector('#SR_General .mi-message');
+    if (!message) return;
+    var meter = message.querySelector('.mi-completion');
+    if (!meter) {
+      meter = document.createElement('div');
+      meter.className = 'mi-completion';
+      meter.setAttribute('aria-live', 'polite');
+      meter.innerHTML = '<span><b>0%</b><small>Complete</small></span><i><em></em></i>';
+      var close = message.querySelector('button');
+      message.insertBefore(meter, close || null);
+    }
+    var done = fields.filter(function (id) { return !!valueOf(id); }).length;
+    var pct = Math.round(done / fields.length * 100);
+    meter.querySelector('b').textContent = pct + '%';
+    meter.querySelector('em').style.width = pct + '%';
+    meter.setAttribute('aria-label', done + ' of ' + fields.length + ' required fields complete');
+  }
+  function init() {
+    updateMeter();
+    document.addEventListener('change', updateMeter, true);
+    document.addEventListener('input', updateMeter, true);
+    if (window.apex && apex.jQuery) apex.jQuery(document).on('apexafterrefresh.miCompletion', updateMeter);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+
 /* ==========================================================================
    0b. CHART PALETTE AS A JET DEFAULT (kills the first-load re-colour delay).
    Previously styleCharts() re-coloured every chart AFTER JET had already drawn
@@ -337,6 +421,18 @@
   function init() {
     ensurePageTitle();
     injectNavIcons();
+
+    /* Register pages historically used plain collapsible regions named
+       "Filter"/"Filters". Promote those regions to the shared drawer
+       automatically so the behaviour is consistent without per-page CSS
+       classes. Explicit .hspl-drawer regions continue to work unchanged. */
+    Array.prototype.forEach.call(doc.querySelectorAll(".t-Region"), function (region) {
+      if (region.classList.contains("js-filter-drawer") || region.classList.contains("hspl-drawer")) return;
+      var heading = region.querySelector(".t-Region-title, .t-Region-header");
+      var title = ((heading && heading.textContent) || region.getAttribute("aria-label") || "")
+        .replace(/\s+/g, " ").trim().toLowerCase();
+      if (title === "filter" || title === "filters") region.classList.add("hspl-drawer");
+    });
 
     var drawer = doc.querySelector(".t-Region.hspl-drawer");
     if (!drawer || drawer.dataset.hsplDrawerReady) return;
