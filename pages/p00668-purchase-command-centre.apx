@@ -242,9 +242,6 @@ page 668 (
         pagination {
             type: rowRangesXToYOfZ
         }
-        performance {
-            lazyLoading: true
-        }
         messages {
             whenNoDataFound: No purchase bills were booked in this period and scope.
         }
@@ -620,7 +617,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn BILL_NO (
@@ -781,9 +778,6 @@ page 668 (
         pagination {
             type: rowRangesXToYNoPagination
         }
-        performance {
-            lazyLoading: true
-        }
         messages {
             whenNoDataFound: No purchase orders were raised in this period and scope.
         }
@@ -868,12 +862,13 @@ page 668 (
 
     region category-spend (
         name: Purchase Value by Item Category
-        type: chart
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 /* Item Category is an HSPL master dimension. Billed purchase value by category
                    for the selected period/scope. */
                 Select CATEGORY, CATCODE, VALUE_LAC
@@ -893,6 +888,13 @@ page 668 (
                          Group By i.ItemCategoryCode
                         Having Sum(d.Amount) > 0)
                  Order By VALUE_LAC Desc
+                )
+                Select
+                  '<div class="ds-svgdonut" data-chart-type="donut" data-total-label="Rs lakh" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.CATEGORY), 'v' value q.VALUE_LAC, 'u' value null returning clob)
+                                  order by q.VALUE_LAC Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -914,35 +916,35 @@ page 668 (
             templateOptions: #DEFAULT#
             cssClasses: ds-dash-panel
         }
-        chart {
-            type: donut
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 320
-        }
-        value {
-            format: decimal
-            decimalPlaces: 2
-            formatScaling: none
-        }
-        legend {
-            position: bottom
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No billed purchase value by category in this scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series cat (
-            name: Purchase (₹ Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: CATEGORY
-                value: VALUE_LAC
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -1269,7 +1271,6 @@ page 668 (
             type: rowRangesXToYOfZ
         }
         performance {
-            lazyLoading: true
             maxRowsToProcess: 100000
         }
         messages {
@@ -1409,7 +1410,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DOCUMENT_DATE (
@@ -1513,14 +1514,10 @@ page 668 (
                   Select 40, 'MEDIUM',
                          'Goods received but no purchase bill',
                          Count(Distinct g.TNo),
-                         Sum(gd.ReceivedQuantity1 * od.Rate),
-                         'Stock taken in with no supplier invoice against it. Valued at the '
-                         || 'order-line rate; receipts with no traceable order add to the '
-                         || 'count but not to the value.'
+                         Sum(gd.Amount),
+                         'Stock taken in with no supplier invoice against it. Stored GRN line amounts; each receipt line is counted once.'
                     From Grn g
                     Join GrnDetail gd On gd.TNo = g.TNo
-                    Left Join PurchaseOrderDetail od
-                           On od.TNo = g.PurchaseOrderTNo And od.ItemCode = gd.ItemCode
                    Cross Join Win w
                    Where g.GrnDate Between w.F And w.T
                      And Not Exists (Select 1 From PurchaseBillGRNDetail pg
@@ -1650,6 +1647,7 @@ page 668 (
                 P668_COMPANY
                 P668_PANEL
                 P668_SUPPLIER
+                P668_LOCATION
             ]
         }
         layout {
@@ -1675,9 +1673,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYNoPagination
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No exceptions fired for this period and scope — nothing needs attention here.
@@ -1806,6 +1801,7 @@ page 668 (
                        o.PurchaseOrderAmount As VALUE_RS
                   From PurchaseOrder o Cross Join Win w
                  Where :P668_EXEC_FOCUS = '10'
+                   And Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = o.TNo)
                    And o.PurchaseOrderDate Between w.F And w.T
                    And ((Select GetUserPanelAB_apex() From dual) Is Null
                         Or o.Panel = (Select GetUserPanelAB_apex() From dual))
@@ -1829,6 +1825,7 @@ page 668 (
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
                    And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
+                   And (:P668_SUPPLIER Is Null Or x.PartyCode = :P668_SUPPLIER)
                 Union All
                 Select x.GrnNo                                        As DOCUMENT_NO,
                        x.GrnDate                                      As DOCUMENT_DATE,
@@ -1836,15 +1833,17 @@ page 668 (
                        GetLocationName(x.LocationCode)                As LOCATION,
                        GetPartyName(x.PartyCode)                      As PARTY,
                        'Against order ' || to_char(x.PurchaseOrderTNo) As DETAIL,
-                       Cast(Null As Number) As VALUE_RS
+                       (Select Sum(d.Amount) From GrnDetail d Where d.TNo=x.TNo) As VALUE_RS
                   From Grn x Cross Join Win w
                  Where :P668_EXEC_FOCUS = '30'
+                   And Exists (Select 1 From GrnDetail valid_line Where valid_line.TNo = x.TNo)
                    And x.GrnDate Between w.F And w.T
                    And ((Select GetUserPanelAB_apex() From dual) Is Null
                         Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
                    And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
+                   And (:P668_SUPPLIER Is Null Or x.PartyCode = :P668_SUPPLIER)
                 Union All
                 Select h.PurchaseBillNo                               As DOCUMENT_NO,
                        h.PurchaseBillDate                             As DOCUMENT_DATE,
@@ -1932,7 +1931,6 @@ page 668 (
             type: rowRangesXToYOfZ
         }
         performance {
-            lazyLoading: true
             maxRowsToProcess: 100000
         }
         messages {
@@ -2050,7 +2048,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DETAIL (
@@ -2120,9 +2118,435 @@ page 668 (
         }
     )
 
+    region freight-register (
+        name: Transporter Freight Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select f.TNo As ADVICE_ID,
+                       nvl(f.FreightAdviceNo,'[Missing number: '||to_char(f.TNo)||']') As ADVICE_NO,
+                       f.FreightAdviceDate As ADVICE_DATE,
+                       nvl((Select t.TransporterName From Transporter t Where t.TransporterCode=f.TransporterCode),'No transporter recorded') As TRANSPORTER,
+                       GetLocationName(f.LocationCode) As LOCATION,
+                       f.PartyBillNo As TRANSPORTER_BILL_NO,
+                       f.PartyBillDate As BILL_DATE,
+                       f.NoOfLR As LR_COUNT,
+                       f.FreightAdviceAmount As FREIGHT_AMOUNT,
+                       f.SumOfTDSAmount As TDS_AMOUNT,
+                       f.SumOfDeductionAmount As DEDUCTIONS,
+                       f.SumOfAdvanceAmount As ADVANCES,
+                       f.SumOfNetPayableAmount As NET_PAYABLE,
+                       f.DueDate As DUE_DATE,
+                       f.Remark As REMARK
+                  From FreightAdvice f
+                 Where f.FreightAdviceDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null Or f.Panel=(Select GetUserPanelAB_apex() From dual))
+                   And (:P668_PANEL Is Null Or f.Panel=:P668_PANEL)
+                   And (:P668_COMPANY Is Null Or f.CompanyCode=:P668_COMPANY)
+                   And (:P668_TRANSPORTER Is Null Or f.TransporterCode=:P668_TRANSPORTER Or (:P668_TRANSPORTER='__UNASSIGNED__' And f.TransporterCode Is Null))
+                 Order By f.FreightAdviceDate Desc,f.TNo Desc
+                ```
+            pageItemsToSubmit: [
+                P668_FROMDATE
+                P668_TODATE
+                P668_COMPANY
+                P668_PANEL
+                P668_TRANSPORTER
+            ]
+        }
+        layout {
+            sequence: 88
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+            cssClasses: ds-register
+        }
+        advanced {
+            htmlDomId: p668FreightRegister
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: No freight advices for the current dates, company, panel and transporter.
+        }
+        actionsMenu {
+            subscription: false
+        }
+        advanced {
+            savedReportMappingIdentifier: 900668083101001
+        }
+
+        column ADVANCES (
+            type: plainText
+            heading {
+                heading: Advances (Rs)
+                alignment: center
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column ADVICE_DATE (
+            type: plainText
+            heading {
+                heading: Advice Date
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column ADVICE_ID (
+            type: hidden
+            heading {
+                heading: Advice ID
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column ADVICE_NO (
+            type: plainText
+            heading {
+                heading: Freight Advice
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column BILL_DATE (
+            type: plainText
+            heading {
+                heading: Bill Date
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column DEDUCTIONS (
+            type: plainText
+            heading {
+                heading: Deductions (Rs)
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column DUE_DATE (
+            type: plainText
+            heading {
+                heading: Due Date
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            appearance {
+                formatMask: DD-Mon-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column FREIGHT_AMOUNT (
+            type: plainText
+            heading {
+                heading: Freight Amount (Rs)
+                alignment: center
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column LR_COUNT (
+            type: plainText
+            heading {
+                heading: LRs
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G999G999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column NET_PAYABLE (
+            type: plainText
+            heading {
+                heading: Net Payable (Rs)
+                alignment: center
+            }
+            layout {
+                sequence: 130
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column REMARK (
+            type: plainText
+            heading {
+                heading: Remarks
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column TDS_AMOUNT (
+            type: plainText
+            heading {
+                heading: TDS (Rs)
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: FM999G999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column TRANSPORTER (
+            type: plainText
+            heading {
+                heading: Transporter
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column TRANSPORTER_BILL_NO (
+            type: plainText
+            heading {
+                heading: Transporter Bill No
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport freight-primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 20
+            }
+
+            displayColumn ADVANCES (
+                sequence: 11
+            )
+
+            displayColumn ADVICE_DATE (
+                sequence: 2
+            )
+
+            displayColumn ADVICE_NO (
+                sequence: 1
+            )
+
+            displayColumn BILL_DATE (
+                sequence: 6
+            )
+
+            displayColumn DEDUCTIONS (
+                sequence: 10
+            )
+
+            displayColumn DUE_DATE (
+                sequence: 13
+            )
+
+            displayColumn FREIGHT_AMOUNT (
+                sequence: 8
+            )
+
+            displayColumn LOCATION (
+                sequence: 4
+            )
+
+            displayColumn LR_COUNT (
+                sequence: 7
+            )
+
+            displayColumn NET_PAYABLE (
+                sequence: 12
+            )
+
+            displayColumn REMARK (
+                sequence: 14
+            )
+
+            displayColumn TDS_AMOUNT (
+                sequence: 9
+            )
+
+            displayColumn TRANSPORTER (
+                sequence: 3
+            )
+
+            displayColumn TRANSPORTER_BILL_NO (
+                sequence: 5
+            )
+
+        )
+
+    )
+
     region item-bar (
-        name: Top 12 Items by Purchase Value
-        type: chart
+        name: Top 12 Items by Purchase Value - click a bar to view results
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
@@ -2135,8 +2559,10 @@ page 668 (
                       Connect By Prior ItemCode = ParentCode
                        Union All
                        Select ItemCode From Item Where :P668_ITEMGROUP Is Null)
+                , chart_q As (
                 Select * From (
                   Select i.ItemName ITEM,
+                         d.ItemCode FILTER_KEY,
                          Round(Sum(d.Amount) / 100000, 2) VALUE_LAC
                     From PurchaseBill h
                     Join PurchaseBillDetail d On d.TNo = h.TNo
@@ -2151,9 +2577,16 @@ page 668 (
                      And (:P668_LOCATION Is Null Or h.LocationCode = :P668_LOCATION)
                      And (:P668_SUPPLIER Is Null Or h.PartyCode    = :P668_SUPPLIER)
                      And d.ItemCode In (Select ItemCode From ItemTree)
-                   Group By i.ItemName
+                   Group By i.ItemName, d.ItemCode
                    Order By Sum(d.Amount) Desc)
                  Where rownum <= 12
+                )
+                Select
+                  '<div class="ds-p668-viz" data-chart-type="hbar" data-total-label="Rs lakh" data-filter-item="P668_ITEM" data-refresh-target="R21516351360436134" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.ITEM), 'v' value q.VALUE_LAC, 'k' value q.FILTER_KEY, 'd' value q.ITEM, 'u' value null returning clob)
+                                  order by q.VALUE_LAC Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -2178,47 +2611,35 @@ page 668 (
             ]
             cssClasses: ds-dash-panel
         }
-        chartAppearance {
-            orientation: horizontal
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 380
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No items were billed in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series top-items (
-            name: Purchase Value (Rs Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: ITEM
-                value: VALUE_LAC
-            }
-        )
-
-        axis x (
-            name: x
-            minorTicks {
-                show: false
-            }
-        )
-
-        axis y (
-            name: y
-            title: Rs Lac
-            value {
-                format: decimal
-                decimalPlaces: 0
-                formatScaling: none
-            }
-            minorTicks {
-                show: false
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -2294,19 +2715,17 @@ page 668 (
                               Sum(gd.ReceivedQuantity1) RecQty,
                               Sum(gd.RejectedQuantity1) RejQty,
                               Count(*) Lines,
-                              Count(Case When od.Rate Is Not Null Then 1 End) PricedLines,
-                              Sum(gd.ReceivedQuantity1 * od.Rate) RecValue
+                              Count(Case When gd.Amount Is Not Null Then 1 End) PricedLines,
+                              Sum(gd.Amount) RecValue
                          From Grn g
                          Join GrnDetail gd On gd.TNo = g.TNo
-                         Left Join PurchaseOrderDetail od
-                                On od.TNo      = g.PurchaseOrderTNo
-                               And od.ItemCode = gd.ItemCode
                         Where g.GrnDate Between (Select F From Win) And (Select T From Win)
                           And ((Select GetUserPanelAB_apex() From dual) Is Null
                                Or g.Panel = (Select GetUserPanelAB_apex() From dual))
                           And (:P668_PANEL Is Null Or g.Panel = :P668_PANEL)
                           And (:P668_COMPANY  Is Null Or g.CompanyCode  = :P668_COMPANY)
-                          And (:P668_LOCATION Is Null Or g.LocationCode = :P668_LOCATION)),
+                          And (:P668_LOCATION Is Null Or g.LocationCode = :P668_LOCATION)
+                          And (:P668_SUPPLIER Is Null Or g.PartyCode = :P668_SUPPLIER)),
                 -- BILL PASS. PBPass is 1:1 with PurchaseBill (unique on PurchaseBillTNo), so
                 -- joining it cannot multiply the grain.
                 Pass As (
@@ -2379,12 +2798,14 @@ page 668 (
                 SparkGrnM As (
                        Select Trunc(g.GrnDate,'MM') mn, Count(Distinct g.TNo) grns
                          From Grn g
-                        Where g.GrnDate Between (Select F From Win) And (Select T From Win)
+                        Where Exists (Select 1 From GrnDetail valid_line Where valid_line.TNo = g.TNo)
+                          And g.GrnDate Between (Select F From Win) And (Select T From Win)
                           And ((Select GetUserPanelAB_apex() From dual) Is Null
                                Or g.Panel = (Select GetUserPanelAB_apex() From dual))
                           And (:P668_PANEL Is Null Or g.Panel = :P668_PANEL)
                           And (:P668_COMPANY  Is Null Or g.CompanyCode  = :P668_COMPANY)
                           And (:P668_LOCATION Is Null Or g.LocationCode = :P668_LOCATION)
+                          And (:P668_SUPPLIER Is Null Or g.PartyCode = :P668_SUPPLIER)
                         Group By Trunc(g.GrnDate,'MM')),
                 SparkPV As (
                        Select Case When Pts Is Null Then ''
@@ -2499,18 +2920,14 @@ page 668 (
                   || '</span>' || spb.Svg || '</div>' As KPI2,
                   -- ---- 3. GRN RECEIPTS -----------------------------------------------
                   '<div class="ds-kpi ds-kpi--input ds-kpi--clickable" data-kpi-goto="p668Pipeline" title="COUNT(DISTINCT Grn.TNo). '
-                  || 'GrnDetail holds no rate of its own, so receipts are priced from the '
-                  || 'matching order line via Grn.PurchaseOrderTNo. Lines that cannot be '
-                  || 'traced to an order stay unpriced — the coverage figure beside the value '
-                  || 'says how much of the receipt volume the value actually covers.">'
+                  || 'Documents with receipt lines. Value is SUM(GrnDetail.Amount), matching the GRN Register. Each receipt line is counted once; missing amounts remain unpriced.">'
                   || '<span class="ds-kpi-ic"><span class="fa fa-truck"></span></span>'
                   || '<span class="ds-kpi-body">'
                   || '<span class="ds-kpi-t">GRN Receipts</span>'
                   || '<span class="ds-kpi-n">' || to_char(nvl(r.Grns,0),'FM999G999') || '</span>'
                   || '<span class="ds-kpi-sub">'
                      || Case When nvl(r.PricedLines,0) = 0
-                             Then '<span class="ds-muted">no receipt line could be priced from '
-                                  || 'an order</span>'
+                             Then '<span class="ds-muted">no stored receipt amount</span>'
                              Else Case When nvl(r.RecValue,0) >= 10000000
                                        Then 'Rs ' || to_char(Round(r.RecValue/10000000,2),'FM99G990D00') || ' Cr'
                                        When nvl(r.RecValue,0) >= 100000
@@ -2518,7 +2935,7 @@ page 668 (
                                        Else 'Rs ' || to_char(nvl(r.RecValue,0),'FM99G99G990D00') End
                                   || ' received ('
                                   || to_char(Round(100 * r.PricedLines / Nullif(r.Lines,0)),'FM990')
-                                  || '% of lines priced)' End
+                                  || '% of lines with stored amount)' End
                      || ' &middot; ' || to_char(nvl(r.RejQty,0),'FM999G999G990')
                      || ' rejected</span>'
                   || '</span>' || sgr.Svg || '</div>' As KPI3,
@@ -2784,7 +3201,7 @@ page 668 (
     )
 
     region loc-lolli (
-        name: Purchase Value by Location
+        name: Location Concentration (Top 12 + Others)
         type: classicReport
         source {
             location: localDatabase
@@ -2853,9 +3270,6 @@ page 668 (
             template: @/standard
             templateOptions: #DEFAULT#
         }
-        performance {
-            lazyLoading: true
-        }
         messages {
             whenNoDataFound: No billed purchase value by location in this scope.
         }
@@ -2877,14 +3291,16 @@ page 668 (
     )
 
     region location-bar (
-        name: Purchase Value by Location
-        type: chart
+        name: Purchase Value by Location - click a bar to filter results
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select GetLocationName(h.LocationCode) LOCATION,
+                       h.LocationCode FILTER_KEY,
                        Round(Sum(d.Amount) / 100000, 2) VALUE_LAC
                   From PurchaseBill h
                   Join PurchaseBillDetail d On d.TNo = h.TNo
@@ -2898,6 +3314,13 @@ page 668 (
                    And (:P668_SUPPLIER Is Null Or h.PartyCode   = :P668_SUPPLIER)
                  Group By h.LocationCode
                  Order By Sum(d.Amount) Desc
+                )
+                Select
+                  '<div class="ds-p668-viz" data-chart-type="hbar" data-total-label="Rs lakh" data-filter-item="P668_LOCATION" data-refresh-target="p668SupTable" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.LOCATION), 'v' value q.VALUE_LAC, 'k' value q.FILTER_KEY, 'd' value q.LOCATION, 'u' value null returning clob)
+                                  order by q.VALUE_LAC Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -2921,47 +3344,35 @@ page 668 (
             ]
             cssClasses: ds-dash-panel
         }
-        chartAppearance {
-            orientation: horizontal
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 380
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No billing by location in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series by-location (
-            name: Purchase Value (Rs Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: LOCATION
-                value: VALUE_LAC
-            }
-        )
-
-        axis x (
-            name: x
-            minorTicks {
-                show: false
-            }
-        )
-
-        axis y (
-            name: y
-            title: Rs Lac
-            value {
-                format: decimal
-                decimalPlaces: 0
-                formatScaling: none
-            }
-            minorTicks {
-                show: false
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -3069,9 +3480,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYNoPagination
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No material was booked in at the gate in this period and scope.
@@ -3241,9 +3649,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No supplier had orders in this period and scope.
@@ -3450,7 +3855,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn ORDERED (
@@ -3491,12 +3896,13 @@ page 668 (
 
     region order-value-by-type (
         name: Order Value by Type
-        type: chart
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select nvl((Select dt.DocTypeName From DocType dt
                              Where dt.DocTypeCode = o.DocTypeCode), o.DocTypeCode) ORDER_TYPE,
                        Round(Sum(od.Amount) / 100000, 2) VALUE_LAC
@@ -3513,6 +3919,13 @@ page 668 (
                    And (:P668_SUPPLIER Is Null Or o.PartyCode    = :P668_SUPPLIER)
                  Group By o.DocTypeCode
                  Order By Sum(od.Amount) Desc
+                )
+                Select
+                  '<div class="ds-svgdonut" data-chart-type="donut" data-total-label="Rs lakh" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.ORDER_TYPE), 'v' value q.VALUE_LAC, 'u' value null returning clob)
+                                  order by q.VALUE_LAC Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -3533,34 +3946,35 @@ page 668 (
             templateOptions: #DEFAULT#
             cssClasses: ds-dash-panel
         }
-        chart {
-            type: donut
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 270
-        }
-        legend {
-            position: bottom
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No purchase orders were raised in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series by-type (
-            name: Order Value (Rs Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: ORDER_TYPE
-                value: VALUE_LAC
-            }
-            label {
-                show: true
-                position: outsideSlice
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -3582,23 +3996,22 @@ page 668 (
                 -- select list it referenced w.F/w.T beside Count(Distinct ...) and Oracle
                 -- rejected it with ORA-00937 — the trap the blueprint warns about.
                 GrnVal As (
-                  Select Sum(gd.ReceivedQuantity1 * od.Rate) Val
+                  Select Sum(gd.Amount) Val
                     From Grn g
                     Join GrnDetail gd On gd.TNo = g.TNo
-                    Join PurchaseOrderDetail od
-                      On od.TNo = g.PurchaseOrderTNo And od.ItemCode = gd.ItemCode
                    Cross Join Win w
                    Where g.GrnDate Between w.F And w.T
                      And ((Select GetUserPanelAB_apex() From dual) Is Null
                           Or g.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or g.Panel = :P668_PANEL)
                      And (:P668_COMPANY  Is Null Or g.CompanyCode  = :P668_COMPANY)
-                     And (:P668_LOCATION Is Null Or g.LocationCode = :P668_LOCATION)),
+                     And (:P668_LOCATION Is Null Or g.LocationCode = :P668_LOCATION)
+                     And (:P668_SUPPLIER Is Null Or g.PartyCode = :P668_SUPPLIER)),
                 Stg As (
                   -- 10. PURCHASE ORDER — value is real: PurchaseOrderDetail.Amount.
                   Select 10 Seq, 'Purchase Order' Stage, 'fa-shopping-cart' Ic,
                          Count(Distinct o.TNo) Docs, Sum(od.Amount) Val,
-                         'Committed value of orders raised in the period.' Note
+                         'Orders with detail lines raised in the period; committed line value.' Note
                     From PurchaseOrder o
                     Join PurchaseOrderDetail od On od.TNo = o.TNo
                    Cross Join Win w
@@ -3621,6 +4034,7 @@ page 668 (
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY  Is Null Or x.CompanyCode  = :P668_COMPANY)
                      And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
+                     And (:P668_SUPPLIER Is Null Or x.PartyCode = :P668_SUPPLIER)
                   Union All
                   -- 30. GRN — priced from the order line, since GrnDetail holds no rate of
                   -- its own. Receipts not traceable to an order contribute quantity but no
@@ -3631,15 +4045,16 @@ page 668 (
                          -- aggregated. A bare scalar subquery here is NOT a group function
                          -- and Oracle rejects it with ORA-00937 even though it returns one row.
                          Max((Select Val From GrnVal)),
-                         'Material accepted into stock. Valued at the order-line rate — '
-                         || 'receipts with no traceable order carry quantity but no value.'
+                         'GRNs with receipt lines. Stored GRN line amounts, matching the GRN Register; each receipt line counted once.'
                     From Grn x Cross Join Win w
-                   Where x.GrnDate Between w.F And w.T
+                   Where Exists (Select 1 From GrnDetail valid_line Where valid_line.TNo = x.TNo)
+                     And x.GrnDate Between w.F And w.T
                      And ((Select GetUserPanelAB_apex() From dual) Is Null
                           Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY  Is Null Or x.CompanyCode  = :P668_COMPANY)
                      And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
+                     And (:P668_SUPPLIER Is Null Or x.PartyCode = :P668_SUPPLIER)
                   Union All
                   -- 40. PURCHASE BILL — the value grain.
                   Select 40, 'Purchase Bill', 'fa-file-text-o',
@@ -3765,9 +4180,6 @@ page 668 (
         pagination {
             type: rowRangesXToYNoPagination
         }
-        performance {
-            lazyLoading: true
-        }
         messages {
             whenNoDataFound: No purchase-to-pay activity in this period and scope.
         }
@@ -3878,13 +4290,14 @@ page 668 (
     )
 
     region pipeline-conversion (
-        name: Pipeline Conversion
-        type: chart
+        name: Pipeline Conversion - click a segment to view orders
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select BUCKET, Count(*) ORDERS, Min(SortKey) SORT_KEY, Min(BucketKey) BUCKET_KEY
                   From (
                     Select o.TNo,
@@ -3932,6 +4345,13 @@ page 668 (
                      Group By o.TNo)
                  Group By BUCKET
                  Order By SORT_KEY
+                )
+                Select
+                  '<div class="ds-svgdonut" data-chart-type="donut" data-total-label="orders" data-focus-item="P668_PIPE_FOCUS" data-refresh-target="p668PipeOrders" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.BUCKET), 'v' value q.ORDERS, 'k' value q.BUCKET_KEY, 'd' value q.BUCKET, 'u' value null returning clob)
+                                  order by q.SORT_KEY returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -3952,38 +4372,35 @@ page 668 (
             templateOptions: #DEFAULT#
             cssClasses: ds-dash-panel
         }
-        chart {
-            type: donut
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 270
-        }
-        legend {
-            position: bottom
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No purchase orders were raised in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series conversion (
-            name: Orders
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: BUCKET
-                value: ORDERS
-            }
-            link {
-                type: redirectUrl
-                targetUrl: javascript:apex.item('P668_PIPE_FOCUS').setValue('&BUCKET_KEY.');apex.region('p668PipeOrders').refresh();document.getElementById('p668PipeOrders').scrollIntoView({behavior:'smooth',block:'start'});
-            }
-            label {
-                show: true
-                position: outsideSlice
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -4030,7 +4447,12 @@ page 668 (
                      And ((Select GetUserPanelAB_apex() From dual) Is Null
                           Or h.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or h.Panel = :P668_PANEL)
-                     And (:P668_COMPANY Is Null Or h.CompanyCode = :P668_COMPANY)
+                     And (:P668_COMPANY Is Null Or o.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or o.LocationCode = :P668_LOCATION)
+                     And (:P668_SUPPLIER Is Null Or o.PartyCode = :P668_SUPPLIER)
+                     And (:P668_PANEL Is Null Or o.Panel = :P668_PANEL)
+                     And ((Select GetUserPanelAB_apex() From dual) Is Null Or o.Panel = (Select GetUserPanelAB_apex() From dual))
+                     And Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = o.TNo)
                    Group By o.DocTypeCode)
                 Select
                   nvl((Select dt.DocTypeName From DocType dt
@@ -4086,9 +4508,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYNoPagination
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No purchase orders were raised in this period and scope.
@@ -4269,7 +4688,6 @@ page 668 (
             type: rowRangesXToYOfZ
         }
         performance {
-            lazyLoading: true
             maxRowsToProcess: 100000
         }
         messages {
@@ -4547,7 +4965,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn AWAITING_QTY (
@@ -4599,16 +5017,19 @@ page 668 (
     )
 
     region purchase-by-fy (
-        name: Purchase by Financial Year
-        type: chart
+        name: Purchase by Financial Year - click a column to view supplier results
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select fy.FinancialYearCode As FIN_YEAR,
                        Round(Sum(d.Amount) / 10000000, 2) As VALUE_CR,
-                       Min(fy.FinancialYearBegin) As SORT_KEY
+                       Min(fy.FinancialYearBegin) As SORT_KEY,
+                       to_char(Min(fy.FinancialYearBegin),'DD-MM-RRRR') FILTER_FROM,
+                       to_char(Max(fy.FinancialYearEnd),'DD-MM-RRRR') FILTER_TO
                   From PurchaseBill h
                   Join PurchaseBillDetail d On d.TNo = h.TNo
                   Join FinancialYear fy
@@ -4622,6 +5043,13 @@ page 668 (
                    And (:P668_SUPPLIER Is Null Or h.PartyCode    = :P668_SUPPLIER)
                  Group By fy.FinancialYearCode
                  Order By SORT_KEY
+                )
+                Select
+                  '<div class="ds-p668-viz" data-chart-type="column" data-total-label="Rs crore" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.FIN_YEAR), 'v' value q.VALUE_CR, 'f' value q.FILTER_FROM, 't' value q.FILTER_TO, 'u' value null returning clob)
+                                  order by q.SORT_KEY returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_COMPANY
@@ -4641,47 +5069,35 @@ page 668 (
             templateOptions: #DEFAULT#
             cssClasses: ds-dash-panel
         }
-        chartAppearance {
-            orientation: horizontal
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 270
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No purchase bills exist for this company, location and panel in any financial year.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series by-fy (
-            name: Purchase Value (Rs Cr)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: FIN_YEAR
-                value: VALUE_CR
-            }
-        )
-
-        axis x (
-            name: x
-            minorTicks {
-                show: false
-            }
-        )
-
-        axis y (
-            name: y
-            title: Rs Cr
-            value {
-                format: decimal
-                decimalPlaces: 0
-                formatScaling: none
-            }
-            minorTicks {
-                show: false
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -4868,9 +5284,6 @@ page 668 (
         pagination {
             type: rowRangesXToYNoPagination
         }
-        performance {
-            lazyLoading: true
-        }
         messages {
             whenNoDataFound: Quick reports unavailable.
         }
@@ -4978,9 +5391,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No purchase order was raised in the ten days before the selected To Date.
@@ -5229,7 +5639,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn LINES (
@@ -5292,7 +5702,8 @@ page 668 (
                        b.PurchaseBillAmount            As BILL_AMOUNT,
                        GetLocationName(b.LocationCode) As LOCATION
                   From PurchaseBill b
-                 Where b.PurchaseBillNo Is Not Null
+                 Where :P668_EXEC_FOCUS = '40'
+                   And b.PurchaseBillNo Is Not Null
                    And b.PurchaseBillDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or b.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or b.Panel        = :P668_PANEL)
@@ -5302,6 +5713,7 @@ page 668 (
                  Order By b.PurchaseBillDate Desc, b.PurchaseBillNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_EXEC_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -5331,11 +5743,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegE40
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_EXEC_FOCUS
+            value: 40
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No purchase bills in this scope.
@@ -5476,7 +5890,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn BILL_AMOUNT (
@@ -5527,7 +5941,8 @@ page 668 (
                        p.DueDate                       As DUE_DATE
                   From PBPass p
                   Join PurchaseBill h On h.TNo = p.PurchaseBillTNo
-                 Where p.PBPassNo Is Not Null
+                 Where :P668_EXEC_FOCUS = '50'
+                   And p.PBPassNo Is Not Null
                    And p.PBPassDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or p.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or p.Panel        = :P668_PANEL)
@@ -5537,6 +5952,7 @@ page 668 (
                  Order By p.PBPassDate Desc, p.PBPassNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_EXEC_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -5566,11 +5982,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegE50
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_EXEC_FOCUS
+            value: 50
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No bill passes in this scope.
@@ -5699,7 +6117,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DUE_DATE (
@@ -5746,7 +6164,8 @@ page 668 (
                        g.ChallanNo                     As CHALLAN,
                        g.Remark                        As REMARK
                   From Grn g
-                 Where g.GrnNo Is Not Null
+                 Where :P668_EXEC_FOCUS = '30'
+                   And Exists (Select 1 From GrnDetail valid_line Where valid_line.TNo = g.TNo)
                    And g.GrnDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or g.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or g.Panel        = :P668_PANEL)
@@ -5756,6 +6175,7 @@ page 668 (
                  Order By g.GrnDate Desc, g.GrnNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_EXEC_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -5785,11 +6205,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegE30
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_EXEC_FOCUS
+            value: 30
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No GRNs in this scope.
@@ -5922,7 +6344,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn CHALLAN (
@@ -5973,7 +6395,8 @@ page 668 (
                        m.NetWeight                     As NET_WT,
                        m.Remark                        As REMARK
                   From MaterialIn m
-                 Where m.MaterialInNo Is Not Null
+                 Where :P668_EXEC_FOCUS = '20'
+                   And m.MaterialInNo Is Not Null
                    And m.MaterialInDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or m.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or m.Panel        = :P668_PANEL)
@@ -5983,6 +6406,7 @@ page 668 (
                  Order By m.MaterialInDate Desc, m.MaterialInNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_EXEC_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -6012,11 +6436,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegE20
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_EXEC_FOCUS
+            value: 20
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No material-in entries in this scope.
@@ -6153,7 +6579,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn LOCATION (
@@ -6202,7 +6628,8 @@ page 668 (
                        Sum(-vd.Amount)                 As AMOUNT
                   From Voucher v
                   Join VoucherDetail vd On vd.TNo = v.TNo
-                 Where v.DocTypeCode = 'PAYMENT'
+                 Where :P668_EXEC_FOCUS = '60'
+                   And v.DocTypeCode = 'PAYMENT'
                    And vd.Amount < 0
                    And v.VoucherDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or v.Panel = (Select GetUserPanelAB_apex() From dual))
@@ -6212,6 +6639,7 @@ page 668 (
                  Order By v.VoucherDate Desc, v.VoucherNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_EXEC_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -6239,11 +6667,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegE60
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_EXEC_FOCUS
+            value: 60
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No payment vouchers in this scope.
@@ -6332,7 +6762,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn AMOUNT (
@@ -6372,7 +6802,8 @@ page 668 (
                        o.PaidAmount                      As PAID,
                        o.DepartmentCode                  As DEPT
                   From PurchaseOrder o
-                 Where o.PurchaseOrderNo Is Not Null
+                 Where :P668_EXEC_FOCUS = '10'
+                   And Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = o.TNo)
                    And o.PurchaseOrderDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or o.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or o.Panel        = :P668_PANEL)
@@ -6382,6 +6813,7 @@ page 668 (
                  Order By o.PurchaseOrderDate Desc, o.PurchaseOrderNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_EXEC_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -6411,11 +6843,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegE10
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_EXEC_FOCUS
+            value: 10
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No purchase orders in this scope.
@@ -6576,7 +7010,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DELIVERY (
@@ -6629,7 +7063,8 @@ page 668 (
                        c.DepartmentCode               As DEPT,
                        c.Remark                       As REMARK
                   From ComparativeStatement c
-                 Where c.ComparativeStatementNo Is Not Null
+                 Where :P668_STAGE_FOCUS = '40'
+                   And c.ComparativeStatementNo Is Not Null
                    And c.ComparativeStatementDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or c.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or c.Panel        = :P668_PANEL)
@@ -6638,6 +7073,7 @@ page 668 (
                  Order By c.ComparativeStatementDate Desc, c.ComparativeStatementNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_STAGE_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -6666,11 +7102,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegS40
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_STAGE_FOCUS
+            value: 40
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No comparative statements in this scope.
@@ -6771,7 +7209,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn CS_DATE (
@@ -6812,7 +7250,8 @@ page 668 (
                        e.Subject                      As SUBJECT,
                        e.Remark                       As REMARK
                   From Enquiry e
-                 Where e.EnquiryNo Is Not Null
+                 Where :P668_STAGE_FOCUS = '20'
+                   And e.EnquiryNo Is Not Null
                    And e.EnquiryDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or e.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or e.Panel        = :P668_PANEL)
@@ -6821,6 +7260,7 @@ page 668 (
                  Order By e.EnquiryDate Desc, e.EnquiryNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_STAGE_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -6849,11 +7289,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegS20
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_STAGE_FOCUS
+            value: 20
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No enquiries in this scope.
@@ -6954,7 +7396,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn ENQUIRY_DATE (
@@ -6995,7 +7437,8 @@ page 668 (
                        i.DepartmentCode              As DEPT,
                        i.Remark                      As REMARK
                   From Indent i
-                 Where i.IndentNo Is Not Null
+                 Where :P668_STAGE_FOCUS = '10'
+                   And i.IndentNo Is Not Null
                    And i.IndentDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or i.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or i.Panel        = :P668_PANEL)
@@ -7004,6 +7447,7 @@ page 668 (
                  Order By i.IndentDate Desc, i.IndentNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_STAGE_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -7032,11 +7476,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegS10
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_STAGE_FOCUS
+            value: 10
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No indents in this scope.
@@ -7137,7 +7583,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DEPT (
@@ -7181,7 +7627,8 @@ page 668 (
                        o.PaidAmount                      As PAID,
                        o.DepartmentCode                  As DEPT
                   From PurchaseOrder o
-                 Where o.PurchaseOrderNo Is Not Null
+                 Where :P668_STAGE_FOCUS = '50'
+                   And Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = o.TNo)
                    And o.PurchaseOrderDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or o.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or o.Panel        = :P668_PANEL)
@@ -7191,6 +7638,7 @@ page 668 (
                  Order By o.PurchaseOrderDate Desc, o.PurchaseOrderNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_STAGE_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -7220,11 +7668,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegS50
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_STAGE_FOCUS
+            value: 50
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No purchase orders in this scope.
@@ -7385,7 +7835,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DELIVERY (
@@ -7439,7 +7889,8 @@ page 668 (
                        q.ValidityDate                 As VALIDITY,
                        q.Remark                       As REMARK
                   From Quotation q
-                 Where q.QuotationNo Is Not Null
+                 Where :P668_STAGE_FOCUS = '30'
+                   And q.QuotationNo Is Not Null
                    And q.QuotationDate Between to_date(:P668_FROMDATE,'DD-MM-RRRR') And to_date(:P668_TODATE,'DD-MM-RRRR')
                    And ((Select GetUserPanelAB_apex() From dual) Is Null Or q.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL    Is Null Or q.Panel        = :P668_PANEL)
@@ -7449,6 +7900,7 @@ page 668 (
                  Order By q.QuotationDate Desc, q.QuotationNo Desc
                 ```
             pageItemsToSubmit: [
+                P668_STAGE_FOCUS
                 P668_FROMDATE
                 P668_TODATE
                 P668_COMPANY
@@ -7478,11 +7930,13 @@ page 668 (
         advanced {
             htmlDomId: p668RegS30
         }
+        serverSideCondition {
+            type: item=value
+            item: P668_STAGE_FOCUS
+            value: 30
+        }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No quotations in this scope.
@@ -7607,7 +8061,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn AMOUNT (
@@ -7640,12 +8094,13 @@ page 668 (
 
     region route-split (
         name: How Orders Were Sourced
-        type: chart
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select Route, Count(*) Orders
                   From (
                     Select Case
@@ -7654,7 +8109,8 @@ page 668 (
                              Else 'Ad hoc'
                            End Route
                       From PurchaseOrder o
-                     Where o.PurchaseOrderDate
+                     Where Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = o.TNo)
+                       And o.PurchaseOrderDate
                            Between to_date(:P668_FROMDATE,'DD-MM-RRRR')
                                And to_date(:P668_TODATE,'DD-MM-RRRR')
                        And ((Select GetUserPanelAB_apex() From dual) Is Null
@@ -7665,6 +8121,13 @@ page 668 (
                        And (:P668_SUPPLIER Is Null Or o.PartyCode    = :P668_SUPPLIER))
                  Group By Route
                  Order By Orders Desc
+                )
+                Select
+                  '<div class="ds-svgdonut" data-chart-type="donut" data-total-label="orders" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.ROUTE), 'v' value q.ORDERS, 'u' value null returning clob)
+                                  order by q.ORDERS Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -7686,34 +8149,35 @@ page 668 (
             templateOptions: #DEFAULT#
             cssClasses: ds-dash-panel
         }
-        chart {
-            type: donut
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 270
-        }
-        legend {
-            position: bottom
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No purchase orders were raised in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series route (
-            name: Orders
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: ROUTE
-                value: ORDERS
-            }
-            label {
-                show: true
-                position: outsideSlice
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -8034,6 +8498,7 @@ page 668 (
                           Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                   Union All
                   Select 20, 'Enquiry', 'fa-question-circle-o', 'Tender route', Count(*),
                          'Formal tender floated to the market. Sent to several suppliers '
@@ -8044,13 +8509,14 @@ page 668 (
                           Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                   Union All
                   -- Quotations OUTNUMBER enquiries, and that is correct rather than a
                   -- defect: several suppliers quote against one enquiry. The meaning column
                   -- says so, because a reader watching a "funnel" widen will otherwise
                   -- assume the figures are wrong.
                   Select 30, 'Quotation', 'fa-comments-o', 'Tender route', Count(*),
-                         'Supplier responses against an enquiry. Outnumbers enquiries '
+                         'Supplier responses against an enquiry. May outnumber enquiries '
                          || 'because several suppliers quote on each one.'
                     From Quotation x Cross Join Win w
                    Where x.QuotationDate Between w.F And w.T
@@ -8058,6 +8524,7 @@ page 668 (
                           Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                   Union All
                   Select 40, 'Comparative Statement', 'fa-balance-scale', 'Tender route',
                          Count(*),
@@ -8069,16 +8536,19 @@ page 668 (
                           Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                   Union All
                   Select 50, 'Purchase Order', 'fa-shopping-cart', 'Both routes', Count(*),
-                         'The commitment placed on the supplier. Both routes converge here, '
+                         'Orders with detail lines. Both sourcing routes converge here, '
                          || 'and everything downstream is measured from it.'
                     From PurchaseOrder x Cross Join Win w
-                   Where x.PurchaseOrderDate Between w.F And w.T
+                   Where Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = x.TNo)
+                     And x.PurchaseOrderDate Between w.F And w.T
                      And ((Select GetUserPanelAB_apex() From dual) Is Null
                           Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                      And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                      And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                      And (:P668_SUPPLIER Is Null Or x.PartyCode = :P668_SUPPLIER))
                 Select
                   s.Seq,
@@ -8115,6 +8585,7 @@ page 668 (
                 P668_COMPANY
                 P668_PANEL
                 P668_SUPPLIER
+                P668_LOCATION
             ]
         }
         layout {
@@ -8140,9 +8611,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYNoPagination
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No sourcing documents were raised in this period and scope.
@@ -8278,6 +8746,7 @@ page 668 (
                         Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                 Union All
                 Select x.EnquiryNo                                    As DOCUMENT_NO,
                        x.EnquiryDate                                  As DOCUMENT_DATE,
@@ -8293,6 +8762,7 @@ page 668 (
                         Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                 Union All
                 Select x.QuotationNo                                  As DOCUMENT_NO,
                        x.QuotationDate                                As DOCUMENT_DATE,
@@ -8308,6 +8778,7 @@ page 668 (
                         Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                 Union All
                 Select x.ComparativeStatementNo                       As DOCUMENT_NO,
                        x.ComparativeStatementDate                     As DOCUMENT_DATE,
@@ -8323,6 +8794,7 @@ page 668 (
                         Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                 Union All
                 Select x.PurchaseOrderNo                              As DOCUMENT_NO,
                        x.PurchaseOrderDate                            As DOCUMENT_DATE,
@@ -8333,11 +8805,13 @@ page 668 (
                        x.PurchaseOrderAmount As VALUE_RS
                   From PurchaseOrder x Cross Join Win w
                  Where :P668_STAGE_FOCUS = '50'
-                   And x.PurchaseOrderDate Between w.F And w.T
+                   And Exists (Select 1 From PurchaseOrderDetail valid_line Where valid_line.TNo = x.TNo)
+                     And x.PurchaseOrderDate Between w.F And w.T
                    And ((Select GetUserPanelAB_apex() From dual) Is Null
                         Or x.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_PANEL Is Null Or x.Panel = :P668_PANEL)
                    And (:P668_COMPANY Is Null Or x.CompanyCode = :P668_COMPANY)
+                     And (:P668_LOCATION Is Null Or x.LocationCode = :P668_LOCATION)
                    And (:P668_SUPPLIER Is Null Or x.PartyCode = :P668_SUPPLIER)
                 Order By 2 Desc, 1
                 ```
@@ -8374,7 +8848,6 @@ page 668 (
             type: rowRangesXToYOfZ
         }
         performance {
-            lazyLoading: true
             maxRowsToProcess: 100000
         }
         messages {
@@ -8492,7 +8965,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 10
             }
 
             displayColumn DETAIL (
@@ -8524,15 +8997,17 @@ page 668 (
     )
 
     region supplier-bar (
-        name: Top 12 Suppliers by Purchase Value
-        type: chart
+        name: Top 12 Suppliers by Purchase Value - click a bar to filter results
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select * From (
                   Select GetPartyName(h.PartyCode) SUPPLIER,
+                         h.PartyCode FILTER_KEY,
                          Round(Sum(d.Amount) / 100000, 2) VALUE_LAC
                     From PurchaseBill h
                     Join PurchaseBillDetail d On d.TNo = h.TNo
@@ -8547,6 +9022,13 @@ page 668 (
                    Group By h.PartyCode
                    Order By Sum(d.Amount) Desc)
                  Where rownum <= 12
+                )
+                Select
+                  '<div class="ds-p668-viz" data-chart-type="hbar" data-total-label="Rs lakh" data-filter-item="P668_SUPPLIER" data-refresh-target="p668SupTable" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.SUPPLIER), 'v' value q.VALUE_LAC, 'k' value q.FILTER_KEY, 'd' value q.SUPPLIER, 'u' value null returning clob)
+                                  order by q.VALUE_LAC Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -8569,47 +9051,35 @@ page 668 (
             ]
             cssClasses: ds-dash-panel
         }
-        chartAppearance {
-            orientation: horizontal
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 380
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No supplier billing in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series top-suppliers (
-            name: Purchase Value (Rs Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: SUPPLIER
-                value: VALUE_LAC
-            }
-        )
-
-        axis x (
-            name: x
-            minorTicks {
-                show: false
-            }
-        )
-
-        axis y (
-            name: y
-            title: Rs Lac
-            value {
-                format: decimal
-                decimalPlaces: 0
-                formatScaling: none
-            }
-            minorTicks {
-                show: false
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -8646,8 +9116,8 @@ page 668 (
                      And (:P668_PANEL Is Null Or h.Panel = :P668_PANEL)
                      And (:P668_COMPANY  Is Null Or h.CompanyCode  = :P668_COMPANY)
                      And (:P668_LOCATION Is Null Or h.LocationCode = :P668_LOCATION)
-                     And (:P668_SUPPLIER Is Null Or h.PartyCode    = :P668_SUPPLIER)
                      And d.ItemCode In (Select ItemCode From ItemTree)
+                     And (:P668_ITEM Is Null Or d.ItemCode = :P668_ITEM)
                    Group By h.PartyCode),
                 -- DELIVERY, at ORDER grain. GrnDetail carries no order reference in this
                 -- application, so a receipt is matched to its order on the GRN HEADER
@@ -8671,9 +9141,12 @@ page 668 (
                          And ((Select GetUserPanelAB_apex() From dual) Is Null
                               Or o.Panel = (Select GetUserPanelAB_apex() From dual))
                          And (:P668_PANEL Is Null Or o.Panel = :P668_PANEL)
-                         And (:P668_COMPANY Is Null Or o.CompanyCode = :P668_COMPANY))
+                         And (:P668_COMPANY Is Null Or o.CompanyCode = :P668_COMPANY)
+                         And (:P668_LOCATION Is Null Or o.LocationCode = :P668_LOCATION)
+                         And (:P668_SUPPLIER Is Null Or o.PartyCode = :P668_SUPPLIER))
                    Where FirstGrn Is Not Null
                    Group By PartyCode)
+                Select * From (
                 Select
                   v.PartyCode As PARTYCODE,
                   GetPartyName(v.PartyCode) As SUPPLIER,
@@ -8685,25 +9158,27 @@ page 668 (
                        Then Round(100 * dl.OnTime / dl.Legs, 1) End As ONTIME_PCT,
                   Round(dl.AvgDays, 1) As AVG_DELIVERY_DAYS,
                   v.LastBill As LAST_BILL,
-                  Round(100 * v.Val / Sum(v.Val) Over (), 2) As SHARE_PCT,
+                  Round(100 * v.Val / Nullif(Sum(v.Val) Over (),0), 2) As SHARE_PCT,
                   Round(100 * Sum(v.Val) Over (Order By v.Val Desc, v.PartyCode
                                                Rows Between Unbounded Preceding
                                                         And Current Row)
-                            / Sum(v.Val) Over (), 2) As CUMULATIVE_PCT,
+                            / Nullif(Sum(v.Val) Over (),0), 2) As CUMULATIVE_PCT,
                   Case
                     When 100 * Sum(v.Val) Over (Order By v.Val Desc, v.PartyCode
                                                 Rows Between Unbounded Preceding
                                                          And Current Row)
-                             / Sum(v.Val) Over () <= 80 Then 'A'
+                             / Nullif(Sum(v.Val) Over (),0) <= 80 Then 'A'
                     When 100 * Sum(v.Val) Over (Order By v.Val Desc, v.PartyCode
                                                 Rows Between Unbounded Preceding
                                                          And Current Row)
-                             / Sum(v.Val) Over () <= 95 Then 'B'
+                             / Nullif(Sum(v.Val) Over (),0) <= 95 Then 'B'
                     Else 'C'
                   End As ABC_CLASS
                 From Val v
                 Left Join Deliv dl On dl.PartyCode = v.PartyCode
-                Order By v.Val Desc
+                ) ranked
+                Where :P668_SUPPLIER Is Null Or ranked.PARTYCODE = :P668_SUPPLIER
+                Order By PURCHASE_VALUE Desc
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -8713,6 +9188,7 @@ page 668 (
                 P668_PANEL
                 P668_SUPPLIER
                 P668_ITEMGROUP
+                P668_ITEM
             ]
         }
         layout {
@@ -8733,9 +9209,6 @@ page 668 (
         }
         pagination {
             type: rowRangesXToYOfZ
-        }
-        performance {
-            lazyLoading: true
         }
         messages {
             whenNoDataFound: No supplier had billing in this period and scope.
@@ -8774,7 +9247,7 @@ page 668 (
                 columnAlignment: end
             }
             appearance {
-                formatMask: FM9990D0
+                formatMask: FM999G99G99G99G99G99G99G99G99G99G99G99G99G99G99G990D0
             }
             source {
                 dataType: NUMBER
@@ -9033,7 +9506,7 @@ page 668 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 20
             }
 
             displayColumn ABC_CLASS (
@@ -9090,16 +9563,18 @@ page 668 (
 
     region transporter-bar (
         name: Top 10 Transporters by Freight Billed
-        type: chart
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
             sqlQuery:
                 ```sql
+                With chart_q As (
                 Select * From (
                   Select nvl((Select t.TransporterName From Transporter t
                                Where t.TransporterCode = f.TransporterCode),
                              'No transporter recorded') TRANSPORTER,
+                         nvl(f.TransporterCode,'__UNASSIGNED__') TRANSPORTER_CODE,
                          Round(Sum(f.FreightAdviceAmount) / 100000, 2) FREIGHT_LAC
                     From FreightAdvice f
                    Where f.FreightAdviceDate
@@ -9110,10 +9585,18 @@ page 668 (
                      And (:P668_PANEL Is Null Or f.Panel = :P668_PANEL)
                      And (:P668_COMPANY Is Null Or f.CompanyCode = :P668_COMPANY)
                      And (:P668_TRANSPORTER Is Null
-                          Or f.TransporterCode = :P668_TRANSPORTER)
+                          Or f.TransporterCode = :P668_TRANSPORTER
+                          Or (:P668_TRANSPORTER = '__UNASSIGNED__' And f.TransporterCode Is Null))
                    Group By f.TransporterCode
                    Order By Sum(f.FreightAdviceAmount) Desc)
                  Where rownum <= 10
+                )
+                Select
+                  '<div class="ds-p668-viz" data-chart-type="hbar" data-total-label="Rs lakh" data-filter-item="P668_TRANSPORTER" data-refresh-target="p668FreightRegister" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.TRANSPORTER), 'v' value q.FREIGHT_LAC, 'k' value q.TRANSPORTER_CODE, 'd' value q.TRANSPORTER, 'u' value null returning clob)
+                                  order by q.FREIGHT_LAC Desc returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -9121,6 +9604,8 @@ page 668 (
                 P668_COMPANY
                 P668_PANEL
                 P668_TRANSPORTER
+                P668_LOCATION
+                P668_SUPPLIER
             ]
         }
         layout {
@@ -9136,58 +9621,43 @@ page 668 (
             ]
             cssClasses: ds-dash-panel
         }
-        advanced {
-            htmlDomId: p668Transporter
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartAppearance {
-            orientation: horizontal
-        }
-        chartLayout {
-            height: 380
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No freight was billed in this period and scope.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series freight (
-            name: Freight Billed (Rs Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: TRANSPORTER
-                value: FREIGHT_LAC
-            }
-        )
-
-        axis x (
-            name: x
-            minorTicks {
-                show: false
-            }
-        )
-
-        axis y (
-            name: y
-            title: Rs Lac
-            value {
-                format: decimal
-                decimalPlaces: 0
-                formatScaling: none
-            }
-            minorTicks {
-                show: false
+            security {
+                escapeSpecialChars: false
             }
         )
 
     )
 
     region trend-chart (
-        name: Monthly Purchase Value
-        type: chart
+        name: Monthly Purchase Value - click a point to view supplier results
+        type: classicReport
         source {
             location: localDatabase
             type: sqlQuery
@@ -9200,6 +9670,7 @@ page 668 (
                       Connect By Prior ItemCode = ParentCode
                        Union All
                        Select ItemCode From Item Where :P668_ITEMGROUP Is Null)
+                , chart_q As (
                 Select
                   to_char(Trunc(h.PurchaseBillDate,'MM'),'Mon-RR') MONTH_LABEL,
                   Round(Sum(d.Amount) / 100000, 2) VALUE_LAC,
@@ -9222,6 +9693,13 @@ page 668 (
                   And d.ItemCode In (Select ItemCode From ItemTree)
                 Group By Trunc(h.PurchaseBillDate,'MM'), Last_Day(h.PurchaseBillDate)
                 Order By SORT_KEY
+                )
+                Select
+                  '<div class="ds-p668-viz" data-chart-type="line" data-total-label="Rs lakh" data-json="' ||
+                  apex_escape.html_attribute(
+                    json_arrayagg(json_object('l' value to_char(q.MONTH_LABEL), 'v' value q.VALUE_LAC, 'f' value q.MONTH_FROM, 't' value q.MONTH_TO, 'u' value null returning clob)
+                                  order by q.SORT_KEY returning clob)) || '"></div>' As CHART_ROW
+                  From chart_q q
                 ```
             pageItemsToSubmit: [
                 P668_FROMDATE
@@ -9244,63 +9722,35 @@ page 668 (
             templateOptions: #DEFAULT#
             cssClasses: ds-dash-panel
         }
-        chartAppearance {
-            orientation: horizontal
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--hideNoPagination
+            ]
         }
-        chartLayout {
-            height: 270
+        pagination {
+            type: rowRangesXToYNoPagination
         }
         messages {
-            whenNoDataFound: No bills were booked in this period and scope, so there is nothing to plot.
+            whenNoDataFound: No data for the current filters.
         }
 
-        series monthly-value (
-            name: Purchase Value (Rs Lac)
-            execution {
+        column CHART_ROW (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: " "
+            }
+            layout {
                 sequence: 10
             }
-            source {
-                location: regionSource
+            sorting {
+                sortable: false
             }
-            columnMapping {
-                label: MONTH_LABEL
-                value: VALUE_LAC
-            }
-            link {
-                type: redirectThisApp
-                target: {
-                    page: 668
-                    items: {
-                        P668_FROMDATE: &MONTH_FROM.
-                        P668_TODATE: &MONTH_TO.
-                        P668_COMPANY: &P668_COMPANY.
-                        P668_LOCATION: &P668_LOCATION.
-                        P668_PANEL: &P668_PANEL.
-                        P668_SUPPLIER: &P668_SUPPLIER.
-                        P668_ITEMGROUP: &P668_ITEMGROUP.
-                        P668_ITEM: &P668_ITEM.
-                    }
-                }
-            }
-        )
-
-        axis x (
-            name: x
-            minorTicks {
-                show: false
-            }
-        )
-
-        axis y (
-            name: y
-            title: Rs Lac
-            value {
-                format: decimal
-                decimalPlaces: 0
-                formatScaling: none
-            }
-            minorTicks {
-                show: false
+            security {
+                escapeSpecialChars: false
             }
         )
 
@@ -9384,9 +9834,6 @@ page 668 (
         pagination {
             type: rowRangesXToYNoPagination
         }
-        performance {
-            lazyLoading: true
-        }
         messages {
             whenNoDataFound: No billed lines in this period and scope.
         }
@@ -9468,16 +9915,18 @@ page 668 (
             label: Company
             alignment: left
         }
+        settings {
+            fetchOnSearch: true
+        }
         lov {
             type: sqlQuery
             sqlQuery:
                 ```sql
-                Select c.CompanyName d, c.CompanyCode r
-                  From Company c
-                 Where Exists (Select 1 From PurchaseBill h
-                                Where h.CompanyCode = c.CompanyCode
-                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
-                                       Or h.Panel = (Select GetUserPanelAB_apex() From dual)))
+                Select Distinct c.CompanyName d, c.CompanyCode r
+                  From PurchaseBill h
+                  Join Company c On c.CompanyCode = h.CompanyCode
+                 Where ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or h.Panel = (Select GetUserPanelAB_apex() From dual))
                  Order By 1
                 ```
             displayExtraValues: false
@@ -9505,6 +9954,9 @@ page 668 (
 
     pageItem P668_EXC_FOCUS (
         type: hidden
+        settings {
+            valueProtected: false
+        }
         layout {
             sequence: 50
             region: @filter-drawer
@@ -9520,6 +9972,9 @@ page 668 (
 
     pageItem P668_EXEC_FOCUS (
         type: hidden
+        settings {
+            valueProtected: false
+        }
         layout {
             sequence: 57
             region: @filter-drawer
@@ -9581,9 +10036,10 @@ page 668 (
             type: sqlQuery
             sqlQuery:
                 ```sql
-                Select Distinct i.ItemName || ' (' || i.ItemCode || ')' d, i.ItemCode r
-                  From PurchaseBillDetail d
-                  Join Item i On i.ItemCode = d.ItemCode
+                Select i.ItemName || ' (' || i.ItemCode || ')' d, i.ItemCode r
+                  From Item i
+                 Where Exists (Select 1 From PurchaseBillDetail d
+                                Where d.ItemCode = i.ItemCode)
                  Order By 1
                 ```
             displayExtraValues: false
@@ -9651,18 +10107,19 @@ page 668 (
             label: Location
             alignment: left
         }
+        settings {
+            fetchOnSearch: true
+        }
         lov {
             type: sqlQuery
             sqlQuery:
                 ```sql
-                Select l.LocationName d, l.LocationCode r
-                  From Location l
-                 Where Exists (Select 1 From PurchaseBill fb
-                                Where fb.LocationCode = l.LocationCode
-                                  And (:P668_COMPANY Is Null
-                                       Or fb.CompanyCode = :P668_COMPANY)
-                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
-                                       Or fb.Panel = (Select GetUserPanelAB_apex() From dual)))
+                Select Distinct l.LocationName d, l.LocationCode r
+                  From PurchaseBill fb
+                  Join Location l On l.LocationCode = fb.LocationCode
+                 Where (:P668_COMPANY Is Null Or fb.CompanyCode = :P668_COMPANY)
+                   And ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or fb.Panel = (Select GetUserPanelAB_apex() From dual))
                  Order By 1
                 ```
             displayExtraValues: false
@@ -9729,6 +10186,9 @@ page 668 (
 
     pageItem P668_PIPE_FOCUS (
         type: hidden
+        settings {
+            valueProtected: false
+        }
         layout {
             sequence: 55
             region: @filter-drawer
@@ -9744,6 +10204,9 @@ page 668 (
 
     pageItem P668_STAGE_FOCUS (
         type: hidden
+        settings {
+            valueProtected: false
+        }
         layout {
             sequence: 56
             region: @filter-drawer
@@ -9767,8 +10230,9 @@ page 668 (
             type: sqlQuery
             sqlQuery:
                 ```sql
-                Select Distinct GetPartyName(h.PartyCode) d, h.PartyCode r
+                Select Distinct p.PartyName d, p.PartyCode r
                   From PurchaseBill h
+                  Join Party p On p.PartyCode = h.PartyCode
                  Where ((Select GetUserPanelAB_apex() From dual) Is Null
                         Or h.Panel = (Select GetUserPanelAB_apex() From dual))
                    And (:P668_COMPANY Is Null Or h.CompanyCode = :P668_COMPANY)
@@ -9776,6 +10240,10 @@ page 668 (
                 ```
             displayExtraValues: false
             nullDisplayValue: All suppliers
+        }
+        cascadingLov {
+            parentItems: P668_COMPANY
+            itemsToSubmit: P668_COMPANY
         }
         layout {
             sequence: 10
@@ -9840,11 +10308,10 @@ page 668 (
             sqlQuery:
                 ```sql
                 Select Distinct t.TransporterName d, t.TransporterCode r
-                  From Transporter t
-                 Where Exists (Select 1 From FreightAdvice f
-                                Where f.TransporterCode = t.TransporterCode
-                                  And ((Select GetUserPanelAB_apex() From dual) Is Null
-                                       Or f.Panel = (Select GetUserPanelAB_apex() From dual)))
+                  From FreightAdvice f
+                  Join Transporter t On t.TransporterCode = f.TransporterCode
+                 Where ((Select GetUserPanelAB_apex() From dual) Is Null
+                        Or f.Panel = (Select GetUserPanelAB_apex() From dual))
                  Order By 1
                 ```
             displayExtraValues: false
@@ -9902,7 +10369,7 @@ page 668 (
             slot: regionBody
             startNewRow: false
             column: 3
-            columnSpan: 3
+            columnSpan: 1
         }
         appearance {
             buttonTemplate: @/text-with-icon
@@ -9927,8 +10394,8 @@ page 668 (
             region: @filter-bar
             slot: regionBody
             startNewRow: false
-            column: 6
-            columnSpan: 3
+            column: 4
+            columnSpan: 2
         }
         appearance {
             buttonTemplate: @/text-with-icon
@@ -9962,6 +10429,13 @@ page 668 (
             settings {
                 jsCode:
                     ```javascript-browser
+                    // Pipeline audit fix: discard transient drill selection before submit.
+                    apex.jQuery(document).on('apexbeforepagesubmit.pipelineAudit', function () {
+                      ['P668_EXEC_FOCUS','P668_EXC_FOCUS','P668_STAGE_FOCUS','P668_PIPE_FOCUS'].forEach(function (id) {
+                        var el = document.getElementById(id);
+                        if (el && el.type === 'hidden') { el.value = el.defaultValue; }
+                      });
+                    });
                     // Delegate on document: the drill anchors sit inside lazy-loaded
                     // reports, so a directly-bound handler would miss rows added later.
                     // One command header only: the app renders its own page-title card,
@@ -10024,5 +10498,25 @@ page 668 (
 
     )
 
-)
+    dynamicAction install-fast-filter-runtime (
+        name: Install Fast Filter Runtime
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
 
+        action install (
+            action: executeJsCode
+            settings {
+                jsCode: void 0;
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
