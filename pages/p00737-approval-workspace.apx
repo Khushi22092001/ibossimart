@@ -13,6 +13,160 @@ page 737 (
         cursorFocus: doNotFocusCursor
         warnOnUnsavedChanges: false
     }
+    javaScript {
+        fileUrls: [
+            #APP_IMAGES#dashboard-fast-runtime.js?version=#APP_VERSION#&cb=20260829v
+            #APP_IMAGES#dashboard-fast-charts.js?version=#APP_VERSION#&cb=20260830a
+        ]
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            var apexApprovalState = { action: '', tno: '', selected: '', label: '' };
+            
+            function apexApprovalDecision(el) {
+              var action = el.getAttribute('data-action'),
+                  label  = el.getAttribute('data-label') || 'selected work item',
+                  tno    = el.getAttribute('data-tno');
+            
+              apexApprovalState = { action: action, tno: tno, selected: '', label: label };
+              apex.item('P737_REMARK').setValue('');
+              apex.jQuery('#approvalActionTitle').text((action === 'APPROVE' ? 'Approve ' : 'Reject ') + label);
+              apex.jQuery('#approvalActionHelp').text(action === 'APPROVE'
+                ? 'Enter an approval remark, then confirm this decision.'
+                : 'Enter a rejection remark so the document owner knows what to correct.');
+              apex.jQuery('#approvalConfirm')
+                .toggleClass('t-Button--danger', action === 'REJECT')
+                .find('.t-Button-label').text(action === 'APPROVE' ? 'Confirm approval' : 'Confirm rejection');
+              apexApprovalPrepareConfirm();
+              apex.jQuery('body').addClass('approval-compose-open');
+              window.setTimeout(function () { apex.jQuery('#P737_REMARK').trigger('focus'); }, 60);
+              return false;
+            }
+            
+            function apexApprovalPrepareConfirm() {
+              var button = document.getElementById('approvalConfirm');
+              if (button) {
+                button.onclick = apexApprovalConfirm;
+                button.disabled = false;
+              }
+            }
+            
+            function apexApprovalSetVisibleSelection(checked) {
+              var boxes = apex.jQuery('#approvalQueue input.approval-select');
+              boxes.prop('checked', !!checked).prop('defaultChecked', !!checked).trigger('change');
+              return false;
+            }
+            
+            function apexApprovalBulkDecision(action) {
+              var ids = apex.jQuery('#approvalQueue .approval-select:checked')
+                .map(function () { return this.value; }).get(),
+                  label;
+              if (!ids.length) {
+                apex.message.alert('Select at least one approval first.');
+                return false;
+              }
+              if (ids.length > 100) {
+                apex.message.alert('A maximum of 100 approvals can be processed together.');
+                return false;
+              }
+              label = ids.length + ' selected approval' + (ids.length === 1 ? '' : 's');
+              apexApprovalState = { action: action, tno: '', selected: ids.join(':'), label: label };
+              apex.item('P737_REMARK').setValue('');
+              apex.jQuery('#approvalActionTitle').text((action === 'APPROVE' ? 'Pass ' : 'Fail ') + label);
+              apex.jQuery('#approvalActionHelp').text(action === 'APPROVE'
+                ? 'One mandatory remark will be recorded against every selected approval. The complete selection is revalidated before processing.'
+                : 'Enter the mandatory rejection reason. It will be recorded against every selected document before return routing.');
+              apex.jQuery('#approvalConfirm')
+                .toggleClass('t-Button--danger', action === 'REJECT')
+                .find('.t-Button-label').text(action === 'APPROVE' ? 'Confirm bulk pass' : 'Confirm bulk fail');
+              apexApprovalPrepareConfirm();
+              apex.jQuery('body').addClass('approval-compose-open');
+              window.setTimeout(function () { apex.jQuery('#P737_REMARK').trigger('focus'); }, 60);
+              return false;
+            }
+            
+            function apexApprovalCancel() {
+              apex.jQuery('body').removeClass('approval-compose-open');
+              apexApprovalState = { action: '', tno: '', selected: '', label: '' };
+              apex.item('P737_REMARK').setValue('');
+              var button = document.getElementById('approvalConfirm');
+              if (button) {
+                button.disabled = false;
+              }
+              return false;
+            }
+            
+            function apexApprovalConfirm() {
+              var remark = String(apex.item('P737_REMARK').getValue() || '').trim(),
+                  action = apexApprovalState.action,
+                  tno = apexApprovalState.tno,
+                  selected = apexApprovalState.selected,
+                  button = document.getElementById('approvalConfirm');
+            
+              if (action !== 'APPROVE' && action !== 'REJECT') {
+                apex.message.alert('Choose Approve or Reject again.');
+                return false;
+              }
+              if (!tno && !selected) {
+                apex.message.alert('Choose an approval from the current queue.');
+                return false;
+              }
+              if (!remark) {
+                apex.message.alert('A decision remark is required.', function () {
+                  apex.jQuery('#P737_REMARK').trigger('focus');
+                });
+                return false;
+              }
+            
+              if (button) {
+                button.disabled = true;
+              }
+              apex.server.process(
+                'APPROVAL_DECISION_AJAX',
+                {
+                  x01: action,
+                  x02: tno,
+                  x03: selected,
+                  x04: remark
+                },
+                {
+                  dataType: 'json',
+                  success: function (data) {
+                    if (!data || data.success !== true) {
+                      if (button) {
+                        button.disabled = false;
+                      }
+                      apex.message.alert((data && data.message) || 'The approval decision could not be completed.');
+                      return;
+                    }
+                    apexApprovalCancel();
+                    apex.region('approvalSummary').refresh();
+                    apex.region('approvalQueue').refresh();
+                    apex.message.showPageSuccess(data.message);
+                  },
+                  error: function (jqXHR) {
+                    var response = jqXHR && jqXHR.responseJSON,
+                        message = response && response.message;
+                    if (button) {
+                      button.disabled = false;
+                    }
+                    apex.message.alert(message || 'The approval decision could not be completed. Please refresh the queue and try again.');
+                  }
+                }
+              );
+              return false;
+            }
+            
+            apex.jQuery(function () {
+              apex.jQuery(document)
+                .off('click.approvalCancel', "button[data-otel-label='CANCEL_APPROVAL_ACTION'],#CANCEL_APPROVAL_ACTION")
+                .on('click.approvalCancel', "button[data-otel-label='CANCEL_APPROVAL_ACTION'],#CANCEL_APPROVAL_ACTION", function (event) {
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  return apexApprovalCancel();
+                });
+            });
+            ```
+    }
     css {
         inline:
             ```css
@@ -44,7 +198,7 @@ page 737 (
             body:has(.approval-workspace) .approval-filter .t-Button{min-height:46px;margin-top:23px!important;padding-inline:18px!important;border-radius:10px!important;font-weight:750!important}
             body:has(.approval-workspace) .approval-filter .t-Button--hot{box-shadow:0 7px 15px rgba(81,73,214,.22)!important}
             body:has(.approval-workspace) .approval-filter-note{margin-top:10px;color:#657087;font-size:11.5px;line-height:1.55}
-            body:has(.approval-workspace) .approval-filter .t-Button-icon:last-child,body:has(.approval-workspace) .approval-bulk .t-Button-icon:last-child{display:none!important}
+            body:has(.approval-workspace) .t-Button .t-Icon--right,body.approval-compose-open #approvalActionEditor .t-Button .t-Icon--right{display:none!important}
             body:has(.approval-workspace) .approval-bulk{margin-top:16px!important;border-radius:14px!important;box-shadow:0 5px 17px rgba(38,52,85,.045)!important}
             body:has(.approval-workspace) .approval-bulk .t-Region-body{min-height:66px;gap:11px;padding:12px 18px!important}
             body:has(.approval-workspace) .approval-bulk-copy{flex:1;color:#39445f;font-size:13px;line-height:1.4}
@@ -207,11 +361,11 @@ page 737 (
                            And p.TokenNo<q.TokenNo
                            And p.Remark Is Not Null) Previous_Remark,
                        '<div class="approval-actions">'
-                       ||'<button type="button" class="approval-action-btn is-approve" data-action="APPROVE" data-tno="'||q.TNo||'" data-label="'||apex_escape.html_attribute(Nvl(q.MenuLabel,'Work item #'||q.ModuleTNo))||'"><span class="fa fa-check"></span>Approve</button>'
-                       ||'<button type="button" class="approval-action-btn is-reject" data-action="REJECT" data-tno="'||q.TNo||'" data-label="'||apex_escape.html_attribute(Nvl(q.MenuLabel,'Work item #'||q.ModuleTNo))||'"><span class="fa fa-times"></span>Reject</button>'
+                       ||'<button type="button" class="approval-action-btn is-approve" data-action="APPROVE" data-tno="'||q.TNo||'" data-label="'||apex_escape.html_attribute(Nvl(q.MenuLabel,'Work item #'||q.ModuleTNo))||'" onclick="return apexApprovalDecision(this);"><span class="fa fa-check"></span>Approve</button>'
+                       ||'<button type="button" class="approval-action-btn is-reject" data-action="REJECT" data-tno="'||q.TNo||'" data-label="'||apex_escape.html_attribute(Nvl(q.MenuLabel,'Work item #'||q.ModuleTNo))||'" onclick="return apexApprovalDecision(this);"><span class="fa fa-times"></span>Reject</button>'
                        ||'</div>' Actions
                   From ONTHETABLE_APEX q
-                  Left Join HSPL.ONTHETABLEALL o On o.TNo=q.TNo
+                  Left Join ONTHETABLEALL o On o.TNo=q.TNo
                   Left Join SalesConfirm sc
                     On q.ModuleCode='SALESCONFIRM'
                    And sc.TNo=q.ModuleTNo
@@ -248,6 +402,9 @@ page 737 (
             whenNoDataFound: <div class="approval-empty"><div class="approval-empty-head"><span>Work item</span><span>Module</span><span>Company</span><span>Waiting</span><span>Decision</span></div><div class="approval-empty-body"><span class="approval-empty-art"><span class="fa fa-clipboard"></span></span><span class="approval-empty-copy"><b>No approval is waiting for you</b><small>Your approval queue is clear. New documents assigned to you will appear here with Approve and Reject actions.</small></span></div></div>
             whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows. Please refine the report filters.
         }
+        componentAdvanced {
+            maxRowsPerPageInSelector: 100
+        }
         advanced {
             savedReportMappingIdentifier: 55748194510506211
         }
@@ -282,7 +439,7 @@ page 737 (
                 columnAlignment: end
             }
             appearance {
-                formatMask: FM99G99G99G99G990D00
+                formatMask: FM999G99G99G99G99G99G99G99G99G99G99G99G99G99G99G990D00
             }
             source {
                 dataType: NUMBER
@@ -407,7 +564,7 @@ page 737 (
                 columnAlignment: end
             }
             appearance {
-                formatMask: FM99G99G99G99G990D00
+                formatMask: FM999G99G99G99G99G99G99G99G99G99G99G99G99G99G99G990D00
             }
             source {
                 dataType: NUMBER
@@ -578,7 +735,7 @@ page 737 (
         savedReport primary (
             visibility: primaryDefault
             view {
-                rowsPerPage: 50
+                rowsPerPage: 20
             }
 
             displayColumn ACTIONS (
@@ -751,6 +908,9 @@ page 737 (
             label: Company
             alignment: left
         }
+        settings {
+            fetchOnSearch: true
+        }
         lov {
             type: sqlQuery
             sqlQuery:
@@ -786,6 +946,9 @@ page 737 (
             label: Location
             alignment: left
         }
+        settings {
+            fetchOnSearch: true
+        }
         lov {
             type: sqlQuery
             sqlQuery:
@@ -795,7 +958,7 @@ page 737 (
                         Select q.TNo,q.CompanyCode,
                                Nvl(o.LocationCode,sc.LocationCode) LocationCode
                           From ONTHETABLE_APEX q
-                          Left Join HSPL.ONTHETABLEALL o On o.TNo=q.TNo
+                          Left Join ONTHETABLEALL o On o.TNo=q.TNo
                           Left Join SalesConfirm sc
                             On q.ModuleCode='SALESCONFIRM'
                            And sc.TNo=q.ModuleTNo
@@ -837,6 +1000,9 @@ page 737 (
             label: Party
             alignment: left
         }
+        settings {
+            fetchOnSearch: true
+        }
         lov {
             type: sqlQuery
             sqlQuery:
@@ -847,7 +1013,7 @@ page 737 (
                                Nvl(o.LocationCode,sc.LocationCode) LocationCode,
                                Nvl(o.PartyCode,sc.PartyCode) PartyCode
                           From ONTHETABLE_APEX q
-                          Left Join HSPL.ONTHETABLEALL o On o.TNo=q.TNo
+                          Left Join ONTHETABLEALL o On o.TNo=q.TNo
                           Left Join SalesConfirm sc
                             On q.ModuleCode='SALESCONFIRM'
                            And sc.TNo=q.ModuleTNo
@@ -1106,15 +1272,7 @@ page 737 (
         action close-editor (
             action: executeJsCode
             settings {
-                jsCode:
-                    ```javascript-browser
-                    apex.jQuery('body').removeClass('approval-compose-open');
-                    apex.item('P737_ACTION_TNO').setValue('');
-                    apex.item('P737_ACTION').setValue('');
-                    apex.item('P737_ACTION_LABEL').setValue('');
-                    apex.item('P737_SELECTED_TNOS').setValue('');
-                    apex.item('P737_REMARK').setValue('');
-                    ```
+                jsCode: apexApprovalCancel();
             }
             execution {
                 sequence: 10
@@ -1138,7 +1296,7 @@ page 737 (
         action clear-visible-rows (
             action: executeJsCode
             settings {
-                jsCode: apex.jQuery('#approvalQueue .approval-select').prop('checked',false).trigger('change');
+                jsCode: apexApprovalSetVisibleSelection(false);
             }
             execution {
                 sequence: 10
@@ -1162,21 +1320,7 @@ page 737 (
         action open-bulk-fail-editor (
             action: executeJsCode
             settings {
-                jsCode:
-                    ```javascript-browser
-                    var ids=apex.jQuery('#approvalQueue .approval-select:checked').map(function(){return this.value;}).get();
-                    if(!ids.length){apex.message.alert('Select at least one approval first.');return;}
-                    if(ids.length>100){apex.message.alert('A maximum of 100 approvals can be processed together.');return;}
-                    apex.item('P737_ACTION_TNO').setValue('');
-                    apex.item('P737_SELECTED_TNOS').setValue(ids.join(':'));
-                    apex.item('P737_ACTION').setValue('REJECT');
-                    apex.item('P737_ACTION_LABEL').setValue(ids.length+' selected approvals');
-                    apex.jQuery('#approvalActionTitle').text('Fail '+ids.length+' selected approvals');
-                    apex.jQuery('#approvalActionHelp').text('Enter the mandatory rejection reason. It will be recorded against every selected document before return routing.');
-                    apex.jQuery('#approvalConfirm').addClass('t-Button--danger').find('.t-Button-label').text('Confirm bulk fail');
-                    apex.jQuery('body').addClass('approval-compose-open');
-                    window.setTimeout(function(){apex.jQuery('#P737_REMARK').trigger('focus');},60);
-                    ```
+                jsCode: apexApprovalBulkDecision('REJECT');
             }
             execution {
                 sequence: 10
@@ -1196,30 +1340,13 @@ page 737 (
         when {
             event: click
             selectionType: jQuerySelector
-            jquerySelector: .approval-action-btn
+            jquerySelector: .approval-action-btn-disabled-legacy
         }
 
         action open-row-decision-editor (
             action: executeJsCode
             settings {
-                jsCode:
-                    ```javascript-browser
-                    var el=this.triggeringElement,
-                        action=el.dataset.action,
-                        label=el.dataset.label||'selected work item';
-                    apex.item('P737_SELECTED_TNOS').setValue('');
-                    apex.item('P737_ACTION_TNO').setValue(el.dataset.tno);
-                    apex.item('P737_ACTION').setValue(action);
-                    apex.item('P737_ACTION_LABEL').setValue(label);
-                    apex.jQuery('#approvalActionTitle').text((action==='APPROVE'?'Approve ':'Reject ')+label);
-                    apex.jQuery('#approvalActionHelp').text(action==='APPROVE'
-                      ?'Enter an approval remark, then confirm this decision.'
-                      :'Enter a rejection remark so the document owner knows what to correct.');
-                    apex.jQuery('#approvalConfirm').toggleClass('t-Button--danger',action==='REJECT')
-                      .find('.t-Button-label').text(action==='APPROVE'?'Confirm approval':'Confirm rejection');
-                    apex.jQuery('body').addClass('approval-compose-open');
-                    window.setTimeout(function(){apex.jQuery('#P737_REMARK').trigger('focus');},60);
-                    ```
+                jsCode: apexApprovalDecision(this.triggeringElement);
             }
             execution {
                 sequence: 10
@@ -1243,21 +1370,7 @@ page 737 (
         action open-bulk-pass-editor (
             action: executeJsCode
             settings {
-                jsCode:
-                    ```javascript-browser
-                    var ids=apex.jQuery('#approvalQueue .approval-select:checked').map(function(){return this.value;}).get();
-                    if(!ids.length){apex.message.alert('Select at least one approval first.');return;}
-                    if(ids.length>100){apex.message.alert('A maximum of 100 approvals can be processed together.');return;}
-                    apex.item('P737_ACTION_TNO').setValue('');
-                    apex.item('P737_SELECTED_TNOS').setValue(ids.join(':'));
-                    apex.item('P737_ACTION').setValue('APPROVE');
-                    apex.item('P737_ACTION_LABEL').setValue(ids.length+' selected approvals');
-                    apex.jQuery('#approvalActionTitle').text('Pass '+ids.length+' selected approvals');
-                    apex.jQuery('#approvalActionHelp').text('One mandatory remark will be recorded against every selected approval. The complete selection is revalidated before processing.');
-                    apex.jQuery('#approvalConfirm').removeClass('t-Button--danger').find('.t-Button-label').text('Confirm bulk pass');
-                    apex.jQuery('body').addClass('approval-compose-open');
-                    window.setTimeout(function(){apex.jQuery('#P737_REMARK').trigger('focus');},60);
-                    ```
+                jsCode: apexApprovalBulkDecision('APPROVE');
             }
             execution {
                 sequence: 10
@@ -1281,7 +1394,7 @@ page 737 (
         action select-visible-rows (
             action: executeJsCode
             settings {
-                jsCode: apex.jQuery('#approvalQueue .approval-select').prop('checked',true).trigger('change');
+                jsCode: apexApprovalSetVisibleSelection(true);
             }
             execution {
                 sequence: 10
@@ -1298,8 +1411,8 @@ page 737 (
         }
         when {
             event: click
-            selectionType: button
-            button: @confirm-approval-action
+            selectionType: jQuerySelector
+            jquerySelector: .approval-submit-is-handled-by-page-process
         }
 
         action complete-decision-ui (
@@ -1307,15 +1420,10 @@ page 737 (
             settings {
                 jsCode:
                     ```javascript-browser
-                    var action=apex.item('P737_ACTION').getValue(),
-                        selected=apex.item('P737_SELECTED_TNOS').getValue(),
+                    var action=apexApprovalState.action,
+                        selected=apexApprovalState.selected,
                         count=selected?selected.split(':').filter(Boolean).length:1;
-                    apex.jQuery('body').removeClass('approval-compose-open');
-                    apex.item('P737_ACTION_TNO').setValue('');
-                    apex.item('P737_ACTION').setValue('');
-                    apex.item('P737_ACTION_LABEL').setValue('');
-                    apex.item('P737_SELECTED_TNOS').setValue('');
-                    apex.item('P737_REMARK').setValue('');
+                    apexApprovalCancel();
                     apex.message.showPageSuccess(count+' approval'+(count===1?'':'s')+(action==='APPROVE'?' passed and forwarded.':' failed and returned with your remark.'));
                     ```
             }
@@ -1346,6 +1454,7 @@ page 737 (
                         lModuleCode   ModuleFlow.ModuleCode%Type;
                         lCompanyCode  ModuleFlow.CompanyCode%Type;
                         lLabel        PassFail.MenuLabel%Type;
+                        lDecisionLabel Varchar2(500);
                       Begin
                         Select a.ModuleTNo,a.TokenNo,mf.ModuleCode,mf.CompanyCode,a.MenuLabel
                           Into lModuleTNo,lTokenNo,lModuleCode,lCompanyCode,lLabel
@@ -1361,16 +1470,20 @@ page 737 (
                            And a.IsRebounded Is Null
                          For Update Of a.IsPass,a.IsFail,a.Remark;
                     
+                        lDecisionLabel:=Nvl(lLabel,'Approval #'||lModuleTNo);
+                        If Upper(Trim(lModuleCode))='SALESCONFIRM' Then
+                          Select Nvl(Max(sc.SalesConfirmNo),lDecisionLabel)
+                            Into lDecisionLabel
+                            From SalesConfirm sc
+                           Where sc.TNo=lModuleTNo;
+                        End If;
+                    
                         If lAction='APPROVE' Then
-                          Update PassFail
-                             Set IsPass='YES',Remark=lRemark
-                           Where TNo=pTNo;
-                          SendPassFailForward(lModuleCode,lModuleTNo,Nvl(lLabel,'Approval #'||lModuleTNo),lCompanyCode);
+                          PassOnTheTable(lTokenNo,lModuleCode,lModuleTNo,lDecisionLabel,lCompanyCode,:APP_USER);
+                          Update PassFail Set Remark=lRemark Where TNo=pTNo;
                         Else
-                          Update PassFail
-                             Set IsFail='YES',Remark=lRemark
-                           Where TNo=pTNo;
-                          SendBackPassFail(lTokenNo,Nvl(lLabel,'Approval #'||lModuleTNo));
+                          FailOnTheTable(lTokenNo,lModuleCode,lModuleTNo,lDecisionLabel,lCompanyCode,:APP_USER);
+                          Update PassFail Set Remark=lRemark Where TNo=pTNo;
                         End If;
                         lProcessed:=lProcessed+1;
                       Exception
@@ -1407,6 +1520,7 @@ page 737 (
                         End If;
                         ProcessOne(lTNo);
                       End If;
+                      Commit;
                     End;
                     ```
                 itemsToSubmit: [
@@ -1449,5 +1563,136 @@ page 737 (
 
     )
 
-)
+    process approval-decision-ajax (
+        name: APPROVAL_DECISION_AJAX
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                Declare
+                  lAction       Varchar2(10):=Upper(Trim(apex_application.g_x01));
+                  lRemark       Varchar2(500):=Trim(apex_application.g_x04);
+                  lSelected     Varchar2(32767):=Trim(apex_application.g_x03);
+                  lTNos         apex_t_varchar2;
+                  lTNo          Number;
+                  lProcessed    Pls_Integer:=0;
+                  Type tSeen Is Table Of Boolean Index By Varchar2(100);
+                  lSeen         tSeen;
+                
+                  Procedure ProcessOne(pTNo In Number) Is
+                    lModuleTNo    PassFail.ModuleTNo%Type;
+                    lTokenNo      PassFail.TokenNo%Type;
+                    lModuleCode   ModuleFlow.ModuleCode%Type;
+                    lCompanyCode  ModuleFlow.CompanyCode%Type;
+                    lLabel        PassFail.MenuLabel%Type;
+                    lDecisionLabel Varchar2(500);
+                  Begin
+                    Select a.ModuleTNo,a.TokenNo,mf.ModuleCode,mf.CompanyCode,a.MenuLabel
+                      Into lModuleTNo,lTokenNo,lModuleCode,lCompanyCode,lLabel
+                      From PassFail a
+                      Join ModuleFlow mf On mf.TNo=a.ModuleFlowTNo
+                      Join BossUser bu On bu.BossUserCode=a.BossUserCode
+                     Where a.TNo=pTNo
+                       And (Upper(bu.BossUserName)=Upper(:APP_USER)
+                            Or Upper(bu.LoginName)=Upper(:APP_USER))
+                       And a.IsPass Is Null
+                       And a.IsFail Is Null
+                       And a.IsForwarded Is Null
+                       And a.IsRebounded Is Null
+                     For Update Of a.IsPass,a.IsFail,a.Remark;
+                
+                    lDecisionLabel:=Nvl(lLabel,'Approval #'||lModuleTNo);
+                    If Upper(Trim(lModuleCode))='SALESCONFIRM' Then
+                      Select Nvl(Max(sc.SalesConfirmNo),lDecisionLabel)
+                        Into lDecisionLabel
+                        From SalesConfirm sc
+                       Where sc.TNo=lModuleTNo;
+                    End If;
+                
+                    If lAction='APPROVE' Then
+                
+                        update PassFail a
+                    		set a.IsPass = 'YES',
+                    				a.remark = lRemark
+                    		where a.TNo = pTNo;
+                
+                      PassOnTheTable(lTokenNo,lModuleCode,lModuleTNo,lDecisionLabel,lCompanyCode,:APP_USER);
+                      --Update PassFail Set Remark=lRemark Where TNo=pTNo;
+                    Else
+                      update PassFail a
+                    		set a.IsFail = 'YES',
+                    				a.remark = lRemark
+                    		where a.TNo = pTNo;
+                
+                        SendBackPassFail(lTokenNo , lDecisionLabel );
+                            
+                     -- FailOnTheTable(lTokenNo,lModuleCode,lModuleTNo,lDecisionLabel,lCompanyCode,:APP_USER);
+                      --Update PassFail Set Remark=lRemark Where TNo=pTNo;
+                    End If;
+                    lProcessed:=lProcessed+1;
+                  Exception
+                    When No_Data_Found Then
+                      raise_application_error(-20003,'Approval #'||pTNo||' is no longer pending or is not assigned to you. Refresh the queue. No selected approval was changed.');
+                  End ProcessOne;
+                Begin
+                  If lAction Not In ('APPROVE','REJECT') Then
+                    raise_application_error(-20001,'Choose Approve or Reject again.');
+                  End If;
+                  If lRemark Is Null Then
+                    raise_application_error(-20002,'A decision remark is required.');
+                  End If;
+                
+                  If lSelected Is Not Null Then
+                    lTNos:=apex_string.split(lSelected,':');
+                    If lTNos.Count=0 Or lTNos.Count>100 Then
+                      raise_application_error(-20004,'Select between 1 and 100 approvals.');
+                    End If;
+                    For i In 1..lTNos.Count Loop
+                      lTNo:=to_number(Trim(lTNos(i)) Default Null On Conversion Error);
+                      If lTNo Is Null Then
+                        raise_application_error(-20005,'The selected approval list is invalid. Refresh the queue and select again.');
+                      End If;
+                      If Not lSeen.Exists(To_Char(lTNo)) Then
+                        lSeen(To_Char(lTNo)):=True;
+                        ProcessOne(lTNo);
+                      End If;
+                    End Loop;
+                  Else
+                    lTNo:=to_number(apex_application.g_x02 Default Null On Conversion Error);
+                    If lTNo Is Null Then
+                      raise_application_error(-20006,'Choose an approval from the current queue.');
+                    End If;
+                    ProcessOne(lTNo);
+                  End If;
+                
+                  Commit;
+                
+                  apex_json.open_object;
+                  apex_json.write('success',True);
+                  apex_json.write('count',lProcessed);
+                  apex_json.write(
+                    'message',
+                    lProcessed||' approval'||Case When lProcessed=1 Then '' Else 's' End||
+                    Case When lAction='APPROVE' Then ' passed and forwarded.' Else ' failed and returned with your remark.' End
+                  );
+                  apex_json.close_object;
+                Exception
+                  When Others Then
+                    Rollback;
+                    apex_json.open_object;
+                    apex_json.write('success',False);
+                    apex_json.write('message',Regexp_Replace(SqlErrM,'^ORA-[0-9]+:[[:space:]]*',''));
+                    apex_json.close_object;
+                End;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 66228066937444929
+        }
+    )
 
+)
