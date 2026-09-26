@@ -257,13 +257,14 @@ wwv_flow_imp_page.create_page(
 'function qstatus(){var bad=false,pending=false;Object.keys(qcalc.rows).forEach(function(k){bad=bad||qcalc.rows[k].state==="ERROR";pending=pending||qcalc.rows[k].state==="PENDING";});var v=bad?"ERROR":(pending?"PENDING":"READY");var x=apex.item("P710_'
 ||'CALCSTATUS");if(x&&x.node)x.setValue(v,null,true);}',
 'function qprune(m){Object.keys(qcalc.rows).forEach(function(k){var r=m.getRecord(k),x=r&&m.getRecordMetadata(k);if(!r||(x&&x.deleted)){if(qcalc.rows[k].timer)clearTimeout(qcalc.rows[k].timer);delete qcalc.rows[k];}});qstatus();}',
-'window.hsplP710OpenFD=function(sno){var b=region(["QuotationDetail","quotation-detail"]),m=b&&b.m,key=String(raw(sno)),rec=null,click=++qcalc.fdSeq;if(m)rows(m,function(r){if(!rec&&String(raw(m.getValue(r,"SNO")))===key)rec=r;});if(!rec){apex.message'
-||'.showErrors([{type:"error",location:"page",message:"Clicked quotation row could not be identified. Refresh the page and retry.",unsafe:false}]);return;}var tno=raw(m.getValue(rec,"TNO")),spec=raw(m.getValue(rec,"ITEMSPECIFICATIONCODE")),amt=n(m.getVa'
-||'lue(rec,"AMOUNT")),si=apex.item("P710_SNO"),ai=apex.item("P710_DFAMOUNT");if(si&&si.node)si.setValue(key,null,true);if(ai&&ai.node)ai.setValue(amt,null,true);apex.server.process("P710_PREPARE_FD",{x01:tno,x02:key,x03:spec,x04:amt,pageItems:"#P710_PAR'
-||'TYCODE,#P710_TRANSACTIONTYPECODE"},{dataType:"json",queue:{name:"p710_fd_open",action:"replace"}}).done(function(d){if(click!==qcalc.fdSeq)return;if(!d||d.success!==true||String(d.sno)!==key){apex.message.showErrors([{type:"error",location:"page",mes'
-||'sage:(d&&d.message)||"FD could not be prepared for the clicked row.",unsafe:false}]);return;}qcalc.applying=true;modelSet(m,rec,"FOOTERAMOUNT",d.footerAmount);modelSet(m,rec,"TOTALAMOUNT",amt+n(d.footerAmount));qcalc.applying=false;quotation(b,"fd",{'
-||'});openModal("DetailFooter");setTimeout(function(){try{apex.region("detailfooter").refresh();}catch(e){}},0);}).fail(function(jq,textStatus,errorThrown){if(click!==qcalc.fdSeq)return;apex.message.showErrors([{type:"error",location:"page",message:"FD '
-||'could not open ("+(errorThrown||textStatus||"network error")+"). No row data was changed.",unsafe:false}]);});};',
+'window.hsplP710OpenFD=function(sno,el){var b=region(["quotation-detail","QuotationDetail"]),m=b&&b.m,key=String(raw(sno)==null?"":raw(sno)).trim(),rec=null,click=++qcalc.fdSeq,tr,id;if(m&&el&&el.closest){tr=el.closest("tr[data-id]");id=tr&&tr.getAttr'
+||'ibute("data-id");if(id!=null)rec=m.getRecord(id);}if(!rec&&m&&key)rows(m,function(r){var v=String(raw(m.getValue(r,"SNO"))==null?"":raw(m.getValue(r,"SNO"))).trim();if(!rec&&(v===key||(n(v)>0&&n(v)===n(key))))rec=r;});var si=apex.item("P710_SNO"),ai='
+||'apex.item("P710_DFAMOUNT");if(rec)key=String(raw(m.getValue(rec,"SNO"))==null?key:raw(m.getValue(rec,"SNO"))).trim();if(si&&si.node)si.setValue(key,null,true);if(!rec){openModal("DetailFooter");setTimeout(function(){try{apex.region("detailfooter").re'
+||'fresh();}catch(e){}},0);return;}var tno=raw(m.getValue(rec,"TNO")),spec=raw(m.getValue(rec,"ITEMSPECIFICATIONCODE")),amt=n(m.getValue(rec,"AMOUNT"));if(ai&&ai.node)ai.setValue(amt,null,true);apex.server.process("P710_PREPARE_FD",{x01:tno,x02:key,x03:'
+||'spec,x04:amt,pageItems:"#P710_PARTYCODE,#P710_TRANSACTIONTYPECODE"},{dataType:"json",queue:{name:"p710_fd_open",action:"replace"}}).done(function(d){if(click!==qcalc.fdSeq)return;if(!d||d.success!==true||String(d.sno)!==key){apex.message.showErrors(['
+||'{type:"error",location:"page",message:(d&&d.message)||"FD could not be prepared for the clicked row.",unsafe:false}]);return;}qcalc.applying=true;modelSet(m,rec,"FOOTERAMOUNT",d.footerAmount);modelSet(m,rec,"TOTALAMOUNT",amt+n(d.footerAmount));qcalc.'
+||'applying=false;quotation(b,"fd",{});openModal("DetailFooter");setTimeout(function(){try{apex.region("detailfooter").refresh();}catch(e){}},0);}).fail(function(jq,textStatus,errorThrown){if(click!==qcalc.fdSeq)return;apex.message.showErrors([{type:"er'
+||'ror",location:"page",message:"FD could not open ("+(errorThrown||textStatus||"network error")+"). No row data was changed.",unsafe:false}]);});};',
 'function qserver(b,r){var m=b.m,id=m.getRecordId(r),s=qcalc.rows[id]||{};if(blank(raw(m.getValue(r,"TNO")))||blank(raw(m.getValue(r,"SNO")))||blank(raw(m.getValue(r,"ITEMCODE")))||blank(raw(m.getValue(r,"ITEMSPECIFICATIONCODE"))))return;if(s.timer)cl'
 ||'earTimeout(s.timer);s.rev=++qcalc.seq;s.state="PENDING";qcalc.rows[id]=s;qstatus();var rev=s.rev;s.timer=setTimeout(function(){var rec=m.getRecord(id);if(!rec||!qcalc.rows[id]||qcalc.rows[id].rev!==rev)return;apex.server.process("P710_CALCULATE_DETAI'
 ||'L",{x01:raw(m.getValue(rec,"TNO")),x02:raw(m.getValue(rec,"SNO")),x03:raw(m.getValue(rec,"ITEMCODE")),x04:raw(m.getValue(rec,"ITEMSPECIFICATIONCODE")),x05:raw(m.getValue(rec,"QUANTITY1")),x06:raw(m.getValue(rec,"RATE")),x07:raw(m.getValue(rec,"WITHOU'
@@ -1936,9 +1937,9 @@ wwv_flow_imp_page.create_region_column(
 ,p_heading_alignment=>'LEFT'
 ,p_display_sequence=>270
 ,p_value_alignment=>'LEFT'
-,p_link_target=>'javascript:window.hsplP710OpenFD(''&SNO.'');'
+,p_link_target=>'#'
 ,p_link_text=>'&FD.'
-,p_link_attributes=>'class="t-Button t-Button--simple t-Button--hot t-Button--stretch"'
+,p_link_attributes=>'class="t-Button t-Button--simple t-Button--hot t-Button--stretch" onclick="window.hsplP710OpenFD(''&SNO.'',this);return false;"'
 ,p_enable_filter=>true
 ,p_filter_operators=>'C:S:CASE_INSENSITIVE:REGEXP'
 ,p_filter_text_case=>'MIXED'
@@ -1950,7 +1951,7 @@ wwv_flow_imp_page.create_region_column(
 ,p_enable_hide=>true
 ,p_is_primary_key=>false
 ,p_default_type=>'STATIC'
-,p_default_expression=>'<a href="javascript:window.hsplP710OpenFD(''&SNO.'');"><span class="t-Button t-Button--simple t-Button--hot t-Button--stretch">FD</span></a>'
+,p_default_expression=>'<a href="#" onclick="window.hsplP710OpenFD(''&SNO.'',this);return false;"><span class="t-Button t-Button--simple t-Button--hot t-Button--stretch">FD</span></a>'
 ,p_duplicate_value=>true
 ,p_include_in_export=>true
 ,p_escape_on_http_output=>false
