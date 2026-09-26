@@ -1,0 +1,119 @@
+prompt --application/shared_components/data_loads/itemopening
+begin
+--   Manifest
+--     DATA LOAD: ITEMOPENING
+--   Manifest End
+wwv_flow_imp.component_begin (
+ p_version_yyyy_mm_dd=>'2026.03.30'
+,p_release=>'26.1.2'
+,p_default_workspace_id=>1466918471259373
+,p_default_application_id=>100
+,p_default_id_offset=>7541489808702750
+,p_default_owner=>'IMART'
+);
+wwv_flow_imp_shared.create_load_table(
+ p_id=>wwv_flow_imp.id(31060889839706875)
+,p_name=>'ITEMOPENING'
+,p_static_id=>'itemopening'
+,p_target_type=>'TABLE'
+,p_table_name=>'ITEMOPENINGIMPORT'
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_loading_method=>'APPEND'
+,p_commit_interval=>200
+,p_error_handling=>'ABORT'
+,p_skip_validation=>'N'
+,p_version_scn=>'19838874'
+);
+wwv_flow_imp_shared.create_data_profile(
+ p_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'ITEMOPENING'
+,p_format=>'XLSX'
+,p_encoding=>'utf-8'
+,p_default_xlsx_sheet_name=>'sheet1.xml'
+,p_has_header_row=>true
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31059167443706874)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'ITEMCODE'
+,p_static_id=>'itemcode'
+,p_sequence=>2
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31059484410706875)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'ITEMSPECIFICATIONCODE'
+,p_static_id=>'itemspecificationcode'
+,p_sequence=>3
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMSPECIFICATIONCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31059813203706875)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'OPENINGQUANTITY1'
+,p_static_id=>'openingquantity'
+,p_sequence=>4
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_selector_type=>'NAME'
+,p_selector=>'OPENINGQUANTITY1'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31060072801706875)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'OPENINGQUANTITY2'
+,p_static_id=>'openingquantity-2'
+,p_sequence=>5
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_selector_type=>'NAME'
+,p_selector=>'OPENINGQUANTITY2'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31060388167706875)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'OPENINGVALUE'
+,p_static_id=>'openingvalue'
+,p_sequence=>6
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_decimal_char=>'.'
+,p_selector_type=>'NAME'
+,p_selector=>'OPENINGVALUE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31060659670706875)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'REMARK'
+,p_static_id=>'remark'
+,p_sequence=>7
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>100
+,p_selector_type=>'NAME'
+,p_selector=>'REMARK'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(31058908228706874)
+,p_data_profile_id=>wwv_flow_imp.id(31058580644706854)
+,p_name=>'STORAGELOCATIONCODE'
+,p_static_id=>'storagelocationcode'
+,p_sequence=>1
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'STORAGELOCATIONCODE'
+);
+wwv_flow_imp.component_end;
+end;
+/

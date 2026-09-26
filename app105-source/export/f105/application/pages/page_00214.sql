@@ -1,0 +1,221 @@
+prompt --application/pages/page_00214
+begin
+--   Manifest
+--     PAGE: 00214
+--   Manifest End
+wwv_flow_imp.component_begin (
+ p_version_yyyy_mm_dd=>'2026.03.30'
+,p_release=>'26.1.2'
+,p_default_workspace_id=>4744311978888504
+,p_default_application_id=>105
+,p_default_id_offset=>7541489808702750
+,p_default_owner=>'IMART'
+);
+wwv_flow_imp_page.create_page(
+ p_id=>214
+,p_name=>'Agent Commision Rate List'
+,p_alias=>'AGENT-COMMISION-RATE-LIST'
+,p_step_title=>'Agent Commision Rate List'
+,p_autocomplete_on_off=>'OFF'
+,p_step_template=>4072355960268175073
+,p_page_template_options=>'#DEFAULT#'
+,p_protection_level=>'C'
+,p_page_component_map=>'18'
+);
+wwv_flow_imp_page.create_page_plug(
+ p_id=>wwv_flow_imp.id(449994081294410699)
+,p_plug_name=>'Agent Commision Rate List'
+,p_static_id=>'agent-commision-rate-list'
+,p_region_template_options=>'#DEFAULT#'
+,p_plug_template=>2100526641005906379
+,p_plug_display_sequence=>10
+,p_plug_item_display_point=>'ABOVE'
+,p_query_type=>'TABLE'
+,p_query_table=>'AGENTCOMMISSIONRATE'
+,p_include_rowid_column=>false
+,p_plug_source_type=>'NATIVE_IR'
+,p_prn_page_header=>'Agent Commision Rate List'
+,p_ai_enabled=>false
+);
+wwv_flow_imp_page.create_worksheet(
+ p_id=>wwv_flow_imp.id(449994178699410699)
+,p_max_row_count_message=>'The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.'
+,p_no_data_found_message=>'No data found.'
+,p_pagination_type=>'ROWS_X_TO_Y'
+,p_pagination_display_pos=>'BOTTOM_RIGHT'
+,p_report_list_mode=>'TABS'
+,p_lazy_loading=>false
+,p_show_detail_link=>'C'
+,p_show_notify=>'Y'
+,p_download_formats=>'CSV:HTML:XLSX:PDF'
+,p_enable_mail_download=>'Y'
+,p_detail_link=>'f?p=&APP_ID.:215:&APP_SESSION.::&DEBUG.:RP:P215_TNO:\#TNO#\'
+,p_detail_link_text=>'<span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>'
+,p_internal_uid=>11009309499712715
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449997446152410707)
+,p_db_column_name=>'AGENTCODE'
+,p_display_order=>8
+,p_column_identifier=>'H'
+,p_column_label=>'Agent'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449997062762410707)
+,p_db_column_name=>'AGENTCOMMISSIONRATEDATE'
+,p_display_order=>7
+,p_column_identifier=>'G'
+,p_column_label=>'Agent Commission Rate Date'
+,p_column_type=>'DATE'
+,p_tz_dependent=>'N'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449996653629410707)
+,p_db_column_name=>'AGENTCOMMISSIONRATENO'
+,p_display_order=>6
+,p_column_identifier=>'F'
+,p_column_label=>'Agent Commission Rate No'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449995010124410707)
+,p_db_column_name=>'COMPANYCODE'
+,p_display_order=>2
+,p_column_identifier=>'B'
+,p_column_label=>'Company'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449999015928410709)
+,p_db_column_name=>'CREATIONTIME'
+,p_display_order=>12
+,p_column_identifier=>'L'
+,p_column_label=>'Creation Time'
+,p_column_type=>'DATE'
+,p_tz_dependent=>'N'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449998581776410709)
+,p_db_column_name=>'CREATOR'
+,p_display_order=>11
+,p_column_identifier=>'K'
+,p_column_label=>'Creator'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449996178854410707)
+,p_db_column_name=>'DOCTYPECODE'
+,p_display_order=>5
+,p_column_identifier=>'E'
+,p_column_label=>'Doc Type'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449997774256410707)
+,p_db_column_name=>'EFFECTIVEDATE'
+,p_display_order=>9
+,p_column_identifier=>'I'
+,p_column_label=>'Effective Date'
+,p_column_type=>'DATE'
+,p_tz_dependent=>'N'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449995419980410707)
+,p_db_column_name=>'FINANCIALYEARCODE'
+,p_display_order=>3
+,p_column_identifier=>'C'
+,p_column_label=>'Financial Year'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449995838338410707)
+,p_db_column_name=>'LOCATIONCODE'
+,p_display_order=>4
+,p_column_identifier=>'D'
+,p_column_label=>'Location'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449998188575410708)
+,p_db_column_name=>'REMARK'
+,p_display_order=>22
+,p_column_identifier=>'J'
+,p_column_label=>'Remark'
+,p_column_type=>'STRING'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(449994656434410701)
+,p_db_column_name=>'TNO'
+,p_display_order=>0
+,p_is_primary_key=>'Y'
+,p_column_identifier=>'A'
+,p_column_label=>'Tno'
+,p_column_type=>'NUMBER'
+,p_display_text_as=>'HIDDEN_ESCAPE_SC'
+,p_use_as_row_header=>'N'
+);
+wwv_flow_imp_page.create_worksheet_rpt(
+ p_id=>wwv_flow_imp.id(449999868210411316)
+,p_application_user=>'APXWS_DEFAULT'
+,p_report_seq=>10
+,p_report_alias=>'110150'
+,p_status=>'PUBLIC'
+,p_is_default=>'Y'
+,p_report_columns=>'COMPANYCODE:FINANCIALYEARCODE:LOCATIONCODE:DOCTYPECODE:AGENTCOMMISSIONRATENO:AGENTCOMMISSIONRATEDATE:AGENTCODE:EFFECTIVEDATE:CREATOR:CREATIONTIME:REMARK'
+);
+wwv_flow_imp_page.create_page_button(
+ p_id=>wwv_flow_imp.id(449503586923630705)
+,p_button_sequence=>20
+,p_button_plug_id=>wwv_flow_imp.id(449994081294410699)
+,p_button_name=>'Create'
+,p_static_id=>'create'
+,p_button_action=>'REDIRECT_PAGE'
+,p_button_template_options=>'#DEFAULT#:t-Button--primary:t-Button--iconLeft'
+,p_button_template_id=>2082829544945815391
+,p_button_is_hot=>'Y'
+,p_button_image_alt=>'Add New'
+,p_button_position=>'RIGHT_OF_IR_SEARCH_BAR'
+,p_button_redirect_url=>'f?p=&APP_ID.:215:&SESSION.::&DEBUG.:::'
+,p_icon_css_classes=>'fa-plus-square-o'
+);
+wwv_flow_imp_page.create_page_button(
+ p_id=>wwv_flow_imp.id(449503475062630704)
+,p_button_sequence=>10
+,p_button_plug_id=>wwv_flow_imp.id(449994081294410699)
+,p_button_name=>'Home'
+,p_static_id=>'home'
+,p_button_action=>'REDIRECT_PAGE'
+,p_button_template_options=>'#DEFAULT#'
+,p_button_template_id=>2349107722467437027
+,p_button_is_hot=>'Y'
+,p_button_image_alt=>'Home'
+,p_button_position=>'RIGHT_OF_IR_SEARCH_BAR'
+,p_button_redirect_url=>'f?p=&APP_ID.:1:&SESSION.::&DEBUG.:::'
+,p_icon_css_classes=>'fa-window-close-o'
+);
+wwv_flow_imp.component_end;
+end;
+/

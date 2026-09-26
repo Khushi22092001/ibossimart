@@ -1,0 +1,1433 @@
+page 382 (
+    name: Proforma Invoice Report
+    alias: PROFORMA-INVOICE-REPORT
+    title: Proforma Invoice Report
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            .a-IRR-headerLink{
+                text-transform: uppercase;
+            }
+            
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filters (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                js-useLocalStorage
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+        }
+    )
+
+    region proforma-invoice-report (
+        name: Proforma Invoice Report
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                    NVL(GetDocumentStatusCode(GetModuleCodeForPageNo(:APP_PAGE_ID), xxx.TNo), 'STATUS') AS Status,
+                    xxx.TNo,
+                    xxx.LocationName,
+                    xxx.DocTypeName,
+                    xxx.PInvoiceNo,
+                    xxx.PInvoiceDate,
+                    xxx.SalesOrderNo,
+                    xxx.SalesOrderDate,
+                    xxx.PartyName,
+                    xxx.Consignee,
+                    xxx.Transporter,
+                    xxx.VehicleNo,
+                    xxx.LorryNo,
+                    xxx.LorryDate,
+                    xxx.FreightRate,
+                    xxx.FreightUnitCode,
+                    xxx.ItemCode,
+                    xxx.ItemName,
+                    xxx.Item,
+                    xxx.UOM,
+                    xxx.UOM2,
+                    xxx.Quantity1,
+                    xxx.Quantity2,
+                    xxx.Rate,
+                    xxx.Amount,
+                    xxx.CGST,
+                    xxx.SGST,
+                    xxx.IGST,
+                    xxx.TCS,
+                    xxx.FooterAmount,
+                    ABS(xxx.FooterAmount - (xxx.CGST + xxx.SGST + xxx.IGST + xxx.TCS)) AS OtherAmount,
+                    xxx.TotalAmount,
+                    xxx.Creator,
+                    xxx.CreationTime,
+                    xxx.AgentName,
+                    xxx.CityName,
+                    xxx.StateName
+                
+                    -- , xxx.LoadingAdviceNo       -- Related to LOADINGADVICE
+                    -- , xxx.DespatchAdviceNo      -- Related to DESPATCHADVICE
+                    -- , xxx.DespatchAdviceDate    -- Related to DESPATCHADVICE
+                    -- , xxx.FreightTypeName       -- Related to FREIGHTTYPE
+                    -- , xxx.VoucherStatus         -- Related to VOUCHER / INVOICE
+                    -- , '<a href="' || APEX_UTIL.PREPARE_URL('f?p=' || :APP_ID || ':' || 9993 || ':' || :APP_SESSION || '::::' || 'P9993_TNO,P9993_REPNAME' || ':' || xxx.TNo || ',' || 'PInvoice11' || ':NO') || '"><span aria-label="Action"><span class="fa fa-print" aria-hidden="true" title="Action"></span></span></a>' AS Print
+                FROM (
+                    SELECT
+                        xx.TNo,
+                        xx.LocationName,
+                        xx.DocTypeName,
+                        xx.PInvoiceNo,
+                        xx.PInvoiceDate,
+                        xx.SalesOrderNo,
+                        xx.SalesOrderDate,
+                        xx.PartyName,
+                        xx.Consignee,
+                        xx.Transporter,
+                        xx.VehicleNo,
+                        xx.LorryNo,
+                        xx.LorryDate,
+                        xx.FreightRate,
+                        xx.FreightUnitCode,
+                        xx.ItemCode,
+                        xx.ItemName,
+                        xx.Item,
+                        xx.UOM,
+                        xx.UOM2,
+                        xx.Quantity1,
+                        xx.Quantity2,
+                        xx.Rate,
+                        xx.Amount,
+                        SUM(xx.CGST) AS CGST,
+                        SUM(xx.SGST) AS SGST,
+                        SUM(xx.IGST) AS IGST,
+                        SUM(xx.TCS) AS TCS,
+                        xx.FooterAmount,
+                        xx.TotalAmount,
+                        xx.Creator,
+                        xx.CreationTime,
+                        xx.AgentName,
+                        xx.CityName,
+                        xx.StateName
+                
+                        -- , xx.LoadingAdviceNo    -- Related to LOADINGADVICE
+                        -- , xx.DespatchAdviceNo   -- Related to DESPATCHADVICE
+                        -- , xx.DespatchAdviceDate -- Related to DESPATCHADVICE
+                        -- , xx.FreightTypeName    -- Related to FREIGHTTYPE
+                        -- , xx.VoucherStatus      -- Related to VOUCHER / INVOICE
+                    FROM (
+                        SELECT
+                            a.TNo,
+                            l.LocationName,
+                            dt.DocTypeName,
+                            a.PINVOICENO AS PInvoiceNo, 
+                            a.PINVOICEDATE AS PInvoiceDate,
+                            so.SalesOrderNo,
+                            so.SalesOrderDate,
+                            GetPartyName(so.AgentCode) AS AgentName,
+                            p.PartyName,
+                            GetCityName(p.OfficeCityCode) AS CityName,
+                            GetStateName(p.OfficeStateCode) AS StateName,
+                            GetPartyName(a.ConsigneeCode) AS Consignee,
+                            t.PartyName AS Transporter,
+                            a.VehicleNo,
+                            a.LorryNo,
+                            a.LorryDate,
+                            a.FreightRate,
+                            a.FreightUnitCode,
+                            b.ItemCode,
+                            e.ItemName,
+                            e.ItemName || ' ~ ' || ee.ItemSpecificationName AS Item,
+                            e.MeasuringUnitCode1 AS UOM,
+                            e.MeasuringUnitCode2 AS UOM2,
+                            CASE WHEN e.ItemClassificationCode != 'SERVICE' THEN b.Quantity1 END AS Quantity1,
+                            CASE WHEN e.ItemClassificationCode != 'SERVICE' THEN b.Quantity2 END AS Quantity2,
+                            b.Rate,
+                            b.Amount,
+                            NVL(DECODE(c.FooterHeadCode, '.CGST.', c.FooterValue), 0) AS CGST,
+                            NVL(DECODE(c.FooterHeadCode, '.SGST.', c.FooterValue), 0) AS SGST,
+                            NVL(DECODE(c.FooterHeadCode, '.IGST.', c.FooterValue), 0) AS IGST,
+                            NVL(DECODE(c.FooterHeadCode, '.TCS.', c.FooterValue), 0) AS TCS,
+                            b.FooterAmount,
+                            b.TotalAmount,
+                            bue.EmployeeName || ' ( ' || a.Creator || ')' AS Creator,
+                            a.CreationTime
+                
+                            -- , ld.LoadingAdviceNo                                                                        -- Related to LOADINGADVICE
+                            -- , da.DespatchAdviceNo                                                                       -- Related to DESPATCHADVICE
+                            -- , da.DespatchAdviceDate                                                                     -- Related to DESPATCHADVICE
+                            -- , ft.FreightTypeName                                                                        -- Related to FREIGHTTYPE
+                            -- , CASE WHEN vo.ModuleTNo IS NOT NULL THEN 'PREPARED' ELSE 'PENDING' END AS VoucherStatus    -- Related to VOUCHER / INVOICE
+                        FROM PINVOICE a
+                        LEFT JOIN PINVOICEDETAIL b ON a.TNo = b.TNo
+                        LEFT JOIN PINVOICEDETAILFOOTER c ON b.TNo = c.TNo AND b.SNo = c.SNo
+                        LEFT JOIN LOCATION l ON a.LocationCode = l.LocationCode
+                        LEFT JOIN DOCTYPE dt ON a.DocTypeCode = dt.DocTypeCode
+                        LEFT JOIN SALESORDER so ON a.SalesOrderTNo = so.TNo
+                        LEFT JOIN PARTY p ON a.PartyCode = p.PartyCode
+                        LEFT JOIN PARTY t ON a.TransporterCode = t.PartyCode
+                        LEFT JOIN ITEM e ON b.ItemCode = e.ItemCode
+                        LEFT JOIN ITEMSPECIFICATION ee ON b.ItemSpecificationCode = ee.ItemSpecificationCode
+                        LEFT JOIN BOSSUSER bu ON a.Creator = bu.LoginName
+                        LEFT JOIN EMPLOYEE bue ON bu.EmployeeCode = bue.EmployeeCode
+                        LEFT JOIN DOCUMENTSTATUSDETAIL dsd ON a.TNo = dsd.ModuleTNo
+                
+                        -- LEFT JOIN LOADINGADVICE ld ON a.LoadingAdviceTNo = ld.TNo
+                        -- LEFT JOIN DESPATCHADVICE da ON a.DespatchAdviceTNo = da.TNo
+                        -- LEFT JOIN FREIGHTTYPE ft ON a.FreightTypeCode = ft.FreightTypeCode
+                        -- LEFT JOIN INVOICE ic ON a.TNo = ic.ModuleTNo
+                        -- LEFT JOIN VOUCHER vo ON ic.TNo = vo.ModuleTNo
+                        WHERE a.PINVOICEDATE BETWEEN :P382_FROMDATE AND :P382_TODATE
+                          AND (:P382_LOCATION IS NULL OR REGEXP_LIKE(:P382_LOCATION, '((^|:)' || a.LocationCode || '(:|$))'))
+                          AND (:P382_COMPANY IS NULL OR REGEXP_LIKE(:P382_COMPANY, '((^|:)' || a.CompanyCode || '(:|$))'))
+                          AND (:P382_PARTY IS NULL OR REGEXP_LIKE(:P382_PARTY, '((^|:)' || a.PartyCode || '(:|$))'))
+                          AND (:P382_CONSIGNEE IS NULL OR REGEXP_LIKE(:P382_CONSIGNEE, '((^|:)' || so.ConsigneeCode || '(:|$))'))
+                          AND (:P382_ITEM IS NULL OR REGEXP_LIKE(:P382_ITEM, '((^|:)' || e.ItemCode || '(:|$))'))
+                          AND (:P382_ITEMSPECIFICATION IS NULL OR REGEXP_LIKE(:P382_ITEMSPECIFICATION, '((^|:)' || ee.ItemSpecificationCode || '(:|$))'))
+                        --   AND GetCompanyPrivilege(a.CompanyCode, GetModuleCodeForPageNo(:APP_PAGE_ID), :GLOBAL_LOGINNAME) = 'YES'
+                        --   AND GetLocationPrivilege(a.LocationCode, GetModuleCodeForPageNo(:APP_PAGE_ID), a.CompanyCode, :GLOBAL_LOGINNAME) = 'YES'
+                    ) xx
+                    GROUP BY 
+                        xx.TNo, xx.LocationName, xx.DocTypeName, xx.PInvoiceNo, xx.PInvoiceDate, xx.SalesOrderNo, xx.SalesOrderDate, 
+                        xx.PartyName, xx.Consignee, xx.Transporter, xx.VehicleNo, xx.LorryNo, xx.LorryDate, xx.FreightRate, 
+                        xx.FreightUnitCode, xx.ItemCode, xx.ItemName, xx.Item, xx.UOM, xx.UOM2, xx.Quantity1, xx.Quantity2, 
+                        xx.Rate, xx.Amount, xx.FooterAmount, xx.TotalAmount, xx.Creator, xx.CreationTime, xx.AgentName, 
+                        xx.CityName, xx.StateName
+                
+                        -- , xx.LoadingAdviceNo
+                        -- , xx.DespatchAdviceNo
+                        -- , xx.DespatchAdviceDate
+                        -- , xx.FreightTypeName
+                        -- , xx.VoucherStatus
+                ) xxx
+                Order by xxx.PInvoiceNo desc,
+                         xxx.PInvoiceDate desc
+                ```
+            pageItemsToSubmit: [
+                P382_COMPANY
+                P382_LOCATION
+                P382_STATUS
+                P382_FROMDATE
+                P382_TODATE
+                P382_PARTY
+                P382_CONSIGNEE
+                P382_ITEM
+                P382_ITEMSPECIFICATION
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        link {
+            linkColumn: customTarget
+            target: {
+                page: 383
+                items: {
+                    P383_TNO: \#TNO#\
+                    P383_FORMSTATUS: EDITRECORD
+                }
+                clearCache: 383
+                action: resetPagination
+            }
+            linkIcon: <span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 3890109273492313
+        }
+
+        column AGENTNAME (
+            type: plainText
+            heading {
+                heading: Agentname
+                alignment: center
+            }
+            layout {
+                sequence: 330
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DJ
+            }
+        )
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount
+                alignment: center
+            }
+            layout {
+                sequence: 250
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DB
+            }
+        )
+
+        column CGST (
+            type: plainText
+            heading {
+                heading: Cgst
+                alignment: center
+            }
+            layout {
+                sequence: 260
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DC
+            }
+        )
+
+        column CITYNAME (
+            type: plainText
+            heading {
+                heading: Cityname
+                alignment: center
+            }
+            layout {
+                sequence: 340
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DK
+            }
+        )
+
+        column CONSIGNEE (
+            type: plainText
+            heading {
+                heading: Consignee
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#CONSIGNEE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CQ
+            }
+        )
+
+        column CREATIONTIME (
+            type: plainText
+            heading {
+                heading: Creationtime
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: CD
+            }
+        )
+
+        column CREATOR (
+            type: plainText
+            heading {
+                heading: Creator
+                alignment: center
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CC
+            }
+        )
+
+        column DOCTYPENAME (
+            type: plainText
+            heading {
+                heading: Doctypename
+                alignment: center
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CI
+            }
+        )
+
+        column FOOTERAMOUNT (
+            type: plainText
+            heading {
+                heading: Footeramount
+                alignment: center
+            }
+            layout {
+                sequence: 300
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DG
+            }
+        )
+
+        column FREIGHTRATE (
+            type: plainText
+            heading {
+                heading: Freightrate
+                alignment: center
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AR
+            }
+        )
+
+        column FREIGHTUNITCODE (
+            type: plainText
+            heading {
+                heading: Freightunitcode
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column IGST (
+            type: plainText
+            heading {
+                heading: Igst
+                alignment: center
+            }
+            layout {
+                sequence: 280
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DE
+            }
+        )
+
+        column ITEM (
+            type: plainText
+            heading {
+                heading: Item
+                alignment: center
+            }
+            layout {
+                sequence: 190
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#ITEM#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CV
+            }
+        )
+
+        column ITEMCODE (
+            type: plainText
+            heading {
+                heading: Itemcode
+                alignment: center
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CT
+            }
+        )
+
+        column ITEMNAME (
+            type: plainText
+            heading {
+                heading: Itemname
+                alignment: center
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CU
+            }
+        )
+
+        column LOCATIONNAME (
+            type: plainText
+            heading {
+                heading: Locationname
+                alignment: center
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CH
+            }
+        )
+
+        column LORRYDATE (
+            type: plainText
+            heading {
+                heading: Lorrydate
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column LORRYNO (
+            type: plainText
+            heading {
+                heading: Lorryno
+                alignment: center
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BN
+            }
+        )
+
+        column OTHERAMOUNT (
+            type: plainText
+            heading {
+                heading: Otheramount
+                alignment: center
+            }
+            layout {
+                sequence: 310
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DH
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Partyname
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#PARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CP
+            }
+        )
+
+        column PINVOICEDATE (
+            type: plainText
+            heading {
+                heading: Pinvoicedate
+                alignment: center
+            }
+            layout {
+                sequence: 370
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PINVOICEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: DQ
+            }
+        )
+
+        column PINVOICENO (
+            type: plainText
+            heading {
+                heading: Pinvoiceno
+                alignment: center
+            }
+            layout {
+                sequence: 360
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#PINVOICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DP
+            }
+        )
+
+        column QUANTITY1 (
+            type: plainText
+            heading {
+                heading: Quantity1
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: CY
+            }
+        )
+
+        column QUANTITY2 (
+            type: plainText
+            heading {
+                heading: Quantity2
+                alignment: center
+            }
+            layout {
+                sequence: 230
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: CZ
+            }
+        )
+
+        column RATE (
+            type: plainText
+            heading {
+                heading: Rate
+                alignment: center
+            }
+            layout {
+                sequence: 240
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DA
+            }
+        )
+
+        column SALESORDERDATE (
+            type: plainText
+            heading {
+                heading: Salesorderdate
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#SALESORDERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: CO
+            }
+        )
+
+        column SALESORDERNO (
+            type: plainText
+            heading {
+                heading: Salesorderno
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:130px">#SALESORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CN
+            }
+        )
+
+        column SGST (
+            type: plainText
+            heading {
+                heading: Sgst
+                alignment: center
+            }
+            layout {
+                sequence: 270
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DD
+            }
+        )
+
+        column STATENAME (
+            type: plainText
+            heading {
+                heading: Statename
+                alignment: center
+            }
+            layout {
+                sequence: 350
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: DL
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <span class="iboss-tag iboss-tag-#STATUS#">#STATUS#</span>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CG
+            }
+        )
+
+        column TCS (
+            type: plainText
+            heading {
+                heading: Tcs
+                alignment: center
+            }
+            layout {
+                sequence: 290
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DF
+            }
+        )
+
+        column TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 0
+            }
+            source {
+                primaryKey: true
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TOTALAMOUNT (
+            type: plainText
+            heading {
+                heading: Totalamount
+                alignment: center
+            }
+            layout {
+                sequence: 320
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: DI
+            }
+        )
+
+        column TRANSPORTER (
+            type: plainText
+            heading {
+                heading: Transporter
+                alignment: center
+            }
+            layout {
+                sequence: 160
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:190px">#TRANSPORTER#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CR
+            }
+        )
+
+        column UOM (
+            type: plainText
+            heading {
+                heading: Uom
+                alignment: center
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CW
+            }
+        )
+
+        column UOM2 (
+            type: plainText
+            heading {
+                heading: Uom2
+                alignment: center
+            }
+            layout {
+                sequence: 210
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: CX
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: Vehicleno
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: BK
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Proforma Invoice Report
+        }
+
+        savedReport 39261 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGENTNAME (
+                sequence: 9
+            )
+
+            displayColumn AMOUNT (
+                sequence: 14
+            )
+
+            displayColumn CGST (
+                sequence: 15
+            )
+
+            displayColumn CONSIGNEE (
+                sequence: 8
+            )
+
+            displayColumn CREATIONTIME (
+                sequence: 23
+            )
+
+            displayColumn CREATOR (
+                sequence: 22
+            )
+
+            displayColumn FOOTERAMOUNT (
+                sequence: 18
+            )
+
+            displayColumn IGST (
+                sequence: 17
+            )
+
+            displayColumn ITEM (
+                sequence: 10
+            )
+
+            displayColumn LOCATIONNAME (
+                sequence: 2
+            )
+
+            displayColumn OTHERAMOUNT (
+                sequence: 20
+            )
+
+            displayColumn PARTYNAME (
+                sequence: 7
+            )
+
+            displayColumn PINVOICEDATE (
+                sequence: 3
+            )
+
+            displayColumn PINVOICENO (
+                sequence: 4
+            )
+
+            displayColumn QUANTITY1 (
+                sequence: 12
+            )
+
+            displayColumn RATE (
+                sequence: 13
+            )
+
+            displayColumn SALESORDERDATE (
+                sequence: 5
+            )
+
+            displayColumn SALESORDERNO (
+                sequence: 6
+            )
+
+            displayColumn SGST (
+                sequence: 16
+            )
+
+            displayColumn STATUS (
+                sequence: 1
+            )
+
+            displayColumn TCS (
+                sequence: 19
+            )
+
+            displayColumn TOTALAMOUNT (
+                sequence: 21
+            )
+
+            displayColumn UOM (
+                sequence: 11
+            )
+
+        )
+
+    )
+
+    pageItem P382_COMPANY (
+        type: selectOne
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = 'PINVOICE'
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and bu.BossUserName =  '&APP_USER.'
+                 and getcompanyprivilege(C.COMPANYCODE,GETMODULECODEFORPAGENO(:APP_PAGE_ID),:GLOBAL_LOGINNAME)='YES'
+                Order by 1
+                  ;
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @filters
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Company --
+        }
+    )
+
+    pageItem P382_CONSIGNEE (
+        type: selectOne
+        label {
+            label: Consignee
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From pinvoice a, Party p
+                Where a.ConsigneeCode = p.PartyCode
+                Order by 1
+                ```
+        }
+        layout {
+            sequence: 80
+            region: @filters
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Consignee Name  --
+        }
+    )
+
+    pageItem P382_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filters
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select From Date --
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE) -7
+        }
+    )
+
+    pageItem P382_ITEM (
+        type: selectMany
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                      e.ItemName||' ( '||e.ItemCode||' )' as d,
+                      e.ItemCode r
+                From pinvoiceDetail a, Item e
+                Where a.ItemCode = e.ItemCode
+                Order by 1
+                ```
+        }
+        layout {
+            sequence: 90
+            region: @filters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Item Name  --
+        }
+    )
+
+    pageItem P382_ITEMSPECIFICATION (
+        type: selectMany
+        label {
+            label: Itemspecification
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      Distinct
+                     ee.ItemSpecificationName as d,
+                     ee.ItemSpecificationCode as r
+                From Item e, ItemSpecification ee, PInvoiceDetail p
+                Where e.ItemCode = :P382_ITEM
+                  and e.TNo = ee.TNo
+                  and ee.ItemSpecificationCode = p.ItemSpecificationCode
+                Order by 1
+                ```
+        }
+        cascadingLov {
+            parentItems: P382_ITEM
+            itemsToSubmit: P382_ITEM
+        }
+        layout {
+            sequence: 100
+            region: @filters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Item Specification Name  --
+        }
+    )
+
+    pageItem P382_LOCATION (
+        type: selectOne
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = 'PINVOICE'
+                  and a.ViewPrivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                Order By 1
+                ;
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            region: @filters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Location --
+        }
+    )
+
+    pageItem P382_PARTY (
+        type: selectOne
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                       Distinct
+                       p.PartyName d,
+                       p.PartyCode r
+                From pinvoice a, Party p
+                Where a.PartyCode = p.PartyCode
+                Order by 1
+                ```
+        }
+        layout {
+            sequence: 70
+            region: @filters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Customer Name  --
+        }
+    )
+
+    pageItem P382_STATUS (
+        type: selectOne
+        label {
+            label: Status
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select DOCUMENTSTATUSCODE as D, DOCUMENTSTATUSCODE as R From DOCUMENTSTATUSDETAIL Where MODULECODE = 'PINVOICE';
+        }
+        layout {
+            sequence: 30
+            region: @filters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select Status --
+        }
+    )
+
+    pageItem P382_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filters
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Select To Date --
+        }
+        default {
+            type: expression
+            plsqlExpression: TRUNC(SYSDATE)
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 10
+            region: @proforma-invoice-report
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 383
+                items: {
+                    P383_FORMSTATUS: NEWRECORD
+                }
+                clearCache: 383
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 10
+            region: @filters
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

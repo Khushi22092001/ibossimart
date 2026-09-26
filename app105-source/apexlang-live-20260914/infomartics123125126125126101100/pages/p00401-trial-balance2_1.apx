@@ -1,0 +1,1338 @@
+page 401 (
+    name: Trial Balance
+    alias: TRIAL-BALANCE2
+    title: Trial Balance
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        authentication: public
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: No help is available for this page.
+    }
+
+    region new (
+        name: New
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT 
+                a.partycode,
+                a.partyname,
+                getTrialBalancePosition(a.PartyCode) AS ccurrentposition,
+                a.partytypecode,
+                c.AccountLevel,
+                decode(c.openingamount, 0, null, round(C.OPENINGAMOUNT,2)) as openingamount,
+                round(C.CLOSINGAMOUNT,2) as closingamount,
+                decode(c.OpeningDebitAmount, 0, null, round(c.OpeningDebitAmount,2)) as OpeningDebitAmount,
+                decode(c.OpeningCreditAmount, 0, null, round(c.OpeningCreditAmount,2)) as OpeningCreditAmount,
+                round(decode(C.DEBITAMOUNT, 0, null, c.DebitAmount),2) AS debitamount,
+                round(decode(C.CREDITAMOUNT, 0 , null, round(c.CreditAmount,2)),2) AS CreditAmount,
+                decode(C.PDEBITAMOUNT, 0, null, round(c.PDebitAmount,2)) AS pdebitamount,
+                decode(C.PCREDITAMOUNT, 0 , null, round(c.PCreditAmount,2)) AS pcreditamount,
+                decode(c.ClosingDebitAmount, 0, null, round(c.ClosingDebitAmount,2)) AS debitclosing,
+                decode(c.ClosingCreditAmount, 0, null, round(c.ClosingCreditAmount,2)) AS creditclosing,
+                --CASE WHEN nvl(:P401_LedgerOnly,'NO') = 'NO' and A.partytypecode='ACCOUNTGROUP' and NVL(:P401_WITHINDENT,'NO') = 'YES' then
+                CASE WHEN  A.partytypecode='ACCOUNTGROUP' and NVL(:P401_WITHINDENT,'NO') = 'YES' then
+                  
+                      '<B>'||'<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||401||':'||:APP_SESSION||'::::'||'P401_ACCOUNTCODE,P401_FROMDATE,P401_ACCOUNTLEVEL,P401_ACCOUNTCODE,P401_TODATE,P401_WITHINDENT'||':'||A.PARTYCODE||','||nvl(:P401_FROMDATE,:P400_FROMDATE)||','||C.ACCOUNTLEVEL ||','||A.PARTYCODE||','||NVL(:P401_TODATE,:P400_TODATE)||','||'YES'||':NO')||'">'||rpad('-',2 * (C.AccountLevel),'-')  || A.PARTYNAME||'</a>'||'</b>'
+                 
+                   WHEN   A.partytypecode='ACCOUNTGROUP' and NVL(:P401_WITHINDENT,'NO') = 'NO' then
+                 
+                      '<B>'||'<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||401||':'||:APP_SESSION||'::::'||'P401_ACCOUNTCODE,P401_FROMDATE,P401_ACCOUNTLEVEL,P401_ACCOUNTCODE,P401_TODATE,P401_WITHINDENT'||':'||A.PARTYCODE||','||nvl(:P401_FROMDATE,:P400_FROMDATE)||','||C.ACCOUNTLEVEL ||','||A.PARTYCODE||','||NVL(:P401_TODATE,:P400_TODATE)||','||'YES'||':NO')||'">'||A.PARTYNAME||'</a>'||'</b>'
+                 
+                   WHEN  A.partytypecode ! ='ACCOUNTGROUP' and NVL(:P401_WITHINDENT,'NO') = 'YES' then
+                     --  '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':141:'||:APP_SESSION||'::'||'P141_fromdate:'|| c.fromdate||':'||'P141_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||a.partyname||'</a>'	
+                      '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':11:'||:APP_SESSION||'::'||'P11_fromdate:'|| c.fromdate||':'||'P11_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||rpad('-',2 * (C.AccountLevel ),'-')  || A.PARTYNAME||'</a>'
+                 
+                   WHEN  A.partytypecode ! ='ACCOUNTGROUP' and NVL(:P401_WITHINDENT,'NO') = 'NO' then
+                     --  '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':141:'||:APP_SESSION||'::'||'P141_fromdate:'|| c.fromdate||':'||'P141_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||a.partyname||'</a>'	
+                      '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':11:'||:APP_SESSION||'::'||'P11_fromdate:'|| c.fromdate||':'||'P11_PARTY:'||a.partycode,NULL,'SESSION' )||'">'||A.PARTYNAME||'</a>'
+                end ACCOUNTNAMEDISPLAY,
+                
+                
+                
+                CASE WHEN C.AccountLevel  = nvl(:P401_AccountLevel,1) or NVL(:P401_LedgerOnly, 'NO') = 'YES'  then
+                       c.OpeningDebitAmount  
+                     ELSE
+                        0
+                END  DebitOpeningC,    
+                CASE WHEN C.AccountLevel  = nvl(:P401_AccountLevel,1) or NVL(:P401_LedgerOnly, 'NO') = 'YES'  then
+                       c.OpeningCreditAmount 
+                     ELSE
+                        0
+                END  CreditOpeningC,
+                CASE WHEN C.AccountLevel  = nvl(:P401_AccountLevel,1) or NVL(:P401_LedgerOnly, 'NO') = 'YES'  then
+                       c.DebitAmount  
+                     ELSE
+                        0
+                END  DebitAmountC,    
+                CASE WHEN C.AccountLevel  = nvl(:P401_AccountLevel,1) or NVL(:P401_LedgerOnly, 'NO') = 'YES'  then
+                       c.CreditAmount 
+                     ELSE
+                        0
+                END  CreditAmountC,
+                CASE WHEN C.AccountLevel  = nvl(:P401_AccountLevel,1) or NVL(:P401_LedgerOnly, 'NO') = 'YES'  then
+                       c.ClosingDebitAmount  
+                     ELSE
+                        0
+                END  DebitClosingC,    
+                CASE WHEN C.AccountLevel  = nvl(:P401_AccountLevel,1) or NVL(:P401_LedgerOnly, 'NO') = 'YES'  then
+                       c.ClosingCreditAmount 
+                     ELSE
+                        0
+                END  CreditClosingC
+                
+                
+                
+                FROM 
+                Party a, ApexTrialBalanceRevisedGroup c
+                WHERE 1=1
+                AND  C.CREATOR = '&APP_USER.'
+                AND a.PartyCode = c.AccountCode(+)
+                
+                and (
+                     exists (
+                           select
+                                aa.ChildCode
+                           from MyAccountIncludeRevised aa
+                           where aa.CompanyCode = :P401_CompanyCode
+                               and aa.FromDate = :P401_FROMDATE
+                               and aa.ToDate = :P401_TODATE
+                               and nvl(aa.LocationCode, 'NULL') = nvl(:P401_LocationCode, 'NULL')
+                               and aa.AccountCode = :P401_AccountCode
+                               and aa.ChildCode = a.PartyCode
+                     )
+                     or
+                     :P401_AccountCode is null
+                )
+                
+                and ( 
+                     nvl(:P401_LedgerOnly,'NO') = 'YES'          
+                     or
+                     c.AccountLevel <= nvl(:P401_AccountLevel,1)
+                     
+                )
+                and ( 
+                     nvl(:P401_LedgerOnly,'NO') = 'NO' 
+                     OR
+                     a.PartyTypeCode != 'ACCOUNTGROUP'
+                )
+                and (
+                     nvl(:P401_IncludeZeroTransaction ,'NO') = 'YES'
+                     or ( 
+                         nvl(c.OpeningAmount,0) != 0
+                         or
+                         nvl(c.DebitAmount,0) != 0
+                         or
+                         nvl(c.CreditAmount,0) != 0
+                         or
+                         nvl(c.PDebitAmount,0) != 0
+                         or
+                         nvl(c.PCreditAmount,0) != 0
+                     )     
+                )
+                and (
+                     nvl(:P401_Exclude0Closing ,'NO') = 'NO'
+                     or (
+                         ROUND(nvl(c.OpeningAmount,0) - nvl(c.DebitAmount,0) + nvl(c.CreditAmount,0)   - nvl(c.PDebitAmount,0) + nvl(c.PCreditAmount,0), 2) != 0
+                     )     
+                )
+                and c.FromDate = '&P401_FROMDATE.'--TO_DATE(:P401_FROMDATE,'DD-MM-RRRR')
+                and c.ToDate = '&P401_TODATE.'--TO_DATE(:P401_TODATE,'DD-MM-RRRR')
+                and c.IncludeChild = nvl(:P401_IncludeChild , 'NO')
+                and c.CompanyCode = :P401_CompanyCode
+                and nvl(c.LocationCode, 'null') = nvl(:P401_Locationcode, 'null') 
+                --and ( '&P401_ACCOUNTCODE.' IS NULL OR A.PARTYCODE = '&P401_ACCOUNTCODE.')
+                
+                ORDER BY c.TrialBalancePosition, a.PartyName ;
+                
+                ```
+            pageItemsToSubmit: [
+                P401_FROMDATE
+                P401_TODATE
+                P401_WITHINDENT
+                P401_LEDGERONLY
+                P401_NARRATION
+                P401_PRINTDRCR
+                P401_LOCATIONCODE
+                P401_ACCOUNTCODE
+                P401_INCLUDECHILD
+                P401_INCLUDEZEROTRANSACTION
+                P401_NEW
+                P401_REPORTTITLE
+                P401_DIVISIONWISE
+                P401_ACCOUNTLEVEL
+                P401_DETAILLEVEL
+                P401_EXCLUDE0CLOSING
+                P401_COMPANYCODE
+                P401_FINANCIALYEARCODE
+            ]
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            regionDisplaySelector: true
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            maxRowsToProcess: 1000000
+        }
+        advanced {
+            savedReportMappingIdentifier: 782955607795862426
+        }
+
+        column ACCOUNTLEVEL (
+            type: plainText
+            heading {
+                heading: Accountlevel
+                alignment: center
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column ACCOUNTNAMEDISPLAY (
+            type: plainText
+            heading {
+                heading: Accountnamedisplay
+                alignment: center
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: W
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column CCURRENTPOSITION (
+            type: plainText
+            heading {
+                heading: Ccurrentposition
+                alignment: center
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column CLOSINGAMOUNT (
+            type: plainText
+            heading {
+                heading: Closingamount
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CREDITAMOUNT (
+            type: plainText
+            heading {
+                heading: CREDIT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CREDITAMOUNTC (
+            type: plainText
+            heading {
+                heading: Creditamountc
+                alignment: center
+            }
+            layout {
+                sequence: 200
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column CREDITCLOSING (
+            type: plainText
+            heading {
+                heading: CREDIT CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 150
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column CREDITCLOSINGC (
+            type: plainText
+            heading {
+                heading: Creditclosingc
+                alignment: center
+            }
+            layout {
+                sequence: 220
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: V
+            }
+        )
+
+        column CREDITOPENINGC (
+            type: plainText
+            heading {
+                heading: Creditopeningc
+                alignment: center
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column DEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: DEBIT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DEBITAMOUNTC (
+            type: plainText
+            heading {
+                heading: Debitamountc
+                alignment: center
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column DEBITCLOSING (
+            type: plainText
+            heading {
+                heading: DEBIT CLOSING
+                alignment: center
+            }
+            layout {
+                sequence: 140
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column DEBITCLOSINGC (
+            type: plainText
+            heading {
+                heading: Debitclosingc
+                alignment: center
+            }
+            layout {
+                sequence: 210
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column DEBITOPENINGC (
+            type: plainText
+            heading {
+                heading: Debitopeningc
+                alignment: center
+            }
+            layout {
+                sequence: 170
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column OPENINGAMOUNT (
+            type: plainText
+            heading {
+                heading: Openingamount
+                alignment: center
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column OPENINGCREDITAMOUNT (
+            type: plainText
+            heading {
+                heading: OPENING CREDIT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 90
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column OPENINGDEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: OPENING DEBIT AMOUNT
+                alignment: center
+            }
+            layout {
+                sequence: 80
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column PARTYCODE (
+            type: plainText
+            heading {
+                heading: Partycode
+                alignment: center
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column PARTYNAME (
+            type: plainText
+            heading {
+                heading: Partyname
+                alignment: center
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PARTYTYPECODE (
+            type: plainText
+            heading {
+                heading: Partytypecode
+                alignment: center
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PCREDITAMOUNT (
+            type: plainText
+            heading {
+                heading: Pcreditamount
+                alignment: center
+            }
+            layout {
+                sequence: 130
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column PDEBITAMOUNT (
+            type: plainText
+            heading {
+                heading: Pdebitamount
+                alignment: center
+            }
+            layout {
+                sequence: 120
+            }
+            appearance {
+                formatMask: 999999999999.99
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: New
+        }
+
+        savedReport 133332 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCOUNTNAMEDISPLAY (
+                sequence: 1
+            )
+
+            displayColumn CREDITAMOUNT (
+                sequence: 5
+            )
+
+            displayColumn CREDITCLOSING (
+                sequence: 7
+            )
+
+            displayColumn DEBITAMOUNT (
+                sequence: 4
+            )
+
+            displayColumn DEBITCLOSING (
+                sequence: 6
+            )
+
+            displayColumn OPENINGCREDITAMOUNT (
+                sequence: 3
+            )
+
+            displayColumn OPENINGDEBITAMOUNT (
+                sequence: 2
+            )
+
+            aggregate (
+                column: DEBITAMOUNT
+            )
+
+            aggregate (
+                column: CREDITAMOUNT
+            )
+
+        )
+
+    )
+
+    region trial-balance (
+        name: "Trial Balance "
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: fullWidthContent
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                js-useLocalStorage
+                t-Region--hideShowIconsMath
+                is-collapsed
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    pageItem P401_ACCOUNTCODE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                minimalInputLength
+                rapidSelection
+            ]
+            minimalInputLength: 3
+            numberOfTags: 3
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      p.PartyName d,
+                      p.PartyCode r
+                From  Party p
+                --Where P.PartyTYPECODE != 'ACCOUNTGROUP'
+                
+                Order By 1
+                ```
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 90
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Account List
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT 1 FROM PARTY WHERE 1 != 1
+        }
+    )
+
+    pageItem P401_ACCOUNTLEVEL (
+        type: textField
+        label {
+            label: Detail Level
+            alignment: left
+        }
+        layout {
+            sequence: 160
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_COMPANYCODE (
+        type: hidden
+        layout {
+            sequence: 190
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_DETAILLEVEL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 170
+            region: @trial-balance
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_DIVISIONWISE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 150
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: YES
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_EXCLUDE0CLOSING (
+        type: checkbox
+        label {
+            label: Exclude Zero Closing
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 180
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_FINANCIALYEARCODE (
+        type: hidden
+        layout {
+            sequence: 200
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARCODE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-YYYY
+            width: 35
+            valuePlaceholder: From Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARBEGIN
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_INCLUDECHILD (
+        type: checkbox
+        label {
+            label: Include Child
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 100
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_INCLUDEZEROTRANSACTION (
+        type: checkbox
+        label {
+            label: Include ZeroTransaction
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 110
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_LEDGERONLY (
+        type: checkbox
+        label {
+            label: Ledger Only
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 50
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        source {
+            used: always
+        }
+        sessionState {
+            storage: request
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_LOCATIONCODE (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Locationcode
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: [
+                limitDisplayedTags
+                rapidSelection
+            ]
+            numberOfTags: 1
+            defaultAutocompleteSearch: displayColumn3
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: Select LocationName d, LocationCode r From Location Where ISDIVISION = 'YES'
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 80
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+            valuePlaceholder: Enter Location
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT 1 FROM PARTY WHERE 1 != 1
+        }
+    )
+
+    pageItem P401_NARRATION (
+        type: hidden
+        layout {
+            sequence: 60
+            region: @trial-balance
+            slot: regionBody
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_NEW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 120
+            region: @trial-balance
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_PRINTDRCR (
+        type: hidden
+        layout {
+            sequence: 70
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: STATE
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_REPORTTITLE (
+        type: hidden
+        layout {
+            sequence: 140
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: Account Ledger
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 210
+            region: @trial-balance
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: STATUS
+        }
+    )
+
+    pageItem P401_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: DD-MM-RRRR
+            width: 35
+            valuePlaceholder: To Date
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: SELECT TRUNC(SYSDATE) FROM DUAL;
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P401_WITHINDENT (
+        type: checkbox
+        label {
+            label: With Indent
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 40
+            region: @trial-balance
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        source {
+            used: always
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button create (
+        buttonName: Create
+        label: Create
+        layout {
+            sequence: 220
+            region: @trial-balance
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--small
+                t-Button--success
+                t-Button--iconLeft
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: custom
+            customEvent: contextmenu
+            selectionType: jsExpression
+            javaScriptExpression: document
+        }
+
+        action plugin-com-pretius-apex-contextmenu (
+            action: plugin/pretiusApexContextMenu
+            settings {
+                listName: trial_context
+                settings: [
+                    displayAtMousePosition
+                    stopEventPropagation
+                ]
+            }
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New_1
+        execution {
+            sequence: 20
+        }
+        when {
+            selectionType: items
+            items: [
+                P401_WITHINDENT
+                P401_LEDGERONLY
+                P401_LOCATIONCODE
+                P401_ACCOUNTCODE
+                P401_INCLUDECHILD
+                P401_INCLUDEZEROTRANSACTION
+                P401_ACCOUNTLEVEL
+                P401_EXCLUDE0CLOSING
+            ]
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @new
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                 if :p401_accountcode is not null then
+                   :P401_ACCOUNTLEVEL := to_number(:P401_ACCOUNTLEVEL)  + 1;
+                 end if;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 18306039225264610
+        }
+    )
+
+)
+

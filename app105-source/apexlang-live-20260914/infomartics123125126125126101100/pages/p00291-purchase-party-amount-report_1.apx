@@ -1,0 +1,1570 @@
+page 291 (
+    name: Purchase Party Payment Register
+    alias: PURCHASE-PARTY-AMOUNT-REPORT
+    title: Purchase Party Payment Register
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'IRONMART/REPORT/BalanceFreightSettlement.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P291_FROMDATE').val());
+            
+              var reportParams = 
+              '&P_COMPANY=' +  $('#P291_COMPANY').val() +
+                '&P_LOCATION=' +  $('#P291_LOCATION').val() +
+                '&P_FROMDATE='  +  $('#P291_FROMDATE').val() +
+                '&P_TODATE=' + $('#P291_TODATE').val() +
+                '&P_PARTY=' +  $('#P291_PARTY').val() 
+                ;
+             
+            //alert($v('P291_PARTY'));
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P291_BIREPORTURL').val()
+              var reportName =  'PurchasePartyPayment.xdo';
+              var outputFormat = 'pdf';
+            
+            
+            var reportParams = 
+                     '"_paramsP_COMPANY":"' +$('#P291_COMPANY').val() + '",' +
+                     '"_paramsP_LOCATION":"' +$('#P291_LOCATION').val() + '",' +
+                     '"_paramsP_FROMDATE":"' +$('#P291_FROMDATE').val() + '",' + 
+                     '"_paramsP_TODATE":"' +$('#P291_TODATE').val() + '",' + 
+            	     '"_paramsP_PARTY":"' + $('#P291_PARTY').val() ;
+                     
+                 
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    region purchase-party-amount-register (
+        name: Purchase Party Amount Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select  row_number() over(order by CHALLANDATE) SerialNo,
+                    TNO, 
+                    LOADINGADVICENO, 
+                    AGENT, 
+                    CHALLANNO, 
+                    CHALLANDATE, 
+                    SALEPARTYNAME, 
+                    PURCHASEORDERNO, 
+                    PURCHASEPARTYNAME, 
+                    PURCHASEBILLNO, 
+                    PURCHASEORDERDATE, 
+                    PURCHASEBILLDATE, 
+                    PURCHASEAMOUNT, 
+                    POITEM, 
+                    POSPECIFICATION, 
+                    QUANTITY, 
+                    SAUDARATE,
+                     SAUDAAMOUNT, 
+                     PASSEDAMOUNT, 
+                     PARTYPAYMENT, 
+                     BALANCEAMOUNT, 
+                     PAYDATE, 
+                     TDS, 
+                     BASICBEFOREGSTTAX, 
+                     sum(SGST) SGST , 
+                     sum(CGST) CGST, 
+                     sum(IGST) IGST, 
+                     PAYDAYS,
+                     DUEDATE, 
+                     OVERDAYS, 
+                     TRANSPORTERCOMPANY,
+                      VEHICLENO, 
+                      LRNO, 
+                      FREIGHTRATE, 
+                      FREIGHTAMOUNT, 
+                      FREIGHTADVANCE 
+                      PARTYBILLTNO
+                 from (
+                select distinct 
+                       
+                        A.TNO, 
+                        a.LOADINGADVICEno,
+                        getpartyname(so.agentcode)                  agent,
+                        nvl(mi.REFDOCNO , cc.CCINVOICENO)       as challanno,
+                        nvl(mi.REFDOCDATE , cc.CCINVOICEDATE)   as challandate,
+                        GETPARTYNAME(so.partycode)              AS Salepartyname,
+                        po.purchaseorderno                      as purchaseorderno,
+                        getpartyname(po.partycode)              as purchasepartyname, 
+                        pb.PARTYBILLNO                          as purchasebillno,
+                        po.purchaseorderdate                    as purchaseorderdate,
+                        pb.PARTYBILLDATE                        as purchasebilldate,
+                        pbp.totalamount                         as Purchaseamount,
+                        getitemname(po.itemcode)                POITEM,
+                        getitemspecificationname(po.itemcode , po.itemspecificationcode) POSpecification,
+                        pbp.quantity1                           as quantity,
+                        po.RATEAFTERDISCOUNT                    as saudarate,
+                        pbp.quantity1 * po.RATEAFTERDISCOUNT    as saudaamount,
+                        pbp.AMOUNTAFTERTDS                      as passedamount,
+                        nvl(pa.amount,0)                        as partypayment,
+                        pbp.AMOUNTAFTERTDS-nvl(pa.amount,0)     as Balanceamount,
+                        pa.paymentadvicedate                    as paydate,
+                        pbp.footervalue                         as TDS,
+                        pbp.amount                              as basicbeforegsttax,
+                       -- po.footeramount as TAX,
+                       case  when pbp.footerheadcode='.SGST.' then
+                        pbp.footervalue1
+                        else
+                        0
+                        end "SGST",  
+                        case  when pbp.footerheadcode='.CGST.' then
+                        pbp.footervalue1
+                        else
+                        0
+                        end "CGST", 
+                        case  when pbp.footerheadcode='.IGST.' then
+                        pbp.footervalue1
+                        else
+                        0
+                        end "IGST", 
+                        po.CREDITDAYS                               as Paydays,
+                        pb.purchasebilldate + po.CREDITDAYS                  as duedate,
+                       trunc(sysdate) - (pb.purchasebilldate + po.CREDITDAYS) as overdays,
+                        getpartyname(cc.TRANSPORTERCODE)            as transportercompany,
+                        cc.VEHICLENO,
+                        cc.LORRYNO LRNO,
+                       cc.FREIGHTRATE,
+                       cc.FREIGHTRATE * pbp.quantity1 FREIGHTamount,
+                       cc.FREIGHTADVANCE,
+                       pb.Tno as PartyBillTno
+                         
+                  from LOADINGADVICE A, LOADINGADVICEDETAIL F, ccinvoice cc ,  grn ,
+                  (
+                        select a.tno , a.purchaseorderno , a.partycode , b.itemcode , b.itemspecificationcode , b.RATEAFTERDISCOUNT ,
+                        a.purchaseorderdate , b.amount , b.quantity1 , b.footeramount , a.CREDITDAYS , c.footerheadcode , c.footervalue
+                        from purchaseorder a , purchaseorderdetail b , purchaseorderdetailfooter c
+                        where a.tno = b.tno
+                        and b.tno = c.tno
+                        and b.sno = c.sno
+                          
+                    )po ,
+                    (
+                        select a.tno , a.salesorderno, b.itemcode , b.itemspecificationcode , a.agentcode , b.rate ,
+                        b.amount , a.partycode
+                        from SALESORDER a , SALESORDERdetail b
+                        where a.tno = b.tno
+                       
+                    )so ,
+                    (
+                        select a.tno , a.joborderno, b.itemcode , b.itemspecificationcode
+                        from JOBORDER a , JOBORDERdetail b
+                        where a.tno = b.tno
+                       
+                    )jo,
+                    (
+                        select a.REFDOCNO , a.REFDOCDATE , a.tno , a.loadingadvicetno , b.itemcode , b.itemspecificationcode ,
+                        a.LRNO
+                        from materialin a , materialindetail b
+                         where a.tno = b.tno
+                        
+                    )mi,
+                    (
+                        select  a.tno ,  b.itemcode , b.itemspecificationcode , b.quantity1 , a.purchaseordertno , a.purchasebillno , a.purchasebilldate , 
+                                a.PARTYBILLNO , a.PARTYBILLDATE , c.grntno
+                        from purchasebill a , purchasebilldetail b , purchasebillgrndetail c
+                         where a.tno = b.tno
+                         and b.tno = c.tno
+                         and b.sno = c.sno
+                                
+                    )pb,
+                    (
+                        select  a.tno ,  b.itemcode , b.itemspecificationcode , b.quantity1 , b.amount , a.purchasebilltno , c.FOOTERVALUE ,
+                                b.totalamount , a.AMOUNTAFTERTDS , d.footerheadcode , d.footervalue footervalue1
+                        from pbpass a , pbpassdetail b , PBPASSTDSDETAIL c , pbpassdetailfooter d
+                         where a.tno = b.tno
+                         and a.tno = c.tno
+                         and b.tno = d.tno
+                         and b.sno = d.sno
+                                
+                    )pbp,
+                    (
+                        select a.paymentadvicedate , b.REFERENCEMODULETNO , sum(b.amount) amount , sum(b.TDSAMOUNT) tds   
+                        from paymentadvice a , paymentadvicereference b
+                            where a.tno = b.tno
+                            group by a.paymentadvicedate ,b.REFERENCEMODULETNO
+                    )pa
+                  WHERE A.PURCHASEORDERTNO              = po.TNO(+)
+                  AND A.TNO                             = F.TNO
+                    and f.itemcode                      = po.itemcode 
+                    and f.itemspecificationcode         = po.itemspecificationcode
+                    AND A.SALESORDERTNO                 = so.TNO(+)
+                     and f.itemcode                     = so.itemcode(+)
+                    and f.itemspecificationcode         = so.itemspecificationcode(+)
+                    AND A.JOBORDERTNO                   = jo.TNO(+)
+                     and f.itemcode                     = jo.itemcode(+)
+                    and f.itemspecificationcode         = jo.itemspecificationcode(+)
+                     AND A.tno                          = mi.loadingadvicetno(+)
+                     and f.itemcode                     = mi.itemcode(+)
+                    and f.itemspecificationcode         = mi.itemspecificationcode(+)
+                    AND A.purchaseordertno              = pb.purchaseordertno(+)
+                     and f.itemcode                     = pb.itemcode(+)
+                    and f.itemspecificationcode         = pb.itemspecificationcode(+)
+                    
+                     AND pb.tno                         = pbp.purchasebilltno(+)
+                     and f.itemcode                     = pbp.itemcode(+)
+                    and f.itemspecificationcode         = pbp.itemspecificationcode(+)
+                    
+                    
+                    AND pbp.purchasebilltno             = pa.REFERENCEMODULETNO(+)
+                    and a.tno                           = cc.loadingadvicetno(+)
+                    and a.tno = grn.loadingadvicetno(+)
+                    and grn.tno = pb.grntno(+)
+                    --and f.quantity1  = pb.quantity1
+                   --and a.tno = 54995810
+                  and a.loadingadviceDATE between :P291_FROMDATE and :P291_TODATE
+                  and ( :P291_PARTY IS NULL OR instr(':'||:P291_PARTY||':',':'||a.SUPPLIERCODE||':') > 0 ) 
+                  and ( :P291_LOCATION IS NULL OR instr(':'||:P291_LOCATION||':',':'||a.LocationCode||':') > 0 ) 
+                  and ( :P291_COMPANY IS NULL OR instr(':'||:P291_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                     and ( :P291_PURCHASEBILL IS NULL OR instr(':'||:P291_PURCHASEBILL||':',':'||pb.Tno||':') > 0 )  
+                    
+                   -- order by A.LOADINGADVICEDATE desc,A.LOADINGADVICENO
+                ) x
+                group by  TNO, LOADINGADVICENO, AGENT, CHALLANNO, CHALLANDATE, SALEPARTYNAME, PURCHASEORDERNO, PURCHASEPARTYNAME, 
+                PURCHASEBILLNO, PURCHASEORDERDATE, PURCHASEBILLDATE, PURCHASEAMOUNT, POITEM, POSPECIFICATION, QUANTITY, SAUDARATE,
+                 SAUDAAMOUNT, PASSEDAMOUNT, PARTYPAYMENT, BALANCEAMOUNT, PAYDATE, TDS, BASICBEFOREGSTTAX,  PAYDAYS,
+                 DUEDATE,OVERDAYS,
+                  TRANSPORTERCOMPANY, VEHICLENO, LRNO, FREIGHTRATE, FREIGHTAMOUNT, FREIGHTADVANCE, PARTYBILLTNO
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 18975246689663913
+        }
+
+        column AGENT (
+            type: plainText
+            heading {
+                heading: Agent
+            }
+            layout {
+                sequence: 2
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#AGENT#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column BALANCEAMOUNT (
+            type: plainText
+            heading {
+                heading: Balance Amount
+                alignment: end
+            }
+            layout {
+                sequence: 18
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#BALANCEAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column BASICBEFOREGSTTAX (
+            type: plainText
+            heading {
+                heading: Basic Before GST Tax
+                alignment: end
+            }
+            layout {
+                sequence: 21
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#BASICBEFOREGSTTAX#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: U
+            }
+        )
+
+        column CGST (
+            type: plainText
+            heading {
+                heading: CGST
+                alignment: end
+            }
+            layout {
+                sequence: 81
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AJ
+            }
+        )
+
+        column CHALLANDATE (
+            type: plainText
+            heading {
+                heading: Challan Date
+            }
+            layout {
+                sequence: 4
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#CHALLANDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column CHALLANNO (
+            type: plainText
+            heading {
+                heading: Challan No
+            }
+            layout {
+                sequence: 3
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#CHALLANNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column DUEDATE (
+            type: plainText
+            heading {
+                heading: Due Date
+            }
+            layout {
+                sequence: 24
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#DUEDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: X
+            }
+        )
+
+        column FREIGHTAMOUNT (
+            type: plainText
+            heading {
+                heading: Freight Amount
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#FREIGHTAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AD
+            }
+        )
+
+        column FREIGHTRATE (
+            type: plainText
+            heading {
+                heading: Freight Rate
+                alignment: end
+            }
+            layout {
+                sequence: 29
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#FREIGHTRATE#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AC
+            }
+        )
+
+        column IGST (
+            type: plainText
+            heading {
+                heading: IGST
+                alignment: end
+            }
+            layout {
+                sequence: 91
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AK
+            }
+        )
+
+        column LOADINGADVICENO (
+            type: plainText
+            heading {
+                heading: Loading Advice No
+            }
+            layout {
+                sequence: 41
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:160px">#LOADINGADVICENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AF
+            }
+        )
+
+        column LRNO (
+            type: plainText
+            heading {
+                heading: LR No
+            }
+            layout {
+                sequence: 28
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#LRNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AB
+            }
+        )
+
+        column OVERDAYS (
+            type: plainText
+            heading {
+                heading: Overdays
+                alignment: end
+            }
+            layout {
+                sequence: 121
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AO
+            }
+        )
+
+        column PARTYBILLTNO (
+            type: plainText
+            heading {
+                heading: Partybilltno
+                alignment: end
+            }
+            layout {
+                sequence: 131
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AP
+            }
+        )
+
+        column PARTYPAYMENT (
+            type: plainText
+            heading {
+                heading: Party Payment
+                alignment: end
+            }
+            layout {
+                sequence: 17
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PARTYPAYMENT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column PASSEDAMOUNT (
+            type: plainText
+            heading {
+                heading: Passed Amount
+                alignment: end
+            }
+            layout {
+                sequence: 16
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PASSEDAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column PAYDATE (
+            type: plainText
+            heading {
+                heading: Pay Date
+            }
+            layout {
+                sequence: 19
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PAYDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column PAYDAYS (
+            type: plainText
+            heading {
+                heading: Paydays
+                alignment: end
+            }
+            layout {
+                sequence: 23
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PAYDAYS#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: W
+            }
+        )
+
+        column POITEM (
+            type: plainText
+            heading {
+                heading: PO Item
+            }
+            layout {
+                sequence: 11
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#POITEM#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column POSPECIFICATION (
+            type: plainText
+            heading {
+                heading: PO Specification
+            }
+            layout {
+                sequence: 12
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#POSPECIFICATION#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column PURCHASEAMOUNT (
+            type: plainText
+            heading {
+                heading: Purchase Amount
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PURCHASEAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column PURCHASEBILLDATE (
+            type: plainText
+            heading {
+                heading: Purchasebilldate
+            }
+            layout {
+                sequence: 111
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: AN
+            }
+        )
+
+        column PURCHASEBILLNO (
+            type: plainText
+            heading {
+                heading: Purchase Bill No
+            }
+            layout {
+                sequence: 8
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#PURCHASEBILLNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column PURCHASEORDERDATE (
+            type: plainText
+            heading {
+                heading: PO Order Date
+            }
+            layout {
+                sequence: 9
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#PURCHASEORDERDATE#</div>
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column PURCHASEORDERNO (
+            type: plainText
+            heading {
+                heading: Purchase Order No
+            }
+            layout {
+                sequence: 6
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:150px">#PURCHASEORDERNO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PURCHASEPARTYNAME (
+            type: plainText
+            heading {
+                heading: Purchase Party Name
+            }
+            layout {
+                sequence: 7
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#PURCHASEPARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column QUANTITY (
+            type: plainText
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 13
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#QUANTITY#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column SALEPARTYNAME (
+            type: plainText
+            heading {
+                heading: Sale Party Name
+            }
+            layout {
+                sequence: 5
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:200px">#SALEPARTYNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column SAUDAAMOUNT (
+            type: plainText
+            heading {
+                heading: Sauda Amount
+                alignment: end
+            }
+            layout {
+                sequence: 15
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#SAUDAAMOUNT#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column SAUDARATE (
+            type: plainText
+            heading {
+                heading: Sauda rate
+                alignment: end
+            }
+            layout {
+                sequence: 14
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#SAUDARATE#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column SERIALNO (
+            type: plainText
+            heading {
+                heading: Serialno
+                alignment: end
+            }
+            layout {
+                sequence: 101
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AL
+            }
+        )
+
+        column SGST (
+            type: plainText
+            heading {
+                heading: SGST
+                alignment: end
+            }
+            layout {
+                sequence: 71
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: AI
+            }
+        )
+
+        column TDS (
+            type: plainText
+            heading {
+                heading: TDS
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#TDS#</div>
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 1
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column TRANSPORTERCOMPANY (
+            type: plainText
+            heading {
+                heading: Transporter Company
+            }
+            layout {
+                sequence: 26
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:180px">#TRANSPORTERCOMPANY#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Z
+            }
+        )
+
+        column VEHICLENO (
+            type: plainText
+            heading {
+                heading: Vehicle No
+            }
+            layout {
+                sequence: 27
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:80px">#VEHICLENO#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: AA
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: Purchase Party Amount Report
+        }
+
+        savedReport 189884 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGENT (
+                sequence: 2
+            )
+
+            displayColumn BALANCEAMOUNT (
+                sequence: 18
+            )
+
+            displayColumn BASICBEFOREGSTTAX (
+                sequence: 21
+            )
+
+            displayColumn CGST (
+                sequence: 22
+            )
+
+            displayColumn CHALLANDATE (
+                sequence: 4
+            )
+
+            displayColumn CHALLANNO (
+                sequence: 3
+            )
+
+            displayColumn DUEDATE (
+                sequence: 26
+            )
+
+            displayColumn FREIGHTAMOUNT (
+                sequence: 32
+            )
+
+            displayColumn FREIGHTRATE (
+                sequence: 31
+            )
+
+            displayColumn IGST (
+                sequence: 24
+            )
+
+            displayColumn LRNO (
+                sequence: 30
+            )
+
+            displayColumn OVERDAYS (
+                sequence: 27
+            )
+
+            displayColumn PARTYPAYMENT (
+                sequence: 17
+            )
+
+            displayColumn PASSEDAMOUNT (
+                sequence: 16
+            )
+
+            displayColumn PAYDATE (
+                sequence: 19
+            )
+
+            displayColumn PAYDAYS (
+                sequence: 25
+            )
+
+            displayColumn POITEM (
+                sequence: 11
+            )
+
+            displayColumn POSPECIFICATION (
+                sequence: 12
+            )
+
+            displayColumn PURCHASEAMOUNT (
+                sequence: 10
+            )
+
+            displayColumn PURCHASEBILLDATE (
+                sequence: 9
+            )
+
+            displayColumn PURCHASEBILLNO (
+                sequence: 8
+            )
+
+            displayColumn PURCHASEORDERNO (
+                sequence: 6
+            )
+
+            displayColumn PURCHASEPARTYNAME (
+                sequence: 7
+            )
+
+            displayColumn QUANTITY (
+                sequence: 13
+            )
+
+            displayColumn SALEPARTYNAME (
+                sequence: 5
+            )
+
+            displayColumn SAUDAAMOUNT (
+                sequence: 15
+            )
+
+            displayColumn SAUDARATE (
+                sequence: 14
+            )
+
+            displayColumn SERIALNO (
+                sequence: 1
+            )
+
+            displayColumn SGST (
+                sequence: 23
+            )
+
+            displayColumn TDS (
+                sequence: 20
+            )
+
+            displayColumn TRANSPORTERCOMPANY (
+                sequence: 28
+            )
+
+            displayColumn VEHICLENO (
+                sequence: 29
+            )
+
+            sort (
+                column: SERIALNO
+                sort {
+                    sequence: 1
+                }
+            )
+
+        )
+
+    )
+
+    pageItem P291_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P291_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select
+                      c.CompanyName d,
+                      a.CompanyCode r
+                From  ModulePrivilege a, BossUser bu, Company c
+                Where a.ModuleCode = getModuleCodeForPageNo(:APP_PAGE_ID)
+                  and a.viewprivilege = 'YES'
+                  and a.BossUserCode = bu.BossUserCode
+                  and a.CompanyCode = c.CompanyCode
+                  and upper(bu.BossUserName) =  upper('&APP_USER.')
+                  and getcompanyprivilege(C.COMPANYCODE,GETMODULECODEFORPAGENO(:APP_PAGE_ID),:GLOBAL_LOGINNAME)='YES'
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        default {
+            type: static
+            staticValue: 1
+        }
+    )
+
+    pageItem P291_FROMDATE (
+        type: datePicker
+        label {
+            label: Fromdate
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: sysdate - 7
+        }
+    )
+
+    pageItem P291_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select distinct
+                      l.LocationName d,
+                      l.LocationCode r
+                From  ModulePrivilege a, ModulePrivilegeLocation b, Location l, BossUser bu, MODULELOCATION ML, MODULELOCATIONDETAIL MD
+                Where a.TNo = b.TNo(+)
+                  AND A.MODULECODE = ML.MODULECODE
+                  AND ML.TNO = MD.TNO
+                  AND (B.LOCATIONCODE = L.LOCATIONCODE OR B.LOCATIONCODE IS NULL)
+                  and (MD.LocationCode = l.LocationCode )
+                  and a.ModuleCode = getModuleCodeForPageNo(:APP_PAGE_ID)
+                  and a.BossUserCode = bu.BossUserCode
+                  and bu.BossUserName =  '&APP_USER.'
+                 /* and a.CompanyCode = :P107_COMPANY */
+                 and instr(':'||:P291_COMPANY||':',':'||a.CompanyCode||':') > 0
+                Order By 1
+                ;
+                
+                ```
+            displayNullValue: false
+        }
+        cascadingLov {
+            parentItems: P291_COMPANY
+            parentRequired: false
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P291_PARTY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Party
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: [
+                displayDisplayColumn
+                displayReturnColumn
+            ]
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select partyname d , partycode r from party  
+                where partycode in (select distinct SUPPLIERCODE from loadingadvice)
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+            alignment: left
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P291_PURCHASEBILL (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Purchase Bill No
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                      a.PartyBillNo d,
+                      a.TNO  r
+                From  PurchaseBill a
+                ```
+        }
+        layout {
+            sequence: 70
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P291_TODATE (
+        type: datePicker
+        label {
+            label: Todate
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+        default {
+            type: expression
+            plsqlExpression: "sysdate "
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @purchase-party-amount-register
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 80
+            region: @filter
+            slot: regionBody
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-refresh
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generatepdf (
+        name: GeneratePDF
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction pagination (
+        name: Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

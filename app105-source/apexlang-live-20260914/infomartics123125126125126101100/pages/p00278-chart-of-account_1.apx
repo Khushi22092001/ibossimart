@@ -1,0 +1,254 @@
+page 278 (
+    name: Chart of Account
+    alias: CHART-OF-ACCOUNT
+    title: Chart of Accounts
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region chart-of-account (
+        name: Chart of Account
+        type: tree
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select case when connect_by_isleaf = 1 then 0
+                            when level = 1             then 1
+                            else                           -1
+                       end as status,  Level       As tlevel,
+                               parentcode,
+                               "PARTYNAME" As PARTYNAME,
+                               Null        As icon,
+                               "PARTYCODE" As PARTYCODE,
+                               TNO,
+                               Null        As tooltip,
+                               'f?p='||:APP_ID||':'||49||':'||:APP_SESSION||'::::'||'P49_TNO,P49_FORMSTATUS,P49_CALLEDFROMPAGE'||':'||TNO||','||'EDITRECORD'||','||'278'||':NO)' As link
+                           From  "PARTY"
+                         Where Level <= nvl(:P278_EXPANDLEVEL,1)
+                         Start With "PARENTCODE" Is Null
+                        Connect By Prior "PARTYCODE" = "PARENTCODE"
+                         Order Siblings By "PARTYNAME"
+                ```
+            pageItemsToSubmit: P278_EXPANDLEVEL
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: COA
+        }
+        settings {
+            nodeLabelColumn: PARTYNAME
+            nodeValueColumn: PARTYCODE
+            nodeIdColumn: PARTYCODE
+            parentKeyColumn: PARENTCODE
+            linkColumn: LINK
+            defaultIconCssClass: icon-tree-folder
+            iconTypeCssClass: a-Icon
+        }
+    )
+
+    pageItem P278_EXPANDLEVEL (
+        type: numberField
+        label {
+            label: Expand Level
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P278_SEARCH (
+        type: plugin/dynamicTreeSearch
+        label {
+            label: Search
+            alignment: left
+        }
+        settings {
+            treeRegionStaticId: COA
+        }
+        layout {
+            sequence: 30
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button contract-all (
+        buttonName: CONTRACT_ALL
+        label: Collapse All
+        layout {
+            sequence: 10
+            region: @chart-of-account
+            slot: rightOfTitle
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                t-Button--gapLeft
+                t-Button--gapRight
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button expand-all (
+        buttonName: EXPAND_ALL
+        label: Expand All
+        layout {
+            sequence: 10
+            region: @chart-of-account
+            slot: rightOfTitle
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction contract-all (
+        name: CONTRACT_ALL
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @contract-all
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: 1
+            }
+            affectedElements {
+                selectionType: items
+                items: P278_EXPANDLEVEL
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-tree-collapse (
+            action: collapseTree
+            affectedElements {
+                selectionType: region
+                region: @chart-of-account
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction expand-all (
+        name: EXPAND_ALL
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @expand-all
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: 10
+            }
+            affectedElements {
+                selectionType: items
+                items: P278_EXPANDLEVEL
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-tree-expand (
+            action: expandTree
+            affectedElements {
+                selectionType: region
+                region: @chart-of-account
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            selectionType: items
+            items: P278_EXPANDLEVEL
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @chart-of-account
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

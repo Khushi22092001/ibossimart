@@ -1,0 +1,269 @@
+page 279 (
+    name: Chart of Items
+    alias: CHART-OF-ITEMS
+    title: Chart of Items
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region chart-of-items (
+        name: Chart of Items
+        type: tree
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select case when connect_by_isleaf = 1 then 0
+                            when level = 1             then 1
+                            else                           -1
+                       end as status,  Level       As tlevel,
+                               parentcode,
+                               "ITEMNAME" As PARTYNAME,
+                               Null        As icon,
+                               "ITEMCODE" As PARTYCODE,
+                               TNO,
+                               Null        As tooltip,
+                              LINK        As link
+                           From (
+                                 Select A.TNO, 
+                                        A.ITEMTYPECODE AS ITEMCODE, 
+                                        A.ITEMTYPENAME AS ITEMNAME, 
+                                        A.PARENTCODE,
+                                'f?p='||:APP_ID||':'||188||':'||:APP_SESSION||'::::'||'P188_TNO,P188_FORMSTATUS,P188_CALLEDFROMPAGE'||':'||A.TNO||','||'EDITRECORD'||','||'279'||':NO)' As link
+                                  From ITEMTYPE A
+                                Union All
+                                Select AA.TNO, AA.ITEMCODE, AA.ITEMNAME, AA.ITEMTYPE As PARENTCODE,
+                                'f?p='||:APP_ID||':'||59||':'||:APP_SESSION||'::::'||'P59_TNO,P59_FORMSTATUS,P59_CALLEDFROMPAGE'||':'||AA.TNO||','||'EDITRECORD'||','||'279'||':NO)' As link
+                
+                            From ITEM AA
+                
+                          )  "ITEM"
+                         Where Level <= nvl(:P279_EXPANDLEVEL,1)
+                         Start With "PARENTCODE" Is Null
+                        Connect By Prior "ITEMCODE" = "PARENTCODE"
+                         Order Siblings By "ITEMNAME"
+                
+                ```
+            pageItemsToSubmit: P279_EXPANDLEVEL
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: COI
+        }
+        settings {
+            nodeLabelColumn: PARTYNAME
+            nodeValueColumn: PARTYCODE
+            nodeIdColumn: PARTYCODE
+            parentKeyColumn: PARENTCODE
+            linkColumn: LINK
+            iconCssClassColumn: ICON
+            defaultIconCssClass: icon-tree-folder
+            iconTypeCssClass: a-Icon
+        }
+    )
+
+    pageItem P279_EXPANDLEVEL (
+        type: numberField
+        label {
+            label: Expand Level
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            slot: body
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P279_SEARCH (
+        type: plugin/dynamicTreeSearch
+        label {
+            label: Search
+            alignment: left
+        }
+        settings {
+            treeRegionStaticId: COI
+        }
+        layout {
+            sequence: 30
+            slot: body
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button contract-all (
+        buttonName: CONTRACT_ALL
+        label: Collapse All
+        layout {
+            sequence: 10
+            region: @chart-of-items
+            slot: rightOfTitle
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                t-Button--gapLeft
+                t-Button--gapRight
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button expand-all (
+        buttonName: EXPAND_ALL
+        label: Expand All
+        layout {
+            sequence: 10
+            region: @chart-of-items
+            slot: rightOfTitle
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction contract-all (
+        name: CONTRACT_ALL
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @contract-all
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: 1
+            }
+            affectedElements {
+                selectionType: items
+                items: P279_EXPANDLEVEL
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-tree-collapse (
+            action: collapseTree
+            affectedElements {
+                selectionType: region
+                region: @chart-of-items
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction expand-all (
+        name: EXPAND_ALL
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @expand-all
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                value: 10
+            }
+            affectedElements {
+                selectionType: items
+                items: P279_EXPANDLEVEL
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-tree-expand (
+            action: expandTree
+            affectedElements {
+                selectionType: region
+                region: @chart-of-items
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            selectionType: items
+            items: P279_EXPANDLEVEL
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @chart-of-items
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

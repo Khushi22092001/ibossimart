@@ -1,0 +1,155 @@
+prompt --application/shared_components/data_loads/accountopening
+begin
+--   Manifest
+--     DATA LOAD: ACCOUNTOPENING
+--   Manifest End
+wwv_flow_imp.component_begin (
+ p_version_yyyy_mm_dd=>'2026.03.30'
+,p_release=>'26.1.2'
+,p_default_workspace_id=>4744311978888504
+,p_default_application_id=>107
+,p_default_id_offset=>9480203831466364
+,p_default_owner=>'IMART'
+);
+wwv_flow_imp_shared.create_load_table(
+ p_id=>wwv_flow_imp.id(204976974190836903)
+,p_name=>'ACCOUNTOPENING'
+,p_static_id=>'accountopening'
+,p_target_type=>'TABLE'
+,p_table_name=>'ACCOUNTOPENING_DUMP'
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_loading_method=>'APPEND'
+,p_commit_interval=>200
+,p_error_handling=>'ABORT'
+,p_skip_validation=>'N'
+,p_version_scn=>'7891843652'
+);
+wwv_flow_imp_shared.create_data_profile(
+ p_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'ACCOUNTOPENING'
+,p_format=>'XLSX'
+,p_encoding=>'utf-8'
+,p_default_xlsx_sheet_name=>'sheet1.xml'
+,p_has_header_row=>true
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204974998485836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'ACCOUNTCODE'
+,p_static_id=>'accountcode'
+,p_sequence=>4
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ACCOUNTCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204976221262836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'BILLAMOUNT'
+,p_static_id=>'billamount'
+,p_sequence=>8
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_selector_type=>'NAME'
+,p_selector=>'BILLAMOUNT'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204975892060836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'BILLDATE'
+,p_static_id=>'billdate'
+,p_sequence=>7
+,p_column_type=>'DATA'
+,p_data_type=>'DATE'
+,p_has_time_zone=>false
+,p_selector_type=>'NAME'
+,p_selector=>'BILLDATE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204976819142836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'BILLDUEDATE'
+,p_static_id=>'billduedate'
+,p_sequence=>10
+,p_column_type=>'DATA'
+,p_data_type=>'DATE'
+,p_has_time_zone=>false
+,p_selector_type=>'NAME'
+,p_selector=>'BILLDUEDATE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204975544258836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'BILLNO'
+,p_static_id=>'billno'
+,p_sequence=>6
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'BILLNO'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204974092092836902)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'COMPANYCODE'
+,p_static_id=>'companycode'
+,p_sequence=>1
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'COMPANYCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204974382566836902)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'FINANCIALYEARCODE'
+,p_static_id=>'financialyearcode'
+,p_sequence=>2
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'FINANCIALYEARCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204974670727836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'LOCATIONCODE'
+,p_static_id=>'locationcode'
+,p_sequence=>3
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'LOCATIONCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204975291956836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'OPENINGAMOUNT'
+,p_static_id=>'openingamount'
+,p_sequence=>5
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_selector_type=>'NAME'
+,p_selector=>'OPENINGAMOUNT'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(204976515170836903)
+,p_data_profile_id=>wwv_flow_imp.id(204973785617836901)
+,p_name=>'REMARK'
+,p_static_id=>'remark'
+,p_sequence=>9
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>100
+,p_selector_type=>'NAME'
+,p_selector=>'REMARK'
+);
+wwv_flow_imp.component_end;
+end;
+/

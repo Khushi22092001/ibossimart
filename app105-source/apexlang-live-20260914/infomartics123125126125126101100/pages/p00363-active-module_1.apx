@@ -1,0 +1,370 @@
+page 363 (
+    name: Active Module
+    alias: ACTIVE-MODULE
+    title: Active Module
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region active-module (
+        name: Active Module
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select modulecode as empno, 
+                       modulename as ename, 
+                       parentcode as mgr, 
+                       prior modulename as emp, 
+                       level,
+                       case when parentcode is null
+                              then 'fa-robot'
+                            when parentcode = '7839'
+                              then 'fa-users'
+                            else 'fa-user'
+                       end as icon
+                  From (Select A.MODULECODE, A.MODULENAME, B.MODULEGROUPCODE As PARENTCODE, a.isactive
+                          From Module A, MODULEGROUP B
+                         Where A.MODULEGROUPCODE = B.MODULEGROUPCODE
+                        Union All
+                        Select B.MODULEGROUPCODE, B.MODULEGROUPNAME, Null, null 
+                          From MODULEGROUP B) X
+                 Start With parentcode Is Null
+                Connect By NOCYCLE parentcode  = Prior MODULECODE
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--noBorder
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: TREEGRID_IG
+        }
+        edit {
+            enabled: true
+            allowedOperations: update
+        }
+        performance {
+            lazyLoading: true
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        enableUsersTo {
+            flashback: false
+            defineChartView: false
+            download: false
+        }
+        advanced {
+            savedReportMappingIdentifier: 75920673874737945
+        }
+
+        savedReport 759211 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    frozen: true
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @LEVEL
+                layout {
+                    show: false
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @ICON
+                layout {
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @EMPNO
+                layout {
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @ENAME
+                layout {
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @MGR
+                layout {
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @EMP
+                layout {
+                    sequence: 7
+                }
+            )
+
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column EMP (
+            type: textField
+            heading {
+                heading: Emp
+            }
+            layout {
+                sequence: 170
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EMP
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EMPNO (
+            type: textField
+            heading {
+                heading: Empno
+            }
+            layout {
+                sequence: 140
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: EMPNO
+                dataType: varchar2
+                primaryKey: true
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ENAME (
+            type: htmlExpression
+            heading {
+                heading: Ename
+            }
+            settings {
+                htmlExpression: <span class="fa &ICON."> &ENAME.</span>
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                databaseColumn: ENAME
+                dataType: varchar2
+            }
+        )
+
+        column ICON (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 190
+            }
+            source {
+                databaseColumn: ICON
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column LEVEL (
+            type: numberField
+            heading {
+                heading: Level
+                alignment: end
+            }
+            layout {
+                sequence: 180
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: LEVEL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column MGR (
+            type: textField
+            heading {
+                heading: Mgr
+            }
+            layout {
+                sequence: 160
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: MGR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+    )
+
+    dynamicAction initialize-treegrid-on-ig (
+        name: Initialize treegrid on IG
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-com-enhanceigwithtreegrid-plugin (
+            action: plugin/enhanceInteractiveGridWithTreegrid
+            settings {
+                idColumn: EMPNO
+                parentIdColumn: MGR
+                expandCollapse: expand
+                displayOnColumn: ENAME
+                levelColumn: LEVEL
+            }
+            affectedElements {
+                selectionType: region
+                region: @active-module
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction page-load (
+        name: PAGE LOAD_1
+        execution {
+            sequence: 20
+        }
+        when {
+            event: region/interactiveGrid/gridpagechange
+            selectionType: region
+            region: @active-module
+        }
+
+        action plugin-com-enhanceigwithtreegrid-plugin (
+            action: plugin/enhanceInteractiveGridWithTreegrid
+            settings {
+                idColumn: EMPNO
+                parentIdColumn: MGR
+                expandCollapse: expand
+                displayOnColumn: ENAME
+                levelColumn: LEVEL
+            }
+            affectedElements {
+                selectionType: region
+                region: @active-module
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process active-module-save-interactive-grid-data (
+        name: Active Module - Save Interactive Grid Data
+        type: interactiveGridAutoRowProcessing
+        editableRegion: @active-module
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 75949978340737964
+        }
+    )
+
+)
+

@@ -1,0 +1,308 @@
+prompt --application/pages/page_00627
+begin
+--   Manifest
+--     PAGE: 00627
+--   Manifest End
+wwv_flow_imp.component_begin (
+ p_version_yyyy_mm_dd=>'2026.03.30'
+,p_release=>'26.1.2'
+,p_default_workspace_id=>4744311978888504
+,p_default_application_id=>105
+,p_default_id_offset=>7541489808702750
+,p_default_owner=>'IMART'
+);
+wwv_flow_imp_page.create_page(
+ p_id=>627
+,p_name=>'LOAN SCHEME'
+,p_alias=>'LOAN-SCHEME'
+,p_step_title=>'LOAN SCHEME'
+,p_autocomplete_on_off=>'OFF'
+,p_css_file_urls=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'#APP_FILES#mycss/MyIR (2)#MIN#.css',
+''))
+,p_inline_css=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'.t-TreeNav--styleA .a-TreeView-node--topLevel ul,',
+'.t-TreeNav--styleB .a-TreeView-node--topLevel ul {',
+'  --a-treeview-node-padding-y: 0.40rem !important;',
+'  --a-treeview-node-font-size: 0.90rem !important; ',
+'}'))
+,p_step_template=>4072355960268175073
+,p_page_template_options=>'#DEFAULT#'
+,p_protection_level=>'C'
+,p_page_component_map=>'18'
+);
+wwv_flow_imp_page.create_page_plug(
+ p_id=>wwv_flow_imp.id(487984740926815070)
+,p_plug_name=>'LOAN SCHEME'
+,p_static_id=>'loan-scheme'
+,p_region_template_options=>'#DEFAULT#'
+,p_plug_template=>wwv_flow_imp.id(574763864839963122)
+,p_plug_display_sequence=>10
+,p_plug_item_display_point=>'ABOVE'
+,p_query_type=>'TABLE'
+,p_query_table=>'LOANSCHEME'
+,p_include_rowid_column=>false
+,p_plug_source_type=>'NATIVE_IR'
+,p_prn_page_header=>'EMPLOYEE SALARY'
+,p_ai_enabled=>false
+);
+wwv_flow_imp_page.create_worksheet(
+ p_id=>wwv_flow_imp.id(487984851154815070)
+,p_max_row_count_message=>'The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.'
+,p_no_data_found_message=>'No data found.'
+,p_pagination_type=>'ROWS_X_TO_Y_OF_Z'
+,p_pagination_display_pos=>'BOTTOM_RIGHT'
+,p_report_list_mode=>'TABS'
+,p_lazy_loading=>false
+,p_show_detail_link=>'C'
+,p_show_notify=>'Y'
+,p_download_formats=>'CSV:HTML:XLSX:PDF'
+,p_enable_mail_download=>'Y'
+,p_detail_link=>'f?p=&APP_ID.:628:&SESSION.::&DEBUG.:RP,628:P628_TNO:\#TNO#\'
+,p_detail_link_text=>'<span role="img" aria-label="Edit" class="fa fa-edit" title="Edit"></span>'
+,p_internal_uid=>48999981955117086
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290100287154723)
+,p_db_column_name=>'APPLIEDONWARD'
+,p_display_order=>53
+,p_column_identifier=>'AE'
+,p_column_label=>'Appliedonward'
+,p_column_type=>'DATE'
+,p_heading_alignment=>'LEFT'
+,p_tz_dependent=>'N'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(487994092458815076)
+,p_db_column_name=>'CREATIONTIME'
+,p_display_order=>23
+,p_column_identifier=>'W'
+,p_column_label=>'Creationtime'
+,p_column_type=>'DATE'
+,p_heading_alignment=>'LEFT'
+,p_tz_dependent=>'N'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(487992866824815076)
+,p_db_column_name=>'CREATOR'
+,p_display_order=>20
+,p_column_identifier=>'T'
+,p_column_label=>'Creator'
+,p_column_type=>'STRING'
+,p_heading_alignment=>'LEFT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290545382154727)
+,p_db_column_name=>'DOCSUBMISSIONWITHINDAYS'
+,p_display_order=>93
+,p_column_identifier=>'AI'
+,p_column_label=>'Docsubmissionwithindays'
+,p_column_type=>'NUMBER'
+,p_heading_alignment=>'RIGHT'
+,p_column_alignment=>'RIGHT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455289987738154722)
+,p_db_column_name=>'LOANCATEGORYCODE'
+,p_display_order=>43
+,p_column_identifier=>'AD'
+,p_column_label=>'Loancategorycode'
+,p_column_type=>'STRING'
+,p_heading_alignment=>'LEFT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455289901209154721)
+,p_db_column_name=>'LOANSCHEMECODE'
+,p_display_order=>33
+,p_column_identifier=>'AC'
+,p_column_label=>'Loanschemecode'
+,p_column_type=>'STRING'
+,p_heading_alignment=>'LEFT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290275993154725)
+,p_db_column_name=>'MAXLOANAMOUNT'
+,p_display_order=>73
+,p_column_identifier=>'AG'
+,p_column_label=>'Maxloanamount'
+,p_column_type=>'NUMBER'
+,p_heading_alignment=>'RIGHT'
+,p_column_alignment=>'RIGHT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290406352154726)
+,p_db_column_name=>'MAXMULTIPLEOFBASIC'
+,p_display_order=>83
+,p_column_identifier=>'AH'
+,p_column_label=>'Maxmultipleofbasic'
+,p_column_type=>'NUMBER'
+,p_heading_alignment=>'RIGHT'
+,p_column_alignment=>'RIGHT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290584869154728)
+,p_db_column_name=>'MINGUARANTOR'
+,p_display_order=>103
+,p_column_identifier=>'AJ'
+,p_column_label=>'Minguarantor'
+,p_column_type=>'NUMBER'
+,p_heading_alignment=>'RIGHT'
+,p_column_alignment=>'RIGHT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290179186154724)
+,p_db_column_name=>'MINSERVICEDAYS'
+,p_display_order=>63
+,p_column_identifier=>'AF'
+,p_column_label=>'Minservicedays'
+,p_column_type=>'NUMBER'
+,p_heading_alignment=>'RIGHT'
+,p_column_alignment=>'RIGHT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(455290698595154729)
+,p_db_column_name=>'NEXTREQUESTAFTERDAYS'
+,p_display_order=>113
+,p_column_identifier=>'AK'
+,p_column_label=>'Nextrequestafterdays'
+,p_column_type=>'NUMBER'
+,p_heading_alignment=>'RIGHT'
+,p_column_alignment=>'RIGHT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(487991244266815075)
+,p_db_column_name=>'REMARK'
+,p_display_order=>16
+,p_column_identifier=>'P'
+,p_column_label=>'Remark'
+,p_column_type=>'STRING'
+,p_heading_alignment=>'LEFT'
+,p_use_as_row_header=>'N'
+,p_available_clientside=>'N'
+);
+wwv_flow_imp_page.create_worksheet_column(
+ p_id=>wwv_flow_imp.id(487985322800815072)
+,p_db_column_name=>'TNO'
+,p_display_order=>0
+,p_is_primary_key=>'Y'
+,p_column_identifier=>'A'
+,p_column_label=>'Tno'
+,p_column_type=>'NUMBER'
+,p_display_text_as=>'HIDDEN_ESCAPE_SC'
+,p_use_as_row_header=>'N'
+);
+wwv_flow_imp_page.create_worksheet_rpt(
+ p_id=>wwv_flow_imp.id(488061247758048476)
+,p_application_user=>'APXWS_DEFAULT'
+,p_report_seq=>10
+,p_report_alias=>'162511'
+,p_status=>'PUBLIC'
+,p_is_default=>'Y'
+,p_report_columns=>'LOANSCHEMECODE:APPLIEDONWARD:LOANCATEGORYCODE:MAXLOANAMOUNT:MAXMULTIPLEOFBASIC:MINGUARANTOR:MINSERVICEDAYS:DOCSUBMISSIONWITHINDAYS:NEXTREQUESTAFTERDAYS:CREATOR:CREATIONTIME:REMARK'
+);
+wwv_flow_imp_page.create_page_button(
+ p_id=>wwv_flow_imp.id(455521167235300694)
+,p_button_sequence=>20
+,p_button_plug_id=>wwv_flow_imp.id(487984740926815070)
+,p_button_name=>'CREATE'
+,p_static_id=>'create'
+,p_button_action=>'REDIRECT_PAGE'
+,p_button_template_options=>'#DEFAULT#:t-Button--primary:t-Button--iconLeft'
+,p_button_template_id=>2082829544945815391
+,p_button_is_hot=>'Y'
+,p_button_image_alt=>'Add New'
+,p_button_position=>'RIGHT_OF_IR_SEARCH_BAR'
+,p_button_redirect_url=>'f?p=&APP_ID.:628:&SESSION.::&DEBUG.:628::'
+,p_icon_css_classes=>'fa-plus-square-o'
+);
+wwv_flow_imp_page.create_page_button(
+ p_id=>wwv_flow_imp.id(485564170044502608)
+,p_button_sequence=>10
+,p_button_plug_id=>wwv_flow_imp.id(487984740926815070)
+,p_button_name=>'Home'
+,p_static_id=>'home'
+,p_button_action=>'REDIRECT_PAGE'
+,p_button_template_options=>'#DEFAULT#'
+,p_button_template_id=>2349107722467437027
+,p_button_is_hot=>'Y'
+,p_button_image_alt=>'Home'
+,p_button_position=>'RIGHT_OF_IR_SEARCH_BAR'
+,p_button_redirect_url=>'f?p=&APP_ID.:1:&SESSION.::&DEBUG.:::'
+,p_icon_css_classes=>'fa-window-close-o'
+);
+wwv_flow_imp_page.create_page_item(
+ p_id=>wwv_flow_imp.id(466125442888912988)
+,p_name=>'P627_TNO'
+,p_item_sequence=>20
+,p_source_type=>'ALWAYS_NULL'
+,p_display_as=>'NATIVE_HIDDEN'
+,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
+  'value_protected', 'N')).to_clob
+);
+wwv_flow_imp_page.create_page_da_event(
+ p_id=>wwv_flow_imp.id(485563782528502604)
+,p_name=>'hide nav'
+,p_static_id=>'hide-nav'
+,p_event_sequence=>10
+,p_bind_type=>'bind'
+,p_execution_type=>'IMMEDIATE'
+,p_bind_event_type=>'ready'
+);
+wwv_flow_imp_page.create_page_da_action(
+ p_id=>wwv_flow_imp.id(485563957584502605)
+,p_event_id=>wwv_flow_imp.id(485563782528502604)
+,p_event_result=>'TRUE'
+,p_action_sequence=>10
+,p_static_id=>'native-javascript-code'
+,p_action=>'NATIVE_JAVASCRIPT_CODE'
+,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
+  'js_code', wwv_flow_string.join(wwv_flow_t_varchar2(
+    '$("body").removeClass("js-navExpanded").addClass("js-navCollapsed");',
+    '')))).to_clob
+);
+wwv_flow_imp_page.create_page_da_event(
+ p_id=>wwv_flow_imp.id(485564026638502606)
+,p_name=>'pagination'
+,p_static_id=>'pagination'
+,p_event_sequence=>20
+,p_bind_type=>'bind'
+,p_execution_type=>'IMMEDIATE'
+,p_bind_event_type=>'ready'
+);
+wwv_flow_imp_page.create_page_da_action(
+ p_id=>wwv_flow_imp.id(485564097684502607)
+,p_event_id=>wwv_flow_imp.id(485564026638502606)
+,p_event_result=>'TRUE'
+,p_action_sequence=>10
+,p_static_id=>'plugin-ir-pagination'
+,p_action=>'PLUGIN_IR.PAGINATION'
+,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
+  'attribute_01', 'Total number of rows:',
+  'attribute_02', 'First page',
+  'attribute_03', 'Last page')).to_clob
+);
+wwv_flow_imp.component_end;
+end;
+/

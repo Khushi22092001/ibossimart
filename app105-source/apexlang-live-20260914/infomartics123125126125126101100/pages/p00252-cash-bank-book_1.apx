@@ -1,0 +1,2686 @@
+page 252 (
+    name: Cash / Bank Book
+    alias: CASH-BANK-BOOK
+    title: Cash / Bank Book
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P242_BIREPORTURL').val()
+              var reportName = 'IRONMART/REPORT/RTGSLetter.xdo';
+              var outputFormat = 'pdf';
+            
+              var reportParams = 
+                '&P_Tno=' + $('#P242_TNO').val() 
+                  ;
+            
+             
+                    var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            
+            
+            
+            
+            
+            ```
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 20
+            slot: beforeNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noUI
+            ]
+        }
+    )
+
+    region cash-bank-book (
+        name: Cash Bank Book
+        type: form
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select A.TNO,
+                       A.COMPANYCODE,
+                       A.FINANCIALYEARCODE,
+                       A.LOCATIONCODE,
+                       A.DOCTYPECODE,
+                       A.RTGSLETTERNO,
+                       A.RTGSLETTERDATE,
+                       A.ACCOUNTCODE,
+                       A.CHEQUENO,
+                       A.REMARK,
+                       A.CREATOR,
+                       A.CREATIONTIME,
+                       A.MONEYTRANSFERMODECODE,
+                	   NVL(getdocumentstatuscode(getmodulecodeforpageno(:APP_PAGE_ID),TNO),'STATUS') AS STATUS
+                  From RTGSLETTER A
+                
+                ```
+            pageItemsToSubmit: P252_TNO
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+    )
+
+    region common-fields (
+        name: Common Fields
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: afterNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noBorder
+            ]
+        }
+        accessibility {
+            landmarkType: region
+        }
+    )
+
+    region detail (
+        name: DETAIL
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select A.PARTYTYPECODE,
+                       A.PARTYCODE,
+                       A.PARTYNAME,
+                       getaccountopening(A.PARTYCODE, TO_DATE(:P252_ASONDATE,'DD-MM-YYYY') + 1, :P252_LOCATIONCODE, :Global_CompanyCode) As Closing,
+                       :GLOBAL_FINANCIALYEARBEGIN as fromdate,
+                       LAST_DAY(:P252_ASONDATE) as todate,
+                       Case
+                         When getaccountopening(A.PARTYCODE, TO_DATE(:P252_ASONDATE,'DD-MM-YYYY') + 1, :P252_LOCATIONCODE, :Global_CompanyCode) < 0 Then
+                          'Dr'
+                         Else
+                          'Cr'
+                       End DRCR
+                  From party a
+                 Where a.partytypecode In ('BANK', 'CASH')
+                ```
+            pageItemsToSubmit: [
+                P252_TNO
+                P252_LOCATIONCODE
+                P252_ASONDATE
+                P252_FROMDATE
+                P252_TODATE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: DETAIL
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    //Tab and Shift-Tab will skip over cells that are read-only
+                    options.defaultGridViewOptions = {  
+                        skipReadonlyCells: true  
+                        
+                    }
+                    return options;
+                }
+                
+                
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 628260814283466216
+        }
+
+        savedReport 1730756 (
+            visibility: primary
+            view {
+                default: grid
+                stretchColumns: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @PARTYTYPECODE
+                layout {
+                    show: false
+                    width: 657
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @CLOSING
+                layout {
+                    width: 144
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    frozen: true
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @FROMDATE
+                layout {
+                    show: false
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @TODATE
+                layout {
+                    show: false
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @DRCR
+                layout {
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @PARTYCODE
+                layout {
+                    show: false
+                    width: 93
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    width: 1084
+                    sequence: 2
+                }
+            )
+
+            controlBreak (
+                column: @PARTYTYPECODE
+                sort {
+                    nulls: last
+                }
+                layout {
+                    sequence: 5
+                }
+            )
+
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column CLOSING (
+            type: numberField
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: CLOSING
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(options) {
+                        options.defaultGridColumnOptions = {
+                            aggregates: ["SUM"] //or : "COUNT", "COUNT_DISTINCT", "AVG", "MIN", "MAX", "MEDIAN"
+                        };
+                        return options;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column DRCR (
+            type: textField
+            heading {
+                heading: Dr/Cr
+            }
+            layout {
+                sequence: 100
+            }
+            validation {
+                maxLength: 2
+            }
+            source {
+                databaseColumn: DRCR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column FROMDATE (
+            type: datePicker
+            heading {
+                heading: Fromdate
+            }
+            layout {
+                sequence: 80
+            }
+            validation {
+                maxLength: 2000
+            }
+            source {
+                databaseColumn: FROMDATE
+                dataType: varchar2
+            }
+            default {
+                type: item
+                item: P252_FROMDATE
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PARTYCODE (
+            type: textField
+            heading {
+                heading: Partycode
+            }
+            layout {
+                sequence: 40
+            }
+            validation {
+                valueRequired: true
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYCODE
+                dataType: varchar2
+                primaryKey: true
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARTYNAME (
+            type: link
+            heading {
+                heading: Party Name
+            }
+            layout {
+                sequence: 30
+            }
+            link {
+                target: {
+                    page: 249
+                    items: {
+                        P249_FROMDATE: &FROMDATE.
+                        P249_TODATE: &TODATE.
+                        P249_PARTY: &PARTYCODE.
+                        P249_CALLEDFROMPAGE: 252
+                    }
+                }
+                linkText: &PARTYNAME.
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+                queryOnly: true
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+            advanced {
+                htmlDomId: PARTYNAME
+            }
+        )
+
+        column PARTYTYPECODE (
+            type: textField
+            heading {
+                heading: Partytypecode
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYTYPECODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TODATE (
+            type: datePicker
+            heading {
+                heading: Todate
+            }
+            layout {
+                sequence: 90
+            }
+            validation {
+                maxLength: 2000
+            }
+            source {
+                databaseColumn: TODATE
+                dataType: date
+            }
+            default {
+                type: item
+                item: P252_TODATE
+            }
+            columnFilter {
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: DETAIL
+        }
+    )
+
+    region graph (
+        name: Graph
+        type: chart
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+        serverSideCondition {
+            type: never
+        }
+        title {
+            title: "Closing "
+        }
+        chartLayout {
+            height: 200
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        settings {
+            timeAxisType: auto
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ){ 
+                        
+                    // Setup a callback function which gets called when data is retrieved, it allows to manipulate the series 
+                    options.dataFilter = function( data ) { 
+                            data.series[ 0 ].items[0].color = "red"; 
+                            data.series[ 0 ].items[1].color = "green"; 
+                            data.series[ 0 ].items[2].color = "magenta"; 
+                            data.series[ 0 ].items[3].color = "yellow"; 
+                            data.series[ 0 ].items[4].color = "blue"; 
+                            data.series[ 0 ].items[5].color = "orange"; 
+                            data.series[ 0 ].items[6].color = "gray"; 
+                            data.series[ 0 ].items[7].color = "brown"; 
+                            data.series[ 0 ].items[8].color = "cyan"; 
+                            data.series[ 0 ].items[9].color = "indigo"; 
+                            data.series[ 0 ].items[10].color = "violet"; 
+                             data.series[ 0 ].items[11].color = "olive"; 
+                
+                
+                        return data; 
+                    };
+                        
+                    // Set chart initialization options 
+                    return options; 
+                }
+                
+                ```
+        }
+
+        series new (
+            name: New
+            execution {
+                sequence: 10
+            }
+            source {
+                type: sqlQuery
+                sqlQuery:
+                    ```sql
+                    Select A.FROMDATE,
+                           A.TODATE,
+                           C.PARTYNAME,
+                          TO_CHAR(A.FROMDATE, 'Month') Label,
+                           getaccountopening(C.PARTYCODE, A.TODATE + 1, :P252_LOCATIONCODE, :GLOBAL_COMPANYCODE) As Closing
+                      From periodlist a, financialyear b, PARTY C
+                     Where a.fromdate Between b.financialyearbegin And b.financialyearend
+                       And Trunc(Sysdate) Between b.financialyearbegin And b.financialyearend
+                       And a.periodtype = 'MONTH'
+                       And C.PARTYTYPECODE In ('BANK', 'CASH')
+                       And a.todate <= last_day('24-jun-2024')
+                       and C.PARTYCODE = :P252_PARTYCODE
+                    union all
+                    Select A.FROMDATE,
+                           A.TODATE,
+                           C.PARTYNAME,
+                          TO_CHAR(A.FROMDATE, 'Month') Label,
+                           0 As Closing
+                      From periodlist a, financialyear b, PARTY C
+                     Where a.fromdate Between b.financialyearbegin And b.financialyearend
+                       And Trunc(Sysdate) Between b.financialyearbegin And b.financialyearend
+                       And a.periodtype = 'MONTH'
+                       And C.PARTYTYPECODE In ('BANK', 'CASH')
+                       And a.fromdate > last_day('24-jun-2024')
+                       and C.PARTYCODE = :P252_PARTYCODE
+                    ORDER BY 1
+                    
+                    ```
+                pageItemsToSubmit: [
+                    P252_LOCATIONCODE
+                    P252_PARTYCODE
+                    P252_ASONDATE
+                ]
+            }
+            columnMapping {
+                label: LABEL
+                value: CLOSING
+                legendTooltip: LABEL
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    pageItem P252_ASONDATE (
+        type: datePicker
+        label {
+            label: As On Date
+            alignment: left
+        }
+        layout {
+            sequence: 70
+            region: @cash-bank-book
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            valueRequired: true
+            maxLength: 30
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: DOCTYPECODE
+            dataType: varchar2
+        }
+        default {
+            type: expression
+            plsqlExpression: trunc(sysdate)
+        }
+        sessionState {
+            storage: session
+        }
+    )
+
+    pageItem P252_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P252_CALLEDFROMPAGE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: 241
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P252_CALLEDFROMTNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @common-fields
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P252_COMPANYCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 20
+            region: @cash-bank-book
+            slot: regionBody
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: COMPANYCODE
+            dataType: varchar2
+        }
+        default {
+            type: item
+            item: GLOBAL_COMPANYCODE
+        }
+    )
+
+    pageItem P252_CREATIONTIME (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 120
+            region: @cash-bank-book
+            slot: regionBody
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: CREATIONTIME
+            dataType: date
+        }
+    )
+
+    pageItem P252_CREATOR (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 110
+            region: @cash-bank-book
+            slot: regionBody
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: CREATOR
+            dataType: varchar2
+        }
+        default {
+            type: item
+            item: GLOBAL_LOGINNAME
+        }
+    )
+
+    pageItem P252_FINANCIALYEARCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @cash-bank-book
+            slot: regionBody
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: FINANCIALYEARCODE
+            dataType: varchar2
+        }
+        default {
+            type: item
+            item: GLOBAL_FINANCIALYEARCODE
+        }
+    )
+
+    pageItem P252_FORMSTATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P252_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @cash-bank-book
+            slot: regionBody
+        }
+    )
+
+    pageItem P252_LOCATIONCODE (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select locationname, locationcode from location order by 1
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @cash-bank-book
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 32
+        }
+        validation {
+            maxLength: 30
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: LOCATIONCODE
+            dataType: varchar2
+        }
+    )
+
+    pageItem P252_MODULEFLOW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P252_ONTHETABLE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @common-fields
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P252_PARTYCODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 140
+            region: @cash-bank-book
+            slot: regionBody
+        }
+        source {
+            used: always
+        }
+    )
+
+    pageItem P252_PARTYTYPECODE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 130
+            region: @cash-bank-book
+            slot: regionBody
+        }
+    )
+
+    pageItem P252_PASSFAILREMARK (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P252_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @common-fields
+            slot: regionBody
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: STATUS
+            dataType: varchar2
+            queryOnly: true
+        }
+    )
+
+    pageItem P252_STATUSRIGHT (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select B.STATUSPRIVILEGE
+                  From module a, moduleprivilege b, bossuser c
+                 Where a.modulecode = b.modulecode
+                   And b.bossusercode = c.bossusercode
+                   And c.loginname = :GLOBAL_LOGINNAME
+                   And A.ENTRYPAGENO = :APP_PAGE_ID
+                   AND B.COMPANYCODE = :GLOBAL_COMPANYCODE
+                ```
+        }
+    )
+
+    pageItem P252_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            region: @cash-bank-book
+            slot: regionBody
+        }
+        source {
+            formRegion: @cash-bank-book
+            column: TNO
+            dataType: number
+            primaryKey: true
+        }
+    )
+
+    pageItem P252_TODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @cash-bank-book
+            slot: regionBody
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 100
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-arrow-circle-o-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 130
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: NEWRECORD
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 110
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-trash-o
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button fail (
+        buttonName: Fail
+        label: Fail
+        layout {
+            sequence: 60
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-down
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button flow (
+        buttonName: Flow
+        label: FLow
+        layout {
+            sequence: 70
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-workflow
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 162
+                items: {
+                    P162_TNO: &P71_TNO.
+                }
+                clearCache: 162
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button pass (
+        buttonName: Pass
+        label: Pass
+        layout {
+            sequence: 50
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-up
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        advanced {
+            htmlDomId: PASS
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button print (
+        buttonName: PRINT_1
+        label: Print
+        layout {
+            sequence: 90
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-print
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @cash-bank-book
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        advanced {
+            htmlDomId: REFRESH
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 120
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save-as
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    button status (
+        buttonName: Status
+        label: &P252_STATUS.
+        layout {
+            sequence: 80
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-comments-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 164
+                clearCache: 164
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: item=value
+            item: P252_FORMSTATUS
+            value: EDITRECORD
+        }
+    )
+
+    dynamicAction click-refresh-button (
+        name: click refresh button
+        execution {
+            sequence: 300
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                     var button = document.getElementById('REFRESH');
+                        button.click();
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction context-menu (
+        name: context menu
+        execution {
+            sequence: 250
+        }
+        when {
+            event: custom
+            customEvent: contextmenu
+            selectionType: jsExpression
+            javaScriptExpression: Document
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action plugin-com-pretius-apex-contextmenu (
+            action: plugin/pretiusApexContextMenu
+            settings {
+                listName: P252_CONTEXTMENU
+                settings: [
+                    displayAtMousePosition
+                    stopEventPropagation
+                ]
+            }
+            affectedElements {
+                selectionType: region
+                region: @detail
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction disable-delete-update-if-status-is-active (
+        name: DISABLE DELETE UPDATE IF STATUS IS ACTIVE
+        execution {
+            sequence: 70
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @delete
+            }
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.DELETEPRIVILEGE= 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @delete
+            }
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: item=value
+                item: P252_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @delete
+            }
+            execution {
+                sequence: 70
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from loadingadvice aa where aa.purchaseordertno = :P252_TNO;
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @delete
+            }
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.DELETEPRIVILEGE= 'YES'
+                       and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-print-button (
+        name: Disable Print Button
+        execution {
+            sequence: 100
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @print
+            }
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.PRINTPRIVILEGE= 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @print
+            }
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.PRINTPRIVILEGE= 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-save-button-for-updateprivillege (
+        name: DISABLE SAVE BUTTON FOR UPDATEPRIVILLEGE
+        execution {
+            sequence: 80
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @save
+            }
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'NO'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.UPDATEPRIVILEGE = 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @save
+            }
+            execution {
+                sequence: 50
+            }
+            serverSideCondition {
+                type: item=value
+                item: P252_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @save
+            }
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from loadingadvice aa where aa.purchaseordertno = :P252_TNO;
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @save
+            }
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'YES'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.UPDATEPRIVILEGE = 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-status-button (
+        name: Disable Status Button
+        execution {
+            sequence: 90
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.STATUSPRIVILEGE = 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.STATUSPRIVILEGE = 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction documentstatus (
+        name: DocumentStatus
+        execution {
+            sequence: 30
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @status
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item=value
+                item: P252_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            affectedElements {
+                selectionType: button
+                button: @status
+            }
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item!=value
+                item: P252_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: SetDocumentStatusCode(GetModuleCodeForPageNo(:APP_PAGE_ID),:P252_TNO,:P252_STATUS);
+                itemsToSubmit: [
+                    P252_TNO
+                    P252_STATUS
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $('#STATUS span').text('');
+                    $('#STATUS').text($v('P252_STATUS'));
+                    
+                    
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code-2 (
+            action: executeJsCode
+            settings {
+                jsCode: location.reload()
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P164_DOCUMENTSTATUSCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_STATUS
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction enable-disable-pass-fail-flow (
+        name: Enable Disable Pass/Fail/Flow
+        execution {
+            sequence: 60
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @pass
+            }
+            execution {
+                sequence: 10
+            }
+            clientSideCondition {
+                type: item=value
+                item: P252_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @fail
+            }
+            execution {
+                sequence: 20
+            }
+            clientSideCondition {
+                type: item=value
+                item: P252_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            affectedElements {
+                selectionType: button
+                button: @flow
+            }
+            execution {
+                sequence: 30
+            }
+            clientSideCondition {
+                type: item=value
+                item: P252_MODULEFLOW
+                value: NO
+            }
+        )
+
+    )
+
+    dynamicAction fail (
+        name: Fail
+        execution {
+            sequence: 20
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @fail
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    		cursor cPassFail is
+                    				select
+                    						a.TNo,
+                    						a.TokenNo										
+                    				from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    				where a.ModuleFlowTNo = b.TNo
+                    						and b.TNo = c.TNo
+                    						and a.BossUserCode = c.BossUserCode
+                    						and c.BossUserCode = d.BossUserCode
+                    						and a.ModuleTNo = ':P'||to_char(:APP_PAGE_ID)||'_TNo'
+                    						and d.LoginName = User
+                    						and a.isPass is null
+                    						and a.IsFail is null
+                    						and a.IsForwarded is null
+                    						and a.IsRebounded is null																				
+                    		;
+                    		vPassFail cPassFail%rowtype;
+                        
+                        tTokenNo NUMBER;
+                        TMP VARCHAR2(100) := :P60_TNO;
+                    begin
+                    		open cPassFail;
+                    		fetch cPassFail into vPassFail;
+                    		if cPassFail%FOUND then
+                    				tTokenNo := vPassFail.TokenNo;
+                    				close cPassFail;
+                    
+                               	
+                    				update PassFail a
+                    				set a.IsFail = 'YES',
+                    						a.remark = ':P'||to_char(:APP_PAGE_ID)||'_PASSFAILREMARK'
+                    				where a.TNo = vPassFail.TNo;
+                    				
+                    				SendBackPassFail(tTokenNo , TMP );
+                    		    		
+                    				
+                    				commit;
+                    		else
+                    				close cPassFail;
+                    		end if;
+                    
+                    	
+                    end;
+                    ```
+                itemsToSubmit: [
+                    P252_TNO
+                    P252_COMPANYCODE
+                    P252_PURCHASEORDERNO
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @print
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction go-back-to-called-form (
+        name: Go Back To Called Form
+        execution {
+            sequence: 50
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P252_CALLEDFROMPAGE').getValue();
+                    var y = apex.item('P252_CALLEDFROMTNO').getValue();
+                    
+                    //var url = "f?p=#APP_ID#:80:#SESSION#::NO:RP,80:P156_TNO,P156_CALLEDFROMPAGE,P156_FORMSTATUS:#P156_TNO#,#P156_CALLEDFROMPAGE#,#P156_FORMSTATUS#";
+                    
+                    
+                    var url = "f?p=#APP_ID#:#2002#:#SESSION#::NO:RP,#2002#:P#2002#_TNO:#P2002_TNO#";
+                    //:P2002_TNO:#P2002_TNO#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    url = url.replace("#2002#", x);
+                    
+                    url = url.replace("#P2002_TNO#", y);
+                    //window.alert(x);
+                    //window.alert(y);
+                    //window.alert(url);
+                    
+                    
+                    //call
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction go-to-bank (
+        name: GO TO BANK
+        execution {
+            sequence: 220
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P252_ITEMNATURE
+        }
+
+        action native-set-focus (
+            action: setFocus
+            affectedElements {
+                selectionType: items
+                items: P252_PARTYNAME
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction hide-nav (
+        name: Hide nav
+        execution {
+            sequence: 210
+        }
+        when {
+            event: ready
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $("body").removeClass("js-navExpanded").addClass("js-navCollapsed");
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New_4_1
+        execution {
+            sequence: 210
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :GLOBAL_FINANCIALYEARBEGIN FROM DUAL
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_FROMDATE
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT LAST_DAY(:P252_ASONDATE) FROM DUAL
+                itemsToSubmit: P252_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_TODATE
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction new-2 (
+        name: New
+        execution {
+            sequence: 230
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: alert($v('P252_fromdate'));
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @detail
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P252_FROMDATE
+                itemsToSubmit: P252_FROMDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_FROMDATE
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-3 (
+        name: New_1
+        execution {
+            sequence: 240
+        }
+        when {
+            event: region/interactiveGrid/interactivegridselectionchange
+            selectionType: region
+            region: @detail
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var ppartycode,
+                    model = this.data.model;
+                    
+                    ppartycode = model.getValue( this.data.selectedRecords[0], "PARTYCODE");
+                    
+                    apex.item( "P252_PARTYCODE" ).setValue (ppartycode);
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @graph
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-4 (
+        name: New_2
+        execution {
+            sequence: 260
+        }
+        when {
+            selectionType: items
+            items: P252_PARTYCODE
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :P252_PARTYCODE
+                itemsToSubmit: P252_PARTYCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_PARTY
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new-5 (
+        name: New_3
+        execution {
+            sequence: 270
+        }
+        when {
+            event: dblclick
+            selectionType: columns
+            interactiveGrid: @detail
+            columns: PARTYNAME
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    
+                    var x = apex.item('P252_PARTYCODE').getValue();
+                    var y = '252';
+                    var z = 'CALLED';
+                    var x1 = apex.item('P252_FROMDATE').getValue();
+                    var x2 = apex.item('P252_TODATE').getValue();
+                    
+                    
+                    
+                    var url = "f?p=#APP_ID#:249:#SESSION#::NO:RP,249:P249_FROMDATE,P249_TODATE,P249_PARTY,P148_CALLEDFROMPAGE:#P249_FROMDATE#,#P249_TODATE#,#P249_PARTY#,#P148_CALLEDFROMPAGE#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#P249_FROMDATE#", x1);
+                    url = url.replace("#P249_TODATE#", x2);
+                    url = url.replace("#P148_PARTY#", x);
+                    url = url.replace("#P148_CALLEDFROMPAGE#", y);
+                    alert(url);
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new-6 (
+        name: New_4
+        execution {
+            sequence: 280
+        }
+        when {
+            event: focusout
+            selectionType: items
+            items: P252_ASONDATE
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT :GLOBAL_FINANCIALYEARBEGIN FROM DUAL
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_FROMDATE
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        action native-set-value-2 (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT LAST_DAY(:P252_ASONDATE) FROM DUAL
+                itemsToSubmit: P252_ASONDATE
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_TODATE
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+    )
+
+    dynamicAction pass (
+        name: Pass
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @pass
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                      tModuleCode  Varchar2(30);
+                      TMP          vARCHAR2(100) ;--:= :P80_PICKUPREQUESTNO;
+                    cursor cPassFail is
+                    		select
+                    				a.TNo
+                    		from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    		where a.ModuleFlowTNo = b.TNo
+                    				and b.TNo = c.TNo
+                    				and a.BossUserCode = c.BossUserCode
+                    				and c.BossUserCode = d.BossUserCode
+                    				and a.ModuleTNo = ':P'||:APP_PAGE_ID||'_TNo'
+                    				and d.LoginName = User
+                    				and a.isPass is null
+                    				and a.IsFail is null
+                    				and a.IsForwarded is null
+                    				and a.IsRebounded is null										
+                    ;
+                    vPassFail cPassFail%rowtype;
+                    BEGIN
+                    
+                        select
+                        	d.ModuleCode, ':P'||:APP_PAGE_ID||'_'||labelcolumnname 
+                                    into tModuleCode,tmp
+                        from Location a, ModuleLocationDetail b , ModuleLocation c, Module d 
+                        where a.LocationCode = b.LocationCode
+                        	and b.tno = c.tno
+                        	and c.ModuleCode = d.ModuleCode --'DELIVERYCHALLANRETURN'
+                        	and c.CompanyCode = :global_CompanyCode
+                            and d.EntryPageNo = :APP_PAGE_ID
+                            ;
+                    
+                    			
+                    	open cPassFail;
+                    	fetch cPassFail into vPassFail;
+                    	if cPassFail%FOUND then
+                    			
+                    		
+                    			update PassFail a
+                    			set a.IsPass = 'YES',
+                    				a.remark = ':P'||:APP_PAGE_ID||'_PASSFAILREMARK'
+                    			where a.TNo = vPassFail.TNo;
+                    			
+                    			close cPassFail;
+                    			
+                    			
+                    			SendPassFailForward(tModuleCode, ':P'||:APP_PAGE_ID||'_TNo' , TMP, :global_CompanyCode );
+                    
+                                 if :P252_STATUS = 'ACTIVE' then
+                            
+                                    CREATEPAYMENTADVICEFORPO(:P252_TNO);
+                    
+                                  end if;
+                    
+                        end if;
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P252_TNO
+                    P252_COMPANYCODE
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction set-quantity-to-allocate (
+        name: set quantity to allocate
+        execution {
+            sequence: 160
+        }
+        when {
+            selectionType: items
+            items: P252_DETAILQUANTITY
+        }
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: plsqlExpression
+                plsqlExpression: :p252_detailquantity
+                itemsToSubmit: P252_DETAILQUANTITY
+            }
+            affectedElements {
+                selectionType: items
+                items: P252_QUANTITYTOALLOCATE
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process delete-detail (
+        name: Delete Detail
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                delete from rtgsletterdetail where tno = :P252_TNO;
+                
+                
+                ```
+        }
+        execution {
+            sequence: 60
+        }
+        advanced {
+            executionMappingIdentifier: 78792406670381065
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+    process detail-save-interactive-grid-data (
+        name: DETAIL - Save Interactive Grid Data
+        type: interactiveGridAutoRowProcessing
+        editableRegion: @detail
+        execution {
+            sequence: 70
+        }
+        advanced {
+            executionMappingIdentifier: 78729372348031616
+        }
+    )
+
+    process get-document-no (
+        name: Get Document No
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+                    tmp         number ;
+                begin
+                     if :P252_Tno is null then
+                        Select GlobalTno.NextVal into :P252_Tno From Dual;
+                     end if;
+                    ----
+                    if :P252_RTGSLETTERNO is null then
+                            SetDocNoNext(
+                					tModuleCode,
+                					:global_CompanyCode,
+                					:global_FinancialYearCode,
+                					:P252_LocationCode,
+                					:P252_DocTypeCode,
+                					NULL,
+                					TO_DATE(:P252_RTGSLETTERDATE, 'DD-MM-RRRR')
+                				);
+                        :P252_RTGSLETTERNO := GetDocNo(
+                                    tModuleCode,
+                                    :global_CompanyCode,
+                                    :global_FinancialYearCode,
+                                    :P252_LocationCode,
+                                    :P252_DocTypeCode,
+                                    NULL,
+                                    TO_DATE(:P252_RTGSLETTERDATE, 'DD-MM-RRRR')
+                                    );
+                    end if;
+                    
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 78791689037381065
+        }
+    )
+
+    process get-tno (
+        name: Get TNo
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                If :P252_TNO is null then
+                    :P252_TNO := GlobalTNo.nextval;
+                    :P252_FORMSTATUS := 'NEWRECORD';
+                else
+                    :P252_FORMSTATUS := 'EDITRECORD';
+                End if;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 78792067507381065
+        }
+    )
+
+    process initialize-form-stock-transfer (
+        name: Initialize form Stock Transfer
+        type: formInitialization
+        formRegion: @cash-bank-book
+        execution {
+            sequence: 10
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 78783353997381060
+        }
+    )
+
+    process process-form-rtgs-letter (
+        name: Process form RTGS Letter
+        type: formAutoRowProcessing
+        formRegion: @cash-bank-book
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 78783709962381060
+        }
+    )
+
+    branch (
+        name: Go To Page 241
+        execution {
+            sequence: 1
+        }
+        behavior {
+            target: {
+                page: 241
+            }
+        }
+        serverSideCondition {
+            whenButtonPressed: @delete
+        }
+    )
+
+)
+

@@ -1,0 +1,1464 @@
+page 296 (
+    name: GST Liability
+    alias: GST-LIABILITY
+    title: GST Liability
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var reportName = 'IRONMART/REPORT/GSTLiability.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P296_FROMDATE').val());
+              var toDate = new Date($('#P296_TODATE').val());
+            
+              var reportParams = 
+              '&P_COMPANY=' +  $('#P296_COMPANY').val() +
+                '&P_LOCATION=' +  $('#P296_LOCATION').val() +
+                '&P_FROMDATE='  +  $('#P296_FROMDATE').val() +
+                '&P_TODATE='  +  $('#P296_TODATE').val() +
+                '&P_ACCOUNT=' + $('#P296_ACCOUNT').val() +
+                '&P_MONTH=' +  $('#P296_MONTH').val() 
+                ;
+             
+            //alert($v('P296_PARTY'));
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            
+            function generatePDF_new() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P296_BIREPORTURL').val()
+              var reportName =  'GSTLiability.xdo';
+              var outputFormat = 'pdf';
+            
+            
+            var reportParams = 
+                     '"_paramsP_COMPANY":"' +$('#P296_COMPANY').val() + '",' +
+                     '"_paramsP_LOCATION":"' +$('#P296_LOCATION').val() + '",' +
+                     '"_paramsP_FROMDATE":"' +$('#P296_FROMDATE').val() + '",' + 
+                     '"_paramsP_TODATE":"' +$('#P296_TODATE').val() + '",' + 
+            	     '"_paramsP_ACCOUNT":"' + $('#P296_ACCOUNT').val() + '",' + 
+            	     '"_paramsP_MONTH":"' + $('#P296_MONTH').val() ;
+                     
+                 
+            //alert($('#P9993_TNO').val());
+             
+                    var reportURL = bireporturl+ reportName +
+                          '&nQUser='+ username +
+                          '&nQPassword='+ password +
+                          '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
+            //alert(reportURL);
+              window.open(reportURL, '_blank');
+            }
+            
+            
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region gst-liability (
+        name: GST Liability
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region gst-output-liability (
+        name: GST OUTPUT Liability
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select X.LOCATIONCODE,
+                       X.MSNO,
+                       X.GSTTYPE,
+                       X.ACCOUNTNAME,
+                       getAccountOpening(X.ACCOUNTCODE,
+                                         X.FROMDATE,
+                                         X.LOCATIONCODE,
+                                         X.COMPANYCODE) OPENING,
+                       getaccountbalancewithdrcr(X.ACCOUNTCODE,
+                                                 X.FROMDATE - 1,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) As OP,
+                       (Select Sum(AMOUNT) * -1
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT < 0) As DR,
+                       (Select Sum(AMOUNT)
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT > 0) As CR,
+                       getaccountbalancewithdrcr(X.ACCOUNTCODE,
+                                                 X.TODATE,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) As CLOSING
+                  From (Select Distinct 1 As msno,
+                                        'OUTPUT' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (f.SGSTOUTPUTACCOUNTCODE,
+                                                 f.CGSTOUTPUTACCOUNTCODE,
+                                                 f.IGSTOUTPUTACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        ---
+                        Union All
+                        Select Distinct 2 As msno,
+                                        'INPUT' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (F.CGSTINPUTACCOUNTCODE,
+                                                 F.SGSTINPUTACCOUNTCODE,
+                                                 F.IGSTINPUTACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        
+                        ) X
+                  WHERE
+                  ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||X.CompanyCode||':') > 0 ) 
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||X.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||X.LocationCode||':') > 0 )
+                
+                 Order By 1, 2, 3
+                
+                /*
+                Select  x.*,
+                            row_number() over(order by X.ACCOUNTCODE) SerialNo,
+                        getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE,X.LOCATIONCODE, X.COMPANYCODE) OpeningBalance,
+                        Case When getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE) > 0
+                             Then to_char(abs(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE,X.LOCATIONCODE,  X.COMPANYCODE)),'999999999.99')||'Cr' 
+                             When getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE) < 0
+                             Then to_char(abs(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE)),'999999999.99')||'Dr'
+                             ELSE to_char(abs(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE, X.COMPANYCODE)),'999999999.99')
+                             END as OpeningBalanceDRCR,
+                             nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) Debit,
+                             nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) Credit ,
+                        nvl(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           + nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           - nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) BalanceAmount,
+                        Case When (nvl(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           + nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE,X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           - nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0)) > 0
+                             Then To_char(abs((nvl(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE,X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           + nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           - nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0))),'999999999.99')||'Cr'
+                             When (nvl(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE,X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           + nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           - nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE,X.LOCATIONCODE,  X.COMPANYCODE), 0)) < 0
+                             Then To_char(abs((nvl(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           + nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE,X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           - nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0))),'999999999.99')||'Dr'
+                           Else To_char(abs((nvl(getAccountOpening(X.ACCOUNTCODE, :P296_FROMDATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           + nvl(getAccountCredit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0) 
+                           - nvl(getAccountDebit(X.ACCOUNTCODE, :P296_FROMDATE, :P296_TODATE, X.LOCATIONCODE,  X.COMPANYCODE), 0))),'999999999.99')
+                           end as BalanceAmountDRCR
+                From
+                (
+                Select
+                distinct
+                --1 as msno,
+                'ONOUTPUT' as GSTType,
+                --'1' as OrderBy,
+                a.CompanyCode,
+                --getAccountOpening(:P296_ACCOUNT, :P296_FROMDATE, :P296_LOCATION, :P296_COMPANY) ACT,
+                to_char(a.VoucherDate,'MON-RRRR') Monthh,
+                a.LocationCode,
+                e.LocationName,
+                b.AccountCode,
+                d.PartyName as AccountName
+                From Voucher a, VoucherDetail b, Party d, Location e,GSTSetup f
+                Where a.Tno = b.Tno
+                and b.AccountCode = d.PartyCode
+                and a.LocationCode = e.LocationCode
+                and b.Accountcode in(f.SGSTOUTPUTACCOUNTCODE,f.CGSTOUTPUTACCOUNTCODE,f.IGSTOUTPUTACCOUNTCODE)
+                and to_char(a.VoucherDate,'MON-RRRR') = :P296_MONTH
+                and ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||b.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                -- Order by a.LocationCode
+                UNION ALL
+                Select
+                distinct
+                --1 as msno,
+                'ONINPUT' as GSTType,
+                --'2' as OrderBy,
+                a.CompanyCode,
+                --getAccountOpening(:P296_ACCOUNT, :P296_FROMDATE, :P296_LOCATION, :P296_COMPANY) ACT,
+                to_char(a.VoucherDate,'MON-RRRR') Monthh,
+                a.LocationCode,
+                e.LocationName,
+                b.AccountCode,
+                d.PartyName as AccountName
+                From Voucher a, VoucherDetail b, Party d, Location e,GSTSetup f
+                Where a.Tno = b.Tno
+                and b.AccountCode = d.PartyCode
+                and a.LocationCode = e.LocationCode
+                and b.Accountcode in(F.CGSTINPUTACCOUNTCODE,F.SGSTINPUTACCOUNTCODE,F.IGSTINPUTACCOUNTCODE)
+                and to_char(a.VoucherDate,'MON-RRRR') = :P296_MONTH
+                and ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||b.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                UNION ALL
+                Select
+                distinct
+                --1 as msno,
+                'PAYABLE' as GSTType,
+                --'3' as OrderBy,
+                a.CompanyCode,
+                --getAccountOpening(:P296_ACCOUNT, :P296_FROMDATE, :P296_LOCATION, :P296_COMPANY) ACT,
+                to_char(a.VoucherDate,'MON-RRRR') Monthh,
+                --getAccountOpening(:P296_ACCOUNT, :P296_FROMDATE, :P296_LOCATION, :P296_COMPANY) ACT,
+                a.LocationCode,
+                e.LocationName,
+                b.AccountCode,
+                d.PartyName as AccountName
+                From Voucher a, VoucherDetail b,  Party d, Location e,GSTSetup f
+                Where a.Tno = b.Tno
+                and b.AccountCode = d.PartyCode
+                and a.LocationCode = e.LocationCode
+                and b.Accountcode in (F.CGSTPAYABLEACCOUNTCODE,F.IGSTPAYABLEACCOUNTCODE,F.SGSTPAYABLEACCOUNTCODE)
+                and to_char(a.VoucherDate,'MON-RRRR') = :P296_MONTH
+                and ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||b.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                UNION ALL
+                Select
+                distinct
+                --1 as msno,
+                'RCMPAYABLE' as GSTType,
+                --'4' as OrderBy,
+                a.CompanyCode,
+                --getAccountOpening(:P296_ACCOUNT, :P296_FROMDATE, :P296_LOCATION, :P296_COMPANY) ACT,
+                to_char(a.VoucherDate,'MON-RRRR') Monthh,
+                --getAccountOpening(:P296_ACCOUNT, :P296_FROMDATE, :P296_LOCATION, :P296_COMPANY) ACT,
+                a.LocationCode,
+                e.LocationName,
+                b.AccountCode,
+                d.PartyName as AccountName
+                From Voucher a, VoucherDetail b, Party d, Location e,GSTSetup f
+                Where a.Tno = b.Tno
+                and b.AccountCode = d.PartyCode
+                and a.LocationCode = e.LocationCode
+                and b.Accountcode in (f.CGSTRCMPAYABLEACCOUNTCODE,f.IGSTRCMPAYABLEACCOUNTCODE,f.SGSTRCMPAYABLEACCOUNTCODE)
+                and to_char(a.VoucherDate,'MON-RRRR') = :P296_MONTH
+                and ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||a.CompanyCode||':') > 0 ) 
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||b.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||a.LocationCode||':') > 0 )
+                )x
+                */
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        serverSideCondition {
+            type: never
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 169241374415866440
+        }
+
+        column ACCOUNTNAME (
+            type: plainText
+            heading {
+                heading: Particular
+            }
+            layout {
+                sequence: 7
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:140px">#ACCOUNTNAME#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CLOSING (
+            type: plainText
+            heading {
+                heading: Closing
+            }
+            layout {
+                sequence: 67
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: T
+            }
+        )
+
+        column CR (
+            type: plainText
+            heading {
+                heading: Cr
+                alignment: end
+            }
+            layout {
+                sequence: 57
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: S
+            }
+        )
+
+        column DR (
+            type: plainText
+            heading {
+                heading: Dr
+                alignment: end
+            }
+            layout {
+                sequence: 47
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: R
+            }
+        )
+
+        column GSTTYPE (
+            type: plainText
+            heading {
+                heading: .
+            }
+            layout {
+                sequence: 1
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#GSTTYPE#</div>
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column LOCATIONCODE (
+            type: plainText
+            heading {
+                heading: Locationcode
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column MSNO (
+            type: plainText
+            heading {
+                heading: Msno
+                alignment: end
+            }
+            layout {
+                sequence: 17
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column OP (
+            type: plainText
+            heading {
+                heading: Op
+            }
+            layout {
+                sequence: 37
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: Q
+            }
+        )
+
+        column OPENING (
+            type: plainText
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 27
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: GST Liability
+        }
+
+        savedReport 190056 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn ACCOUNTNAME (
+                sequence: 2
+            )
+
+            displayColumn GSTTYPE (
+                sequence: 1
+            )
+
+            sort (
+                column: ACCOUNTNAME
+                sort {
+                    sequence: 1
+                }
+            )
+
+            sort (
+                column: GSTTYPE
+                sort {
+                    sequence: 2
+                }
+            )
+
+            aggregate (
+                column: OPENINGBALANCE
+            )
+
+            aggregate (
+                column: DEBIT
+            )
+
+            aggregate (
+                column: CREDIT
+            )
+
+            controlBreak (
+                column: LOCATIONNAME
+                layout {
+                    sequence: 1
+                }
+            )
+
+            controlBreak (
+                column: GSTTYPE
+                layout {
+                    sequence: 2
+                }
+            )
+
+        )
+
+    )
+
+    region new (
+        name: New
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select getlocationname(X.LOCATIONCODE) Location,
+                       X.MSNO,
+                       X.GSTTYPE,
+                       X.ACCOUNTNAME,
+                       getaccountbalancewithdrcr(X.ACCOUNTCODE,
+                                                 X.FROMDATE - 1,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) As OP,
+                       (Select Sum(AMOUNT) * -1
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT < 0) As DR,
+                       (Select Sum(AMOUNT)
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT > 0) As CR,
+                       getaccountbalancewithdrcr(X.ACCOUNTCODE,
+                                                 X.TODATE,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) As CLOSING
+                  From 
+                  (Select Distinct 1 As msno,
+                                        'OUTPUT' As GSTType,
+                                        c.CompanyCode,
+                                        :P296_MONTH Monthh,
+                                        to_date(:P296_FROMDATE,'dd-mm-yyyy') FROMDATE,
+                                        to_date(:P296_TODATE,'dd-mm-yyyy') TODATE,
+                                        E.LocationCode,
+                                        e.LocationName,
+                                        D.PartyCode AS ACCOUNTCODE,
+                                        d.PartyName As AccountName
+                          From  Party d, Location e, GSTSetup f, Company c
+                         Where d.PartyCode In  (f.SGSTOUTPUTACCOUNTCODE,
+                                                 f.CGSTOUTPUTACCOUNTCODE,
+                                                 f.IGSTOUTPUTACCOUNTCODE)
+                     
+                        ---
+                        Union All
+                        Select Distinct 2 As msno,
+                                        'INPUT' As GSTType,
+                                        c.CompanyCode,
+                                        :P296_MONTH Monthh,
+                                        to_date(:P296_FROMDATE,'dd-mm-yyyy') FROMDATE,
+                                        to_date(:P296_TODATE,'dd-mm-yyyy') TODATE,
+                                        E.LocationCode,
+                                        e.LocationName,
+                                        D.PartyCode,
+                                        d.PartyName As AccountName
+                          From  Party d, Location e, GSTSetup f, Company c
+                         Where d.PartyCode In (F.CGSTINPUTACCOUNTCODE,
+                                                 F.SGSTINPUTACCOUNTCODE,
+                                                 F.IGSTINPUTACCOUNTCODE)
+                          -- And to_char(a.VoucherDate, 'MON-RRRR') BETWEEN :P296_FROMDATE AND :P296_TODATE
+                        ---
+                        Union All
+                        Select Distinct 4 As msno,
+                                        'PAYBLE' As GSTType,
+                                        c.CompanyCode,
+                                        :P296_MONTH Monthh,
+                                        to_date(:P296_FROMDATE,'dd-mm-yyyy') FROMDATE,
+                                        to_date(:P296_TODATE,'dd-mm-yyyy') TODATE,
+                                        E.LocationCode,
+                                        e.LocationName,
+                                        D.PartyCode,
+                                        d.PartyName As AccountName
+                          From  Party d, Location e, GSTSetup f, Company c
+                         Where d.PartyCode In  (F.CGSTPAYABLEACCOUNTCODE,
+                                                 F.SGSTPAYABLEACCOUNTCODE,
+                                                 F.IGSTPAYABLEACCOUNTCODE)
+                   
+                        ---
+                        Union All
+                        Select Distinct 5 As msno,
+                                        'RCMPAYBLE' As GSTType,
+                                        c.CompanyCode,
+                                        :P296_MONTH Monthh,
+                                        to_date(:P296_FROMDATE,'dd-mm-yyyy') FROMDATE,
+                                        to_date(:P296_TODATE,'dd-mm-yyyy') TODATE,
+                                        E.LocationCode,
+                                        e.LocationName,
+                                        D.PartyCode,
+                                        d.PartyName As AccountName
+                          From  Party d, Location e, GSTSetup f, Company c
+                         Where d.PartyCode In  (F.CGSTRCMPAYABLEACCOUNTCODE,
+                                                 F.SGSTRCMPAYABLEACCOUNTCODE,
+                                                 F.IGSTRCMPAYABLEACCOUNTCODE)
+                
+                         ---
+                        Union All
+                        Select Distinct 3 As msno,
+                                        'RCMINPUT' As GSTType,
+                                        c.CompanyCode,
+                                        :P296_MONTH Monthh,
+                                        to_date(:P296_FROMDATE,'dd-mm-yyyy') FROMDATE,
+                                        to_date(:P296_TODATE,'dd-mm-yyyy') TODATE,
+                                        E.LocationCode,
+                                        e.LocationName,
+                                        D.PartyCode,
+                                        d.PartyName As AccountName
+                          From  Party d, Location e, GSTSetup f, Company c
+                         Where d.PartyCode In  (F.CGSTRCMINPUTACCOUNTCODE,
+                                                 F.SGSTRCMINPUTACCOUNTCODE,
+                                                 F.IGSTRCMINPUTACCOUNTCODE)
+                
+                        ----
+                        Union All
+                        Select Distinct 6 As msno,
+                                        'RCMOUTPUT' As GSTType,
+                                        c.CompanyCode,
+                                        :P296_MONTH Monthh,
+                                        to_date(:P296_FROMDATE,'dd-mm-yyyy') FROMDATE,
+                                        to_date(:P296_TODATE,'dd-mm-yyyy') TODATE,
+                                        E.LocationCode,
+                                        e.LocationName,
+                                        D.PartyCode ,
+                                        d.PartyName As AccountName
+                          From  Party d, Location e, GSTSetup f, Company c
+                         Where d.PartyCode In  (F.CGSTRCMOUTPUTACCOUNTCODE,
+                                                 F.SGSTRCMOUTPUTACCOUNTCODE,
+                                                 F.IGSTRCMOUTPUTACCOUNTCODE)
+                
+                        ) X
+                  WHERE
+                  ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||X.CompanyCode||':') > 0 ) 
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||X.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||X.LocationCode||':') > 0 )
+                and (
+                      NVL(getAccountOpening(X.ACCOUNTCODE,
+                                                 X.FROMDATE +1,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE),0) != 0
+                
+                     or  (Select Sum(AMOUNT) * -1
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT < 0) != 0
+                      or (Select Sum(AMOUNT)
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT > 0) != 0
+                
+                       or getAccountOpening(X.ACCOUNTCODE,
+                                                 X.TODATE+1,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) != 0
+                
+                )
+                
+                /*
+                Select getlocationname(X.LOCATIONCODE) Location,
+                       X.MSNO,
+                       X.GSTTYPE,
+                       X.ACCOUNTNAME,
+                      
+                       getaccountbalancewithdrcr(X.ACCOUNTCODE,
+                                                 X.FROMDATE - 1,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) As OP,
+                       (Select Sum(AMOUNT) * -1
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT < 0) As DR,
+                       (Select Sum(AMOUNT)
+                          From VOUCHERDETAIL AA, VOUCHER BB
+                         Where AA.TNO = BB.TNO
+                           And AA.ACCOUNTCODE = X.ACCOUNTCODE
+                           And AA.COMPANYCODE = X.COMPANYCODE
+                           And BB.LOCATIONCODE = X.LOCATIONCODE
+                           And BB.VOUCHERDATE Between X.FROMDATE And X.TODATE
+                           And AA.AMOUNT > 0) As CR,
+                       getaccountbalancewithdrcr(X.ACCOUNTCODE,
+                                                 X.TODATE,
+                                                 X.LOCATIONCODE,
+                                                 X.COMPANYCODE) As CLOSING
+                  From 
+                  (Select Distinct 1 As msno,
+                                        'OUTPUT' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (f.SGSTOUTPUTACCOUNTCODE,
+                                                 f.CGSTOUTPUTACCOUNTCODE,
+                                                 f.IGSTOUTPUTACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        ---
+                        Union All
+                        Select Distinct 2 As msno,
+                                        'INPUT' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (F.CGSTINPUTACCOUNTCODE,
+                                                 F.SGSTINPUTACCOUNTCODE,
+                                                 F.IGSTINPUTACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        ---
+                        Union All
+                        Select Distinct 4 As msno,
+                                        'PAYABLE' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (F.CGSTPAYABLEACCOUNTCODE,
+                                                 F.SGSTPAYABLEACCOUNTCODE,
+                                                 F.IGSTPAYABLEACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        ---
+                        Union All
+                        Select Distinct 5 As msno,
+                                        'RCMPAYABLE' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (F.CGSTRCMPAYABLEACCOUNTCODE,
+                                                 F.SGSTRCMPAYABLEACCOUNTCODE,
+                                                 F.IGSTRCMPAYABLEACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                         ---
+                        Union All
+                        Select Distinct 3 As msno,
+                                        'RCMINPUT' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (F.CGSTRCMINPUTACCOUNTCODE,
+                                                 F.SGSTRCMINPUTACCOUNTCODE,
+                                                 F.IGSTRCMINPUTACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        ----
+                        Union All
+                        Select Distinct 6 As msno,
+                                        'RCMOUTPUT' As GSTType,
+                                        a.CompanyCode,
+                                        to_char(a.VoucherDate, 'MON-RRRR') Monthh,
+                                        TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY') FROMDATE,
+                                        LAST_DAY(TO_DATE('01' || :P296_MONTH, 'DD-MON-YYYY')) TODATE,
+                                        a.LocationCode,
+                                        e.LocationName,
+                                        b.AccountCode,
+                                        d.PartyName As AccountName
+                          From Voucher a, VoucherDetail b, Party d, Location e, GSTSetup f
+                         Where a.Tno = b.Tno
+                           And b.AccountCode = d.PartyCode
+                           And a.LocationCode = e.LocationCode
+                           And b.Accountcode In (F.CGSTRCMOUTPUTACCOUNTCODE,
+                                                 F.SGSTRCMOUTPUTACCOUNTCODE,
+                                                 F.IGSTRCMOUTPUTACCOUNTCODE)
+                           And to_char(a.VoucherDate, 'MON-RRRR') = :P296_MONTH
+                        ) X
+                  WHERE
+                  ( :P296_COMPANY IS NULL OR instr(':'||:P296_COMPANY||':',':'||X.CompanyCode||':') > 0 ) 
+                and ( :P296_ACCOUNT IS NULL OR instr(':'||:P296_ACCOUNT||':',':'||X.ACCOUNTCode||':') > 0 )
+                and ( :P296_LOCATION IS NULL OR instr(':'||:P296_LOCATION||':',':'||X.LocationCode||':') > 0 )
+                --order by x.locationcode,x.msno,x.accountcode
+                */
+                ```
+            pageItemsToSubmit: [
+                P296_FROMDATE
+                P296_TODATE
+                P296_COMPANY
+                P296_LOCATION
+                P296_ACCOUNT
+                P296_MONTH
+                P296_BIREPORTURL
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noPadding
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+        breakFormatting {
+            reportSumLabel: Total
+            breakColumns: cols1-2
+        }
+        download {
+            csvExportEnabled: true
+        }
+        printing {
+            enabled: true
+        }
+        output {
+            linkText: Print
+            format: pdf
+        }
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        column ACCOUNTNAME (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Particulars
+            }
+            layout {
+                sequence: 30
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:250px">#ACCOUNTNAME#</div>
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column CLOSING (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Closing
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CLOSING#</div>
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column CR (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Credit
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#CR#</div>
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column DR (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Debit
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 99999999999.99
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#DR#</div>
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+        column GSTTYPE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            layout {
+                sequence: 20
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column LOCATION (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 10
+            }
+            sorting {
+                defaultSequence: 1
+            }
+        )
+
+        column MSNO (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Msno
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            sorting {
+                defaultSequence: 2
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        column OP (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Opening
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            columnFormatting {
+                htmlExpression: <div style="display:block; width:100px">#OP#</div>
+            }
+            sorting {
+                sortable: false
+            }
+            advanced {
+                computeSum: true
+            }
+        )
+
+    )
+
+    pageItem P296_ACCOUNT (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Account
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct 
+                       c.PartyName d,
+                       c.PartyCode r
+                From   Voucher a,VoucherDetail b,Party c
+                Where  a.Tno = b.Tno
+                  and  b.AccountCode = c.PartyCode
+                Order By 1
+                ```
+        }
+        layout {
+            sequence: 60
+            region: @gst-liability
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P296_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @gst-liability
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P296_COMPANY (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Company
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                       b.CompanyName d,
+                       b.CompanyCode r
+                From   Voucher a,Company b
+                Where  a.CompanyCode = b.CompanyCode
+                Order By 1
+                ```
+        }
+        layout {
+            sequence: 40
+            region: @gst-liability
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P296_FROMDATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 20
+            region: @gst-liability
+            slot: regionBody
+        }
+    )
+
+    pageItem P296_LOCATION (
+        type: plugin/pretiusApexEnhancedLovItem
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            generalSettings: [
+                autocomplete
+                popupReport
+                multipleSelection
+            ]
+            autocompleteSettings: rapidSelection
+            popupSettings: [
+                clickingOnRowSelectsIt
+                resizable
+                draggable
+                closeOnEscape
+                rowsPerPage
+                searchInAllColumns
+            ]
+            reportBasicConfiguration: displayDisplayColumn
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct 
+                       b.LocationName d,
+                       b.LocationCode r
+                From   Voucher a,Location b
+                Where  a.LocationCode = b.LocationCode
+                Order By 1
+                ```
+        }
+        layout {
+            sequence: 50
+            region: @gst-liability
+            slot: regionBody
+            alignment: left
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            width: 30
+        }
+    )
+
+    pageItem P296_MONTH (
+        type: datePicker
+        label {
+            label: Month
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @gst-liability
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+            formatMask: MON-RRRR
+        }
+        validation {
+            valueRequired: true
+        }
+    )
+
+    pageItem P296_TODATE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @gst-liability
+            slot: regionBody
+        }
+    )
+
+    button pdf (
+        buttonName: PDF
+        label: Pdf
+        layout {
+            sequence: 10
+            region: @gst-liability
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button refresh (
+        buttonName: REFRESH
+        label: Refresh
+        layout {
+            sequence: 30
+            region: @gst-liability
+            slot: belowBox
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction generate-pdf (
+        name: Generate PDF
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @pdf
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode: generatePDF_new();
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 20
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 30
+        }
+        when {
+            selectionType: items
+            items: P296_MONTH
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: items
+                items: [
+                    P296_FROMDATE
+                    P296_TODATE
+                ]
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: sqlQuery
+                sqlQuery: SELECT TO_DATE('01-'||:P296_MONTH,'DD-MON-YYYY'),LAST_DAY(TO_DATE('01-'||:P296_MONTH,'DD-MON-YYYY')) FROM DUAL
+                itemsToSubmit: P296_MONTH
+            }
+            affectedElements {
+                selectionType: items
+                items: [
+                    P296_FROMDATE
+                    P296_TODATE
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

@@ -1,0 +1,5636 @@
+page 182 (
+    name: E-Invoice
+    alias: E-INVOICE
+    title: E-Invoice
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        fileUrls: #APP_FILES#mycss/MyIR (2)#MIN#.css
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region buttons (
+        name: Buttons
+        type: staticContent
+        layout {
+            sequence: 40
+            slot: beforeNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noUI
+            ]
+        }
+    )
+
+    region common-fields (
+        name: Common Fields
+        type: staticContent
+        layout {
+            sequence: 30
+            slot: afterNavigationBar
+        }
+        appearance {
+            template: @/buttons-container
+            templateOptions: [
+                #DEFAULT#
+                t-ButtonRegion--noPadding
+                t-ButtonRegion--noBorder
+            ]
+        }
+        accessibility {
+            landmarkType: region
+        }
+    )
+
+    region e-invoice (
+        name: E-Invoice
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select Distinct
+                 A.TNO, A.COMPANYCODE, A.LOCATIONCODE, A.PARTYCODE, A.MODULETNO, A.MODULECODE, A.INVOICENO, A.INVOICEDATE, A.INVOICEAMOUNT, A.TRANDTLS_CATG, A.TRANDTLS_SUPTYP, A.TRANDTLS_REGREV, A.TRANDTLS_TYP, A.TRANDTLS_ECMTRN, A.TRANDTLS_ECMGSTIN, A.TRANDTLS_IGSTONINTRA, A.DOCDTLS_TYP, A.DOCDTLS_NO, A.DOCDTLS_DT, A.DOCDTLS_ORGINVNO, A.SELLERDTLS_GSTIN, A.SELLERDTLS_TRDNM, A.SELLERDTLS_LGLNM, A.SELLERDTLS_ADDR1, A.SELLERDTLS_ADDR2, A.SELLERDTLS_LOC, A.SELLERDTLS_PIN, A.SELLERDTLS_STATE, A.SELLERDTLS_STCD, A.SELLERDTLS_PH, A.SELLERDTLS_EM, A.BUYERDTLS_GSTIN, A.BUYERDTLS_LGLNM, A.BUYERDTLS_TRDNM, A.BUYERDTLS_POS, A.BUYERDTLS_ADDR1, A.BUYERDTLS_ADDR2, A.BUYERDTLS_LOC, A.BUYERDTLS_PIN, A.BUYERDTLS_STATE, A.BUYERDTLS_STCD, A.BUYERDTLS_PH, A.BUYERDTLS_EM, A.SHIPDTLS_GSTIN, A.SHIPDTLS_LGLNM, A.SHIPDTLS_TRDNM, A.SHIPDTLS_ADDR1, A.SHIPDTLS_ADDR2, A.SHIPDTLS_LOC, A.SHIPDTLS_PIN, A.SHIPDTLS_STCD, A.VALDTLS_ASSVAL, A.VALDTLS_SGSTVAL, A.VALDTLS_CGSTVAL, A.VALDTLS_IGSTVAL, A.VALDTLS_CESVAL, A.VALDTLS_STCESVAL, A.VALDTLS_DISCOUNT, A.VALDTLS_OTHCHRG, A.VALDTLS_RNDOFFAMT, A.VALDTLS_TOTINVVAL, A.EWBDTLS_TRANSID, A.EWBDTLS_TRANSNAME, A.EWBDTLS_TRANSMODE, A.EWBDTLS_DISTANCE, A.EWBDTLS_TRANSDOCNO, A.EWBDTLS_TRANSDOCDT, A.EWBDTLS_VEHICLENO, A.EWBDTLS_VEHICLETYPE, A.ACKNO, A.ACKDATE, A.IRN, A.EWBNO, A.EWBDATE, A.VALIDTILLDATE, TO_CHAR(A.SIGNEDQRCODE) AS SIGNEDQRCODE, A.CCINVOICETNO, TO_CHAR(A.ERROR) AS ERROR, TO_CHAR(A.CANCELERROR) AS CANCELERROR, A.CANCELDATE, A.CANCELREASONCODE, A.CANCELREMARK,
+                 B.PARTYNAME,
+                 'Check' As check1,
+                 'Req IRN' As ReqIRN,
+                 'Get IRN' As GetIRN,
+                 'Cancel' As Cancel,
+                 --value pass to page 23
+                 :P182_WITHEWAYBILL as WithEwayBill,
+                 -- css alteration
+                 CASE WHEN :P182_MANUALUPDATE = 'YES' THEN 'none'
+                      ELSE 'auto'
+                  END AS IS_MANUAL_UPDATE,
+                 CASE 
+                    WHEN :P182_MANUALUPDATE = 'YES' THEN '0.5' 
+                    ELSE '1' 
+                 END AS BTN_OPACITY,
+                 --Extra null Columns
+                   NULL AS REMARK,
+                   NULL AS CREATOR,
+                   NULL AS CREATIONTIME,
+                   NULL AS BUYERGSTIN,
+                   NULL AS CANCELPORTALRESPONSE,
+                   NULL AS EWAYBILLPORTALRESPONSE,
+                   NULL AS EWAYBILLERROR,
+                   NULL AS PORTALRESPONSE,
+                   NULL AS ISDELETED,
+                   NULL AS DELETIONTIME,
+                   NULL AS DELETEDBY,
+                   NULL AS SELLERGSTIN
+                  From INVOICEFOREI0101REVISED A, PARTY B
+                 Where A.PARTYCODE = B.PARTYCODE
+                  -- AND A.tno = :P182_TNO
+                  AND  ( 
+                       ( NVL(:P182_PENDINGFOREINVOICE ,'NO') = 'YES' and a.irn is null )
+                       OR
+                       ( NVL(:P182_PENDINGFOREINVOICE ,'NO') = 'NO' and a.irn is not null )
+                  )
+                  and ( :P182_LOCATIONCODE IS NULL OR instr(':'||:P182_LOCATIONCODE||':',':'||A.LOCATIONCODE||':') > 0 )
+                  AND a.modulecode = :P182_MODULECODE
+                  AND A.INVOICEDATE BETWEEN :P182_FROMDATE AND :P182_TODATE
+                  AND ( :P182_INVOICENO IS NULL OR instr(':'||:P182_INVOICENO||':',':'||A.MODULETNO||':') > 0 )
+                
+                
+                
+                /*select  TO_NUMBER(:P182_TNO) AS TNO,
+                       A.TNO AS MODULETNO,
+                       'CCINVOICE' AS MODULECODE,
+                       null as REMARK,
+                       :GLOBAL_LOGINNAME AS CREATOR,
+                       SYSDATE AS CREATIONTIME,
+                       NULL AS ACKNO,
+                       NULL AS ACKDATE,
+                       NULL AS IRN,
+                       NULL AS BUYERGSTIN,
+                       A.CCINVOICENO AS INVOICENO,
+                       A.CCINVOICEDATE AS INVOICEDATE,
+                       NULL AS EWBNO,
+                       NULL AS SIGNEDQRCODE,
+                       NULL AS EWBDATE,
+                       NULL AS VALIDTILLDATE,
+                       A.TNO AS CCINVOICETNO,
+                       NULL AS ERROR,
+                       NULL AS CANCELPORTALRESPONSE,
+                       NULL AS CANCELDATE,
+                       NULL AS CANCELERROR,
+                       NULL AS CANCELREASONCODE,
+                       NULL AS CANCELREMARK,
+                       NULL AS EWAYBILLPORTALRESPONSE,
+                       NULL AS EWAYBILLERROR,
+                       NULL AS PORTALRESPONSE,
+                       NULL AS ISDELETED,
+                       NULL AS DELETIONTIME,
+                       NULL AS DELETEDBY,
+                       NULL AS SELLERGSTIN,
+                       A.LOCATIONCODE,
+                       B.PARTYNAME,
+                       a.ccinvoiceamount as amount,
+                       'Check' as check1,
+                       'Req IRN' as ReqIRN,
+                       'Get IRN' as GetIRN,
+                       'Cancel' as Cancel
+                    FROM CCINVOICE A, PARTY B
+                    WHERE A.PARTYCODE = B.PARTYCODE
+                      AND NOT EXISTS ( SELECT 1 FROM EINVOICE AA WHERE AA.MODULETNO = A.TNO)
+                      AND NVL(:P182_PENDINGFOREINVOICE ,'NO') = 'YES'
+                      AND :P182_MODULECODE='CCINVOICE'
+                      and A.CCINVOICEDATE between :P182_FROMDATE and :P182_TODATE
+                      and ( :P182_LOCATIONCODE IS NULL OR instr(':'||:P182_LOCATIONCODE||':',':'||A.LOCATIONCODE||':') > 0 )
+                 UNION ALL
+                 select  TO_NUMBER(:P182_TNO) AS TNO,
+                       A.TNO AS MODULETNO,
+                       'CREDITNOTE' AS MODULECODE,
+                       null as REMARK,
+                       :GLOBAL_LOGINNAME AS CREATOR,
+                       SYSDATE AS CREATIONTIME,
+                       NULL AS ACKNO,
+                       NULL AS ACKDATE,
+                       NULL AS IRN,
+                       NULL AS BUYERGSTIN,
+                       A.creditnoteNO AS INVOICENO,
+                       A.creditnoteDATE AS INVOICEDATE,
+                       NULL AS EWBNO,
+                       NULL AS SIGNEDQRCODE,
+                       NULL AS EWBDATE,
+                       NULL AS VALIDTILLDATE,
+                       A.TNO AS CCINVOICETNO,
+                       NULL AS ERROR,
+                       NULL AS CANCELPORTALRESPONSE,
+                       NULL AS CANCELDATE,
+                       NULL AS CANCELERROR,
+                       NULL AS CANCELREASONCODE,
+                       NULL AS CANCELREMARK,
+                       NULL AS EWAYBILLPORTALRESPONSE,
+                       NULL AS EWAYBILLERROR,
+                       NULL AS PORTALRESPONSE,
+                       NULL AS ISDELETED,
+                       NULL AS DELETIONTIME,
+                       NULL AS DELETEDBY,
+                       NULL AS SELLERGSTIN,
+                       A.LOCATIONCODE,
+                       B.PARTYNAME,
+                       a.creditnoteamount as amount,
+                       'Check' as check1,
+                       'Req IRN' as ReqIRN,
+                       'Get IRN' as GetIRN,
+                       'Cancel' as Cancel
+                    FROM creditnote A, PARTY B
+                    WHERE A.PARTYCODE = B.PARTYCODE
+                      AND NOT EXISTS ( SELECT 1 FROM EINVOICE AA WHERE AA.MODULETNO = A.TNO)
+                      AND NVL(:P182_PENDINGFOREINVOICE ,'NO') = 'YES'
+                      AND :P182_MODULECODE='CREDITNOTE'
+                      and A.creditnoteDATE between :P182_FROMDATE and :P182_TODATE
+                      and ( :P182_LOCATIONCODE IS NULL OR instr(':'||:P182_LOCATIONCODE||':',':'||A.LOCATIONCODE||':') > 0 )
+                 UNION ALL
+                 select  TO_NUMBER(:P182_TNO) AS TNO,
+                       A.TNO AS MODULETNO,
+                       'DEBITNOTE' AS MODULECODE,
+                       null as REMARK,
+                       :GLOBAL_LOGINNAME AS CREATOR,
+                       SYSDATE AS CREATIONTIME,
+                       NULL AS ACKNO,
+                       NULL AS ACKDATE,
+                       NULL AS IRN,
+                       NULL AS BUYERGSTIN,
+                       A.debitnoteNO AS INVOICENO,
+                       A.debitnoteDATE AS INVOICEDATE,
+                       NULL AS EWBNO,
+                       NULL AS SIGNEDQRCODE,
+                       NULL AS EWBDATE,
+                       NULL AS VALIDTILLDATE,
+                       A.TNO AS CCINVOICETNO,
+                       NULL AS ERROR,
+                       NULL AS CANCELPORTALRESPONSE,
+                       NULL AS CANCELDATE,
+                       NULL AS CANCELERROR,
+                       NULL AS CANCELREASONCODE,
+                       NULL AS CANCELREMARK,
+                       NULL AS EWAYBILLPORTALRESPONSE,
+                       NULL AS EWAYBILLERROR,
+                       NULL AS PORTALRESPONSE,
+                       NULL AS ISDELETED,
+                       NULL AS DELETIONTIME,
+                       NULL AS DELETEDBY,
+                       NULL AS SELLERGSTIN,
+                       A.LOCATIONCODE,
+                       B.PARTYNAME,
+                       a.debitnoteamount as amount,
+                       'Check' as check1,
+                       'Req IRN' as ReqIRN,
+                       'Get IRN' as GetIRN,
+                       'Cancel' as Cancel
+                    FROM debitnote A, PARTY B
+                    WHERE A.PARTYCODE = B.PARTYCODE
+                      AND NOT EXISTS ( SELECT 1 FROM EINVOICE AA WHERE AA.MODULETNO = A.TNO)
+                      AND :P182_MODULECODE='DEBITNOTE'
+                      AND NVL(:P182_PENDINGFOREINVOICE ,'NO') = 'YES'
+                      and A.debitnoteDATE between :P182_FROMDATE and :P182_TODATE
+                      and ( :P182_LOCATIONCODE IS NULL OR instr(':'||:P182_LOCATIONCODE||':',':'||A.LOCATIONCODE||':') > 0 )
+                 UNION ALL
+                select A.TNO,
+                       A.MODULETNO,
+                       A.MODULECODE,
+                       A.REMARK,
+                       A.CREATOR,
+                       A.CREATIONTIME,
+                       A.ACKNO,
+                       A.ACKDATE,
+                       A.IRN,
+                       A.BUYERGSTIN,
+                       A.INVOICENO,
+                       A.INVOICEDATE,
+                       A.EWBNO,
+                       A.SIGNEDQRCODE,
+                       A.EWBDATE,
+                       A.VALIDTILLDATE,
+                       A.CCINVOICETNO,
+                       A.ERROR,
+                       A.CANCELPORTALRESPONSE,
+                       A.CANCELDATE,
+                       A.CANCELERROR,
+                       A.CANCELREASONCODE,
+                       A.CANCELREMARK,
+                       A.EWAYBILLPORTALRESPONSE,
+                       A.EWAYBILLERROR,
+                       A.PORTALRESPONSE,
+                       A.ISDELETED,
+                       A.DELETIONTIME,
+                       A.DELETEDBY,
+                       A.SELLERGSTIN,
+                       A.LOCATIONCODE,
+                       GETPARTYNAME(B.PARTYCODE) AS PARTYNAME,
+                       null as amount,
+                       'Check' as check1,
+                       'Req IRN' as ReqIRN,
+                       'Get IRN' as GetIRN,
+                       'Cancel' as Cancel
+                  from EINVOICE A, CCINVOICE B , creditnote c , debitnote d
+                  where A.MODULETNO = B.TNO(+)
+                  and  A.MODULETNO = c.TNO(+)
+                  and  A.MODULETNO = d.TNO(+)
+                   -- AND A.tno = :P182_TNO
+                  AND NVL(:P182_PENDINGFOREINVOICE ,'NO') = 'NO'
+                   and ( :P182_LOCATIONCODE IS NULL OR instr(':'||:P182_LOCATIONCODE||':',':'||A.LOCATIONCODE||':') > 0 )
+                  AND a.modulecode = :P182_MODULECODE
+                  AND A.INVOICEDATE BETWEEN :P182_FROMDATE AND :P182_TODATE
+                  */
+                
+                ```
+            pageItemsToSubmit: [
+                P182_TNO
+                P182_MODULECODE
+                P182_LOCATIONCODE
+                P182_FROMDATE
+                P182_TODATE
+                P182_PENDINGFOREINVOICE
+                P182_WITHEWAYBILL
+                P182_MANUALUPDATE
+                P182_INVOICENO
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: S_Einvoice
+        }
+        edit {
+            enabled: true
+            allowedOperations: [
+                add
+                update
+                delete
+            ]
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                pdf
+                excel
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 669883722451565242
+        }
+
+        savedReport 1723246 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @WITHEWAYBILL
+                layout {
+                    sequence: 89
+                }
+            )
+
+            displayColumn (
+                column: @IS_MANUAL_UPDATE
+                layout {
+                    sequence: 90
+                }
+            )
+
+            displayColumn (
+                column: @BTN_OPACITY
+                layout {
+                    sequence: 91
+                }
+            )
+
+            displayColumn (
+                column: @REMARK
+                layout {
+                    sequence: 92
+                }
+            )
+
+            displayColumn (
+                column: @CREATOR
+                layout {
+                    sequence: 93
+                }
+            )
+
+            displayColumn (
+                column: @CREATIONTIME
+                layout {
+                    sequence: 94
+                }
+            )
+
+            displayColumn (
+                column: @BUYERGSTIN
+                layout {
+                    sequence: 95
+                }
+            )
+
+            displayColumn (
+                column: @CANCELPORTALRESPONSE
+                layout {
+                    sequence: 96
+                }
+            )
+
+            displayColumn (
+                column: @EWAYBILLPORTALRESPONSE
+                layout {
+                    sequence: 97
+                }
+            )
+
+            displayColumn (
+                column: @EWAYBILLERROR
+                layout {
+                    sequence: 98
+                }
+            )
+
+            displayColumn (
+                column: @PORTALRESPONSE
+                layout {
+                    sequence: 99
+                }
+            )
+
+            displayColumn (
+                column: @ISDELETED
+                layout {
+                    sequence: 100
+                }
+            )
+
+            displayColumn (
+                column: @DELETIONTIME
+                layout {
+                    sequence: 101
+                }
+            )
+
+            displayColumn (
+                column: @DELETEDBY
+                layout {
+                    sequence: 102
+                }
+            )
+
+            displayColumn (
+                column: @SELLERGSTIN
+                layout {
+                    sequence: 103
+                }
+            )
+
+            displayColumn (
+                column: @COMPANYCODE
+                layout {
+                    show: false
+                    sequence: 26
+                }
+            )
+
+            displayColumn (
+                column: @PARTYCODE
+                layout {
+                    show: false
+                    sequence: 27
+                }
+            )
+
+            displayColumn (
+                column: @INVOICEAMOUNT
+                layout {
+                    show: false
+                    sequence: 28
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_CATG
+                layout {
+                    show: false
+                    sequence: 29
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_SUPTYP
+                layout {
+                    show: false
+                    sequence: 30
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_REGREV
+                layout {
+                    show: false
+                    sequence: 31
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_TYP
+                layout {
+                    show: false
+                    sequence: 32
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_ECMTRN
+                layout {
+                    show: false
+                    sequence: 33
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_ECMGSTIN
+                layout {
+                    show: false
+                    sequence: 34
+                }
+            )
+
+            displayColumn (
+                column: @TRANDTLS_IGSTONINTRA
+                layout {
+                    show: false
+                    sequence: 35
+                }
+            )
+
+            displayColumn (
+                column: @DOCDTLS_TYP
+                layout {
+                    show: false
+                    sequence: 36
+                }
+            )
+
+            displayColumn (
+                column: @DOCDTLS_NO
+                layout {
+                    show: false
+                    sequence: 37
+                }
+            )
+
+            displayColumn (
+                column: @DOCDTLS_DT
+                layout {
+                    show: false
+                    sequence: 38
+                }
+            )
+
+            displayColumn (
+                column: @DOCDTLS_ORGINVNO
+                layout {
+                    show: false
+                    sequence: 39
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_GSTIN
+                layout {
+                    show: false
+                    sequence: 40
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_TRDNM
+                layout {
+                    show: false
+                    sequence: 41
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_LGLNM
+                layout {
+                    show: false
+                    sequence: 42
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_ADDR1
+                layout {
+                    show: false
+                    sequence: 43
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_ADDR2
+                layout {
+                    show: false
+                    sequence: 44
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_LOC
+                layout {
+                    show: false
+                    sequence: 45
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_PIN
+                layout {
+                    show: false
+                    sequence: 46
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_STATE
+                layout {
+                    show: false
+                    sequence: 47
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_STCD
+                layout {
+                    show: false
+                    sequence: 48
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_PH
+                layout {
+                    show: false
+                    sequence: 49
+                }
+            )
+
+            displayColumn (
+                column: @SELLERDTLS_EM
+                layout {
+                    show: false
+                    sequence: 50
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_GSTIN
+                layout {
+                    show: false
+                    sequence: 51
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_LGLNM
+                layout {
+                    show: false
+                    sequence: 52
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_TRDNM
+                layout {
+                    show: false
+                    sequence: 53
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_POS
+                layout {
+                    show: false
+                    sequence: 54
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_ADDR1
+                layout {
+                    show: false
+                    sequence: 55
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_ADDR2
+                layout {
+                    show: false
+                    sequence: 56
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_LOC
+                layout {
+                    show: false
+                    sequence: 57
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_PIN
+                layout {
+                    show: false
+                    sequence: 58
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_STATE
+                layout {
+                    show: false
+                    sequence: 59
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_STCD
+                layout {
+                    show: false
+                    sequence: 60
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_PH
+                layout {
+                    show: false
+                    sequence: 61
+                }
+            )
+
+            displayColumn (
+                column: @BUYERDTLS_EM
+                layout {
+                    show: false
+                    sequence: 62
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_GSTIN
+                layout {
+                    show: false
+                    sequence: 63
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_LGLNM
+                layout {
+                    show: false
+                    sequence: 64
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_TRDNM
+                layout {
+                    show: false
+                    sequence: 65
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_ADDR1
+                layout {
+                    show: false
+                    sequence: 66
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_ADDR2
+                layout {
+                    show: false
+                    sequence: 67
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_LOC
+                layout {
+                    show: false
+                    sequence: 68
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_PIN
+                layout {
+                    show: false
+                    sequence: 69
+                }
+            )
+
+            displayColumn (
+                column: @SHIPDTLS_STCD
+                layout {
+                    show: false
+                    sequence: 70
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_ASSVAL
+                layout {
+                    show: false
+                    sequence: 71
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_SGSTVAL
+                layout {
+                    show: false
+                    sequence: 72
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_CGSTVAL
+                layout {
+                    show: false
+                    sequence: 73
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_IGSTVAL
+                layout {
+                    show: false
+                    sequence: 74
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_CESVAL
+                layout {
+                    show: false
+                    sequence: 75
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_STCESVAL
+                layout {
+                    show: false
+                    sequence: 76
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_DISCOUNT
+                layout {
+                    show: false
+                    sequence: 77
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_OTHCHRG
+                layout {
+                    show: false
+                    sequence: 78
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_RNDOFFAMT
+                layout {
+                    show: false
+                    sequence: 79
+                }
+            )
+
+            displayColumn (
+                column: @VALDTLS_TOTINVVAL
+                layout {
+                    show: false
+                    sequence: 80
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_TRANSID
+                layout {
+                    show: false
+                    sequence: 81
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_TRANSNAME
+                layout {
+                    show: false
+                    sequence: 82
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_TRANSMODE
+                layout {
+                    show: false
+                    sequence: 83
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_DISTANCE
+                layout {
+                    show: false
+                    sequence: 84
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_TRANSDOCNO
+                layout {
+                    show: false
+                    sequence: 85
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_TRANSDOCDT
+                layout {
+                    show: false
+                    sequence: 86
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_VEHICLENO
+                layout {
+                    show: false
+                    sequence: 87
+                }
+            )
+
+            displayColumn (
+                column: @EWBDTLS_VEHICLETYPE
+                layout {
+                    show: false
+                    sequence: 88
+                }
+            )
+
+            displayColumn (
+                column: @TNO
+                layout {
+                    show: false
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @MODULETNO
+                layout {
+                    show: false
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @MODULECODE
+                layout {
+                    show: false
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @ACKNO
+                layout {
+                    width: 162
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @ACKDATE
+                layout {
+                    width: 115
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @IRN
+                layout {
+                    width: 129
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @INVOICENO
+                layout {
+                    width: 185
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @INVOICEDATE
+                layout {
+                    width: 80
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @EWBNO
+                layout {
+                    width: 137
+                    sequence: 15
+                }
+            )
+
+            displayColumn (
+                column: @SIGNEDQRCODE
+                layout {
+                    width: 125
+                    sequence: 18
+                }
+            )
+
+            displayColumn (
+                column: @EWBDATE
+                layout {
+                    width: 138
+                    sequence: 16
+                }
+            )
+
+            displayColumn (
+                column: @VALIDTILLDATE
+                layout {
+                    width: 128
+                    sequence: 17
+                }
+            )
+
+            displayColumn (
+                column: @CCINVOICETNO
+                layout {
+                    show: false
+                    sequence: 24
+                }
+            )
+
+            displayColumn (
+                column: @ERROR
+                layout {
+                    width: 78
+                    sequence: 19
+                }
+            )
+
+            displayColumn (
+                column: @CANCELDATE
+                layout {
+                    width: 114
+                    sequence: 21
+                }
+            )
+
+            displayColumn (
+                column: @CANCELERROR
+                layout {
+                    width: 102
+                    sequence: 20
+                }
+            )
+
+            displayColumn (
+                column: @CANCELREASONCODE
+                layout {
+                    width: 124
+                    sequence: 22
+                }
+            )
+
+            displayColumn (
+                column: @CANCELREMARK
+                layout {
+                    width: 127
+                    sequence: 23
+                }
+            )
+
+            displayColumn (
+                column: @LOCATIONCODE
+                layout {
+                    show: false
+                    sequence: 25
+                }
+            )
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    frozen: true
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    width: 413
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @CHECK1
+                layout {
+                    width: 104
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @REQIRN
+                layout {
+                    width: 94
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @GETIRN
+                layout {
+                    width: 90
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @CANCEL
+                layout {
+                    width: 86
+                    sequence: 11
+                }
+            )
+
+        )
+
+        column ACKDATE (
+            type: datePicker
+            heading {
+                heading: Ack Date
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                databaseColumn: ACKDATE
+                dataType: date
+            }
+        )
+
+        column ACKNO (
+            type: textField
+            heading {
+                heading: Ack No
+            }
+            layout {
+                sequence: 90
+            }
+            validation {
+                maxLength: 64
+            }
+            source {
+                databaseColumn: ACKNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column BTN_OPACITY (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1050
+            }
+            source {
+                databaseColumn: BTN_OPACITY
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column BUYERDTLS_ADDR1 (
+            type: textarea
+            heading {
+                heading: Buyerdtls Addr1
+            }
+            layout {
+                sequence: 690
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_ADDR1
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_ADDR2 (
+            type: textarea
+            heading {
+                heading: Buyerdtls Addr2
+            }
+            layout {
+                sequence: 700
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_ADDR2
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_EM (
+            type: textField
+            heading {
+                heading: Buyerdtls Em
+            }
+            layout {
+                sequence: 760
+            }
+            source {
+                databaseColumn: BUYERDTLS_EM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column BUYERDTLS_GSTIN (
+            type: textarea
+            heading {
+                heading: Buyerdtls Gstin
+            }
+            layout {
+                sequence: 650
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_GSTIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_LGLNM (
+            type: textField
+            heading {
+                heading: Buyerdtls Lglnm
+            }
+            layout {
+                sequence: 660
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: BUYERDTLS_LGLNM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column BUYERDTLS_LOC (
+            type: textarea
+            heading {
+                heading: Buyerdtls Loc
+            }
+            layout {
+                sequence: 710
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_LOC
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_PH (
+            type: textField
+            heading {
+                heading: Buyerdtls Ph
+            }
+            layout {
+                sequence: 750
+            }
+            source {
+                databaseColumn: BUYERDTLS_PH
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column BUYERDTLS_PIN (
+            type: textarea
+            heading {
+                heading: Buyerdtls Pin
+            }
+            layout {
+                sequence: 720
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_PIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_POS (
+            type: textarea
+            heading {
+                heading: Buyerdtls Pos
+            }
+            layout {
+                sequence: 680
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_POS
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_STATE (
+            type: textarea
+            heading {
+                heading: Buyerdtls State
+            }
+            layout {
+                sequence: 730
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_STATE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_STCD (
+            type: textarea
+            heading {
+                heading: Buyerdtls Stcd
+            }
+            layout {
+                sequence: 740
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: BUYERDTLS_STCD
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column BUYERDTLS_TRDNM (
+            type: textField
+            heading {
+                heading: Buyerdtls Trdnm
+            }
+            layout {
+                sequence: 670
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: BUYERDTLS_TRDNM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column BUYERGSTIN (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1090
+            }
+            source {
+                databaseColumn: BUYERGSTIN
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column CANCEL (
+            type: link
+            heading {
+                heading: Cancel
+            }
+            layout {
+                sequence: 390
+            }
+            link {
+                target: {
+                    page: 23
+                    items: {
+                        P23_ACTION: CANCEL
+                        P23_INVOICEDATE: &INVOICEDATE.
+                        P23_INVOICENO: &INVOICENO.
+                        P23_LOCATIONCODE: &LOCATIONCODE.
+                        P23_MODULECODE: &MODULECODE.
+                        P23_MODULETNO: &MODULETNO.
+                        P23_TNO: &P182_TNO.
+                        P23_WITHEWAYBILL: &WITHEWAYBILL.
+                    }
+                    clearCache: 23
+                }
+                linkText: &CANCEL.
+                linkAttributes: " class=\"t-Button t-Button--simple t-Button--hot t-Button--stretch\" style=\"pointer-events:&IS_MANUAL_UPDATE.; opacity:&BTN_OPACITY.;\""
+            }
+            source {
+                databaseColumn: CANCEL
+                dataType: varchar2
+            }
+            default {
+                type: static
+                staticValue: <span class="t-Button t-Button--simple t-Button--hot t-Button--stretch">Cancel</span></a>
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column CANCELDATE (
+            type: datePicker
+            heading {
+                heading: Cancel Date
+            }
+            layout {
+                sequence: 220
+            }
+            source {
+                databaseColumn: CANCELDATE
+                dataType: date
+            }
+        )
+
+        column CANCELERROR (
+            type: textField
+            heading {
+                heading: Cancel Error
+            }
+            layout {
+                sequence: 230
+            }
+            source {
+                databaseColumn: CANCELERROR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+        )
+
+        column CANCELPORTALRESPONSE (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1100
+            }
+            source {
+                databaseColumn: CANCELPORTALRESPONSE
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column CANCELREASONCODE (
+            type: textField
+            heading {
+                heading: Cancel Reason
+            }
+            layout {
+                sequence: 240
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: CANCELREASONCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column CANCELREMARK (
+            type: textField
+            heading {
+                heading: Cancel Remark
+            }
+            layout {
+                sequence: 250
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: CANCELREMARK
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column CCINVOICETNO (
+            type: numberField
+            heading {
+                heading: Ccinvoicetno
+                alignment: end
+            }
+            layout {
+                sequence: 190
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: CCINVOICETNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column CHECK1 (
+            type: link
+            heading {
+                heading: Check
+            }
+            layout {
+                sequence: 360
+            }
+            link {
+                target: {
+                    page: 23
+                    items: {
+                        P23_ACTION: CHECK
+                        P23_INVOICEDATE: &INVOICEDATE.
+                        P23_INVOICENO: &INVOICENO.
+                        P23_LOCATIONCODE: &LOCATIONCODE.
+                        P23_MODULECODE: &MODULECODE.
+                        P23_MODULETNO: &MODULETNO.
+                        P23_TNO: &P182_TNO.
+                    }
+                    clearCache: 23
+                }
+                linkText: &CHECK1.
+                linkAttributes: " class=\"t-Button t-Button--simple t-Button--hot t-Button--stretch\" style=\"pointer-events:&IS_MANUAL_UPDATE.; opacity:&BTN_OPACITY.;\""
+            }
+            source {
+                databaseColumn: CHECK1
+                dataType: varchar2
+            }
+            default {
+                type: static
+                staticValue: <span class="t-Button t-Button--simple t-Button--hot t-Button--stretch">Check</span></a>
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column COMPANYCODE (
+            type: textField
+            heading {
+                heading: Companycode
+            }
+            layout {
+                sequence: 400
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: COMPANYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column CREATIONTIME (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1080
+            }
+            source {
+                databaseColumn: CREATIONTIME
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column CREATOR (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1070
+            }
+            source {
+                databaseColumn: CREATOR
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column DELETEDBY (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1160
+            }
+            source {
+                databaseColumn: DELETEDBY
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column DELETIONTIME (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1150
+            }
+            source {
+                databaseColumn: DELETIONTIME
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column DOCDTLS_DT (
+            type: textField
+            heading {
+                heading: Docdtls Dt
+            }
+            layout {
+                sequence: 520
+            }
+            validation {
+                maxLength: 10
+            }
+            source {
+                databaseColumn: DOCDTLS_DT
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column DOCDTLS_NO (
+            type: textField
+            heading {
+                heading: Docdtls No
+            }
+            layout {
+                sequence: 510
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: DOCDTLS_NO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column DOCDTLS_ORGINVNO (
+            type: textField
+            heading {
+                heading: Docdtls Orginvno
+            }
+            layout {
+                sequence: 530
+            }
+            source {
+                databaseColumn: DOCDTLS_ORGINVNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column DOCDTLS_TYP (
+            type: textField
+            heading {
+                heading: Docdtls Typ
+            }
+            layout {
+                sequence: 500
+            }
+            validation {
+                maxLength: 3
+            }
+            source {
+                databaseColumn: DOCDTLS_TYP
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ERROR (
+            type: textField
+            heading {
+                heading: Error
+            }
+            layout {
+                sequence: 200
+            }
+            source {
+                databaseColumn: ERROR
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+        )
+
+        column EWAYBILLERROR (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1120
+            }
+            source {
+                databaseColumn: EWAYBILLERROR
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column EWAYBILLPORTALRESPONSE (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1110
+            }
+            source {
+                databaseColumn: EWAYBILLPORTALRESPONSE
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column EWBDATE (
+            type: datePicker
+            heading {
+                heading: EWB Date
+            }
+            layout {
+                sequence: 170
+            }
+            source {
+                databaseColumn: EWBDATE
+                dataType: date
+            }
+        )
+
+        column EWBDTLS_DISTANCE (
+            type: numberField
+            heading {
+                heading: Ewbdtls Distance
+                alignment: end
+            }
+            layout {
+                sequence: 980
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: EWBDTLS_DISTANCE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EWBDTLS_TRANSDOCDT (
+            type: textField
+            heading {
+                heading: Ewbdtls Transdocdt
+            }
+            layout {
+                sequence: 1000
+            }
+            validation {
+                maxLength: 10
+            }
+            source {
+                databaseColumn: EWBDTLS_TRANSDOCDT
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EWBDTLS_TRANSDOCNO (
+            type: textField
+            heading {
+                heading: Ewbdtls Transdocno
+            }
+            layout {
+                sequence: 990
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EWBDTLS_TRANSDOCNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EWBDTLS_TRANSID (
+            type: textField
+            heading {
+                heading: Ewbdtls Transid
+            }
+            layout {
+                sequence: 950
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EWBDTLS_TRANSID
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EWBDTLS_TRANSMODE (
+            type: numberField
+            heading {
+                heading: Ewbdtls Transmode
+                alignment: end
+            }
+            layout {
+                sequence: 970
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: EWBDTLS_TRANSMODE
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column EWBDTLS_TRANSNAME (
+            type: textField
+            heading {
+                heading: Ewbdtls Transname
+            }
+            layout {
+                sequence: 960
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EWBDTLS_TRANSNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EWBDTLS_VEHICLENO (
+            type: textField
+            heading {
+                heading: Ewbdtls Vehicleno
+            }
+            layout {
+                sequence: 1010
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: EWBDTLS_VEHICLENO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EWBDTLS_VEHICLETYPE (
+            type: textField
+            heading {
+                heading: Ewbdtls Vehicletype
+            }
+            layout {
+                sequence: 1020
+            }
+            validation {
+                maxLength: 3
+            }
+            source {
+                databaseColumn: EWBDTLS_VEHICLETYPE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column EWBNO (
+            type: textField
+            heading {
+                heading: EWB No
+            }
+            layout {
+                sequence: 150
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: EWBNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column GETIRN (
+            type: link
+            heading {
+                heading: Getirn
+            }
+            layout {
+                sequence: 380
+            }
+            link {
+                target: {
+                    page: 23
+                    items: {
+                        P23_ACTION: GETIRN
+                        P23_INVOICEDATE: &INVOICEDATE.
+                        P23_INVOICENO: &INVOICENO.
+                        P23_LOCATIONCODE: &LOCATIONCODE.
+                        P23_MODULECODE: &MODULECODE.
+                        P23_MODULETNO: &MODULETNO.
+                        P23_TNO: &P182_TNO.
+                    }
+                    clearCache: 23
+                }
+                linkText: &GETIRN.
+                linkAttributes: " class=\"t-Button t-Button--simple t-Button--hot t-Button--stretch\" style=\"pointer-events:&IS_MANUAL_UPDATE.; opacity:&BTN_OPACITY.;\""
+            }
+            source {
+                databaseColumn: GETIRN
+                dataType: varchar2
+            }
+            default {
+                type: static
+                staticValue: <span class="t-Button t-Button--simple t-Button--hot t-Button--stretch">Get IRN</span></a>
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column INVOICEAMOUNT (
+            type: numberField
+            heading {
+                heading: Invoiceamount
+                alignment: end
+            }
+            layout {
+                sequence: 420
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: INVOICEAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column INVOICEDATE (
+            type: datePicker
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                databaseColumn: INVOICEDATE
+                dataType: date
+            }
+        )
+
+        column INVOICENO (
+            type: textField
+            heading {
+                heading: Invoice/DBN/CRN No
+            }
+            layout {
+                sequence: 130
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: INVOICENO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column IRN (
+            type: textField
+            heading {
+                heading: IRN
+            }
+            layout {
+                sequence: 110
+            }
+            validation {
+                maxLength: 64
+            }
+            source {
+                databaseColumn: IRN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column ISDELETED (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1140
+            }
+            source {
+                databaseColumn: ISDELETED
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column IS_MANUAL_UPDATE (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1040
+            }
+            source {
+                databaseColumn: IS_MANUAL_UPDATE
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column LOCATIONCODE (
+            type: textField
+            heading {
+                heading: Locationcode
+            }
+            layout {
+                sequence: 330
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: LOCATIONCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column MODULECODE (
+            type: textField
+            heading {
+                heading: Modulecode
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: MODULECODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column MODULETNO (
+            type: numberField
+            heading {
+                heading: Moduletno
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: MODULETNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column PARTYCODE (
+            type: textField
+            heading {
+                heading: Partycode
+            }
+            layout {
+                sequence: 410
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: PARTYCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARTYNAME (
+            type: textField
+            heading {
+                heading: Party Name
+            }
+            layout {
+                sequence: 340
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column PORTALRESPONSE (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1130
+            }
+            source {
+                databaseColumn: PORTALRESPONSE
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column REMARK (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1060
+            }
+            source {
+                databaseColumn: REMARK
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column REQIRN (
+            type: link
+            heading {
+                heading: Req.IRN
+            }
+            layout {
+                sequence: 370
+            }
+            link {
+                target: {
+                    page: 23
+                    items: {
+                        P23_TNO: &P182_TNO.
+                        P23_ACTION: REQUESTIRN
+                        P23_INVOICEDATE: &INVOICEDATE.
+                        P23_INVOICENO: &INVOICENO.
+                        P23_LOCATIONCODE: &LOCATIONCODE.
+                        P23_MODULECODE: &MODULECODE.
+                        P23_MODULETNO: &MODULETNO.
+                        P23_WITHEWAYBILL: &WITHEWAYBILL.
+                    }
+                    clearCache: 23
+                }
+                linkText: &REQIRN.
+                linkAttributes: " class=\"t-Button t-Button--simple t-Button--hot t-Button--stretch\" style=\"pointer-events:&IS_MANUAL_UPDATE.; opacity:&BTN_OPACITY.;\""
+            }
+            source {
+                databaseColumn: REQIRN
+                dataType: varchar2
+            }
+            default {
+                type: static
+                staticValue: <span class="t-Button t-Button--simple t-Button--hot t-Button--stretch">Req.IRN</span></a>
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SELLERDTLS_ADDR1 (
+            type: textarea
+            heading {
+                heading: Sellerdtls Addr1
+            }
+            layout {
+                sequence: 570
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_ADDR1
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_ADDR2 (
+            type: textarea
+            heading {
+                heading: Sellerdtls Addr2
+            }
+            layout {
+                sequence: 580
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_ADDR2
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_EM (
+            type: textarea
+            heading {
+                heading: Sellerdtls Em
+            }
+            layout {
+                sequence: 640
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_EM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_GSTIN (
+            type: textarea
+            heading {
+                heading: Sellerdtls Gstin
+            }
+            layout {
+                sequence: 540
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_GSTIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_LGLNM (
+            type: textField
+            heading {
+                heading: Sellerdtls Lglnm
+            }
+            layout {
+                sequence: 560
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SELLERDTLS_LGLNM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SELLERDTLS_LOC (
+            type: textarea
+            heading {
+                heading: Sellerdtls Loc
+            }
+            layout {
+                sequence: 590
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_LOC
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_PH (
+            type: textarea
+            heading {
+                heading: Sellerdtls Ph
+            }
+            layout {
+                sequence: 630
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_PH
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_PIN (
+            type: textarea
+            heading {
+                heading: Sellerdtls Pin
+            }
+            layout {
+                sequence: 600
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_PIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_STATE (
+            type: textarea
+            heading {
+                heading: Sellerdtls State
+            }
+            layout {
+                sequence: 610
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_STATE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_STCD (
+            type: textarea
+            heading {
+                heading: Sellerdtls Stcd
+            }
+            layout {
+                sequence: 620
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SELLERDTLS_STCD
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SELLERDTLS_TRDNM (
+            type: textField
+            heading {
+                heading: Sellerdtls Trdnm
+            }
+            layout {
+                sequence: 550
+            }
+            validation {
+                maxLength: 4
+            }
+            source {
+                databaseColumn: SELLERDTLS_TRDNM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SELLERGSTIN (
+            type: hidden
+            settings {
+                valueProtected: false
+            }
+            layout {
+                sequence: 1170
+            }
+            source {
+                databaseColumn: SELLERGSTIN
+                dataType: varchar2
+            }
+            exportPrinting {
+                includeInExportPrint: false
+            }
+        )
+
+        column SHIPDTLS_ADDR1 (
+            type: textarea
+            heading {
+                heading: Shipdtls Addr1
+            }
+            layout {
+                sequence: 800
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SHIPDTLS_ADDR1
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SHIPDTLS_ADDR2 (
+            type: textarea
+            heading {
+                heading: Shipdtls Addr2
+            }
+            layout {
+                sequence: 810
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SHIPDTLS_ADDR2
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SHIPDTLS_GSTIN (
+            type: textarea
+            heading {
+                heading: Shipdtls Gstin
+            }
+            layout {
+                sequence: 770
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SHIPDTLS_GSTIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SHIPDTLS_LGLNM (
+            type: textField
+            heading {
+                heading: Shipdtls Lglnm
+            }
+            layout {
+                sequence: 780
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SHIPDTLS_LGLNM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SHIPDTLS_LOC (
+            type: textarea
+            heading {
+                heading: Shipdtls Loc
+            }
+            layout {
+                sequence: 820
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SHIPDTLS_LOC
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SHIPDTLS_PIN (
+            type: textarea
+            heading {
+                heading: Shipdtls Pin
+            }
+            layout {
+                sequence: 830
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SHIPDTLS_PIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SHIPDTLS_STCD (
+            type: textarea
+            heading {
+                heading: Shipdtls Stcd
+            }
+            layout {
+                sequence: 840
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: SHIPDTLS_STCD
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column SHIPDTLS_TRDNM (
+            type: textField
+            heading {
+                heading: Shipdtls Trdnm
+            }
+            layout {
+                sequence: 790
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: SHIPDTLS_TRDNM
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column SIGNEDQRCODE (
+            type: textarea
+            heading {
+                heading: Signed QR Code
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                databaseColumn: SIGNEDQRCODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+        )
+
+        column TNO (
+            type: numberField
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TNO
+                dataType: number
+                primaryKey: true
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column TRANDTLS_CATG (
+            type: textField
+            heading {
+                heading: Trandtls Catg
+            }
+            layout {
+                sequence: 430
+            }
+            validation {
+                maxLength: 3
+            }
+            source {
+                databaseColumn: TRANDTLS_CATG
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TRANDTLS_ECMGSTIN (
+            type: textField
+            heading {
+                heading: Trandtls Ecmgstin
+            }
+            layout {
+                sequence: 480
+            }
+            source {
+                databaseColumn: TRANDTLS_ECMGSTIN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TRANDTLS_ECMTRN (
+            type: textField
+            heading {
+                heading: Trandtls Ecmtrn
+            }
+            layout {
+                sequence: 470
+            }
+            validation {
+                maxLength: 1
+            }
+            source {
+                databaseColumn: TRANDTLS_ECMTRN
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TRANDTLS_IGSTONINTRA (
+            type: textField
+            heading {
+                heading: Trandtls Igstonintra
+            }
+            layout {
+                sequence: 490
+            }
+            validation {
+                maxLength: 1
+            }
+            source {
+                databaseColumn: TRANDTLS_IGSTONINTRA
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TRANDTLS_REGREV (
+            type: textField
+            heading {
+                heading: Trandtls Regrev
+            }
+            layout {
+                sequence: 450
+            }
+            validation {
+                maxLength: 2
+            }
+            source {
+                databaseColumn: TRANDTLS_REGREV
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TRANDTLS_SUPTYP (
+            type: textField
+            heading {
+                heading: Trandtls Suptyp
+            }
+            layout {
+                sequence: 440
+            }
+            validation {
+                maxLength: 3
+            }
+            source {
+                databaseColumn: TRANDTLS_SUPTYP
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column TRANDTLS_TYP (
+            type: textField
+            heading {
+                heading: Trandtls Typ
+            }
+            layout {
+                sequence: 460
+            }
+            validation {
+                maxLength: 3
+            }
+            source {
+                databaseColumn: TRANDTLS_TYP
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column VALDTLS_ASSVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Assval
+                alignment: end
+            }
+            layout {
+                sequence: 850
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_ASSVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_CESVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Cesval
+                alignment: end
+            }
+            layout {
+                sequence: 890
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_CESVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_CGSTVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Cgstval
+                alignment: end
+            }
+            layout {
+                sequence: 870
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_CGSTVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_DISCOUNT (
+            type: numberField
+            heading {
+                heading: Valdtls Discount
+                alignment: end
+            }
+            layout {
+                sequence: 910
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_DISCOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_IGSTVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Igstval
+                alignment: end
+            }
+            layout {
+                sequence: 880
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_IGSTVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_OTHCHRG (
+            type: numberField
+            heading {
+                heading: Valdtls Othchrg
+                alignment: end
+            }
+            layout {
+                sequence: 920
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_OTHCHRG
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_RNDOFFAMT (
+            type: numberField
+            heading {
+                heading: Valdtls Rndoffamt
+                alignment: end
+            }
+            layout {
+                sequence: 930
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_RNDOFFAMT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_SGSTVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Sgstval
+                alignment: end
+            }
+            layout {
+                sequence: 860
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_SGSTVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_STCESVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Stcesval
+                alignment: end
+            }
+            layout {
+                sequence: 900
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_STCESVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALDTLS_TOTINVVAL (
+            type: numberField
+            heading {
+                heading: Valdtls Totinvval
+                alignment: end
+            }
+            layout {
+                sequence: 940
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: VALDTLS_TOTINVVAL
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column VALIDTILLDATE (
+            type: datePicker
+            heading {
+                heading: Valid Till Date
+            }
+            layout {
+                sequence: 180
+            }
+            source {
+                databaseColumn: VALIDTILLDATE
+                dataType: date
+            }
+        )
+
+        column WITHEWAYBILL (
+            type: textarea
+            heading {
+                heading: Withewaybill
+            }
+            layout {
+                sequence: 1030
+            }
+            validation {
+                maxLength: 2000
+            }
+            source {
+                databaseColumn: WITHEWAYBILL
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: E-Invoice
+        }
+    )
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--accent15
+                t-Region--scrollBody
+                t-Form--slimPadding
+            ]
+        }
+    )
+
+    pageItem P182_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 70
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P182_CALLEDFROMPAGE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: 134
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_FORMSTATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 50
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P182_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select sysdate-7 from dual
+        }
+    )
+
+    pageItem P182_INVOICENO (
+        type: selectOne
+        label {
+            label: Invoice No
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select DISTINCT
+                     INVOICENO,
+                     MODULETNO
+                FROM INVOICEFOREI0101REVISED a
+                WHERE MODULECODE = :P182_MODULECODE
+                ```
+        }
+        cascadingLov {
+            parentItems: P182_MODULECODE
+            itemsToSubmit: P182_INVOICENO
+        }
+        layout {
+            sequence: 80
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+            valuePlaceholder: -- Enter the Invoice No --
+        }
+    )
+
+    pageItem P182_INVOICETNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_LOCATIONCODE (
+        type: popupLov
+        label {
+            label: Location
+            alignment: left
+        }
+        settings {
+            fetchOnSearch: true
+        }
+        lov {
+            type: sharedComponent
+            lov: @location
+            displayNullValue: false
+        }
+        layout {
+            sequence: 20
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                SELECT LOCATIONCODE 
+                FROM (SELECT DISTINCT LOCATIONCODE FROM INVOICEFOREI0101REVISED)
+                WHERE ROWNUM = 1;
+                ```
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_MANUALUPDATE (
+        type: checkbox
+        label {
+            label: Manual Update
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 110
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_MODULECODE (
+        type: popupLov
+        label {
+            label: Module
+            alignment: left
+        }
+        settings {
+            fetchOnSearch: true
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select modulename , modulecode from module
+                where modulecode in ('CREDITNOTE','DEBITNOTE','INVOICE','SERVICEBILL')
+                ```
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: static
+            staticValue: INVOICE
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_MODULEFLOW (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 40
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: static
+            staticValue: NO
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_ONTHETABLE (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 30
+            region: @common-fields
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_PASSFAILREMARK (
+        type: hidden
+        layout {
+            sequence: 20
+            region: @common-fields
+            slot: regionBody
+        }
+    )
+
+    pageItem P182_PENDINGFOREINVOICE (
+        type: checkbox
+        label {
+            label: Pending For E-Invoice
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 70
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_STATUS (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 80
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: expression
+            plsqlExpression: nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P182_TNO), 'Status')
+        }
+    )
+
+    pageItem P182_STATUSRIGHT (
+        type: hidden
+        layout {
+            sequence: 10
+            region: @common-fields
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select B.STATUSPRIVILEGE
+                  From module a, moduleprivilege b, bossuser c
+                 Where a.modulecode = b.modulecode
+                   And b.bossusercode = c.bossusercode
+                   And c.loginname = :GLOBAL_LOGINNAME
+                   And A.ENTRYPAGENO = :APP_PAGE_ID
+                   AND B.COMPANYCODE = :GLOBAL_COMPANYCODE
+                ```
+        }
+    )
+
+    pageItem P182_TNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @common-fields
+            slot: regionBody
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    pageItem P182_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select sysdate from dual
+        }
+    )
+
+    pageItem P182_WITHEWAYBILL (
+        type: checkbox
+        label {
+            label: With E-Way Bill
+            alignment: left
+        }
+        settings {
+            useDefaults: false
+            checkedValue: YES
+            uncheckedValue: NO
+        }
+        layout {
+            sequence: 100
+            region: @filter
+            slot: regionBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+        }
+        default {
+            type: static
+            staticValue: YES
+        }
+        sessionState {
+            storage: request
+        }
+    )
+
+    button addnew (
+        buttonName: AddNew
+        label: Add New
+        layout {
+            sequence: 140
+            region: @buttons
+            slot: change
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--primary
+                t-Button--pillEnd
+            ]
+            icon: fa-plus-square-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: &APP_PAGE_ID.
+                clearCache: &APP_PAGE_ID.
+            }
+            warnOnUnsavedChanges: doNotCheck
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: Want to Add New Record?
+        }
+    )
+
+    button cancel (
+        buttonName: CANCEL
+        label: Cancel
+        layout {
+            sequence: 100
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-arrow-circle-o-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button create (
+        buttonName: CREATE
+        label: Create
+        layout {
+            sequence: 130
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: insert
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button delete (
+        buttonName: DELETE
+        label: Delete
+        layout {
+            sequence: 110
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-trash-o
+        }
+        behavior {
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: delete
+            requiresConfirmation: true
+        }
+        confirmation {
+            message: &APP_TEXT$DELETE_MSG!RAW.
+            style: danger
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button fail (
+        buttonName: Fail
+        label: Fail
+        layout {
+            sequence: 60
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--danger
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-down
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button flow (
+        buttonName: Flow
+        label: FLow
+        layout {
+            sequence: 70
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-workflow
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 162
+                items: {
+                    P162_TNO: &P71_TNO.
+                }
+                clearCache: 162
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button getrecord (
+        buttonName: getrecord
+        label: Refresh
+        layout {
+            sequence: 120
+            region: @filter
+            slot: regionBody
+            column: 5
+            columnSpan: 4
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--stretch
+            ]
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button pass (
+        buttonName: Pass
+        label: Pass
+        layout {
+            sequence: 50
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-thumbs-o-up
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 163
+                clearCache: 163
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        advanced {
+            htmlDomId: PASS
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button print (
+        buttonName: PRINT_1
+        label: Print
+        layout {
+            sequence: 90
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--pill
+            ]
+            icon: fa-print
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button save (
+        buttonName: SAVE
+        label: Apply Changes
+        layout {
+            sequence: 120
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--success
+                t-Button--pill
+            ]
+            icon: fa-save-as
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+            databaseAction: update
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    button status (
+        buttonName: Status
+        label: &P202_STATUS.
+        layout {
+            sequence: 80
+            region: @buttons
+            slot: close
+        }
+        appearance {
+            buttonTemplate: @/icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--warning
+                t-Button--pill
+            ]
+            icon: fa-comments-o
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 164
+                clearCache: 164
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+    dynamicAction delete-unsaved-data (
+        name: Delete unsaved data
+        execution {
+            sequence: 40
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    delete from PURCHASEORDERDETAIL a
+                        where not exists (
+                            select 1 from PURCHASEORDER  aa  
+                            where aa.tno = a.tno
+                        );
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction disable-delete-update-if-status-is-active (
+        name: DISABLE DELETE UPDATE IF STATUS IS ACTIVE
+        execution {
+            sequence: 70
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.DELETEPRIVILEGE= 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: item=value
+                item: P182_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 70
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from loadingadvice aa where aa.purchaseordertno = :P182_TNO;
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.DELETEPRIVILEGE= 'YES'
+                       and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-print-button (
+        name: Disable Print Button
+        execution {
+            sequence: 100
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.PRINTPRIVILEGE= 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.PRINTPRIVILEGE= 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-save-button-for-updateprivillege (
+        name: DISABLE SAVE BUTTON FOR UPDATEPRIVILLEGE
+        execution {
+            sequence: 80
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'NO'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.UPDATEPRIVILEGE = 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 50
+            }
+            serverSideCondition {
+                type: item=value
+                item: P182_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 60
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery: select 1 from loadingadvice aa where aa.purchaseordertno = :P182_TNO;
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    SELECT 1 FROM MODULEFLOW A , MODULEFLOWUSER B , bossuser C
+                    WHERE A.TNO = B.TNO
+                    AND A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                    AND B.BOSSUSERCODE = C.BOSSUSERCODE
+                    AND C.BOSSUSERNAME = :APP_USER
+                    AND B.UPDATEPRIVILEGE = 'YES'
+                    UNION ALL
+                    Select 1
+                      From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.UPDATEPRIVILEGE = 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction disable-status-button (
+        name: Disable Status Button
+        execution {
+            sequence: 90
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.STATUSPRIVILEGE = 'NO'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: rowsReturned
+                sqlQuery:
+                    ```sql
+                    Select 1 From MODULEPRIVILEGE A
+                     Where A.MODULECODE = GetModuleCodeForPageNo(:APP_PAGE_ID)
+                       And a.bossusercode = :GLOBAL_BOSSUSERCODE
+                       AND A.STATUSPRIVILEGE = 'YES'
+                    and a.CompanyCode = :global_CompanyCode
+                    ```
+            }
+        )
+
+    )
+
+    dynamicAction documentstatus (
+        name: DocumentStatus
+        execution {
+            sequence: 30
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @status
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 70
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item=value
+                item: P182_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-enable (
+            action: enable
+            execution {
+                sequence: 60
+                fireOnInit: false
+            }
+            clientSideCondition {
+                type: item!=value
+                item: P182_STATUS
+                value: ACTIVE
+            }
+        )
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode: SetDocumentStatusCode(GetModuleCodeForPageNo(:APP_PAGE_ID),:P182_TNO,:P182_STATUS);
+                itemsToSubmit: [
+                    P182_TNO
+                    P182_STATUS
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    $('#STATUS span').text('');
+                    $('#STATUS').text($v('P182_STATUS'));
+                    
+                    
+                    ```
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code-2 (
+            action: executeJsCode
+            settings {
+                jsCode: location.reload()
+            }
+            execution {
+                sequence: 40
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 50
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P164_DOCUMENTSTATUSCODE
+            }
+            affectedElements {
+                selectionType: items
+                items: P182_STATUS
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction enable-disable-pass-fail-flow (
+        name: Enable Disable Pass/Fail/Flow
+        execution {
+            sequence: 60
+        }
+        when {
+            event: ready
+        }
+
+        action native-disable (
+            action: disable
+            execution {
+                sequence: 10
+            }
+            clientSideCondition {
+                type: item=value
+                item: P182_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-2 (
+            action: disable
+            execution {
+                sequence: 20
+            }
+            clientSideCondition {
+                type: item=value
+                item: P182_ONTHETABLE
+                value: NO
+            }
+        )
+
+        action native-disable-3 (
+            action: disable
+            execution {
+                sequence: 30
+            }
+            clientSideCondition {
+                type: item=value
+                item: P182_MODULEFLOW
+                value: NO
+            }
+        )
+
+    )
+
+    dynamicAction fail (
+        name: Fail
+        execution {
+            sequence: 20
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @fail
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    declare
+                    		cursor cPassFail is
+                    				select
+                    						a.TNo,
+                    						a.TokenNo										
+                    				from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    				where a.ModuleFlowTNo = b.TNo
+                    						and b.TNo = c.TNo
+                    						and a.BossUserCode = c.BossUserCode
+                    						and c.BossUserCode = d.BossUserCode
+                    						and a.ModuleTNo = ':P'||to_char(:APP_PAGE_ID)||'_TNo'
+                    						and d.LoginName = User
+                    						and a.isPass is null
+                    						and a.IsFail is null
+                    						and a.IsForwarded is null
+                    						and a.IsRebounded is null																				
+                    		;
+                    		vPassFail cPassFail%rowtype;
+                        
+                        tTokenNo NUMBER;
+                        TMP VARCHAR2(100) := :P60_TNO;
+                    begin
+                    		open cPassFail;
+                    		fetch cPassFail into vPassFail;
+                    		if cPassFail%FOUND then
+                    				tTokenNo := vPassFail.TokenNo;
+                    				close cPassFail;
+                    
+                               	
+                    				update PassFail a
+                    				set a.IsFail = 'YES',
+                    						a.remark = ':P'||to_char(:APP_PAGE_ID)||'_PASSFAILREMARK'
+                    				where a.TNo = vPassFail.TNo;
+                    				
+                    				SendBackPassFail(tTokenNo , TMP );
+                    		    		
+                    				
+                    				commit;
+                    		else
+                    				close cPassFail;
+                    		end if;
+                    
+                    	
+                    end;
+                    ```
+                itemsToSubmit: [
+                    P182_TNO
+                    P182_COMPANYCODE
+                    P182_PURCHASEORDERNO
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P182_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction go-back-to-called-form (
+        name: Go Back To Called Form
+        execution {
+            sequence: 50
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @cancel
+        }
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var x = apex.item('P182_CALLEDFROMPAGE').getValue();
+                    var url = "f?p=#APP_ID#:#2002#:#SESSION#::NO:RP,#2002#";
+                    //:P2002_TNO:#P2002_TNO#";
+                    
+                    url = url.replace("#APP_ID#", $v("pFlowId"));
+                    url = url.replace("#SESSION#", $v("pInstance"));
+                    url = url.replace("#2002#", x);
+                    apex.server.process("PREPARE_URL", {
+                    x01: url
+                      }, {
+                      success: function(pData) {
+                       if (pData.success === true) {
+                         apex.navigation.redirect(pData.url);
+                       } else {
+                         console.log("FALSE");
+                       }
+                     },
+                    error: function(request, status, error) {
+                    console.log("status---" + status + " error----" + error);
+                      }
+                    });
+                    ```
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction insert-into-einvoice (
+        name: Insert into einvoice
+        execution {
+            sequence: 110
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @getrecord
+        }
+        serverSideCondition {
+            type: never
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    begin
+                        if :P182_MODULECODE = 'DEBITNOTE' then
+                            insert into einvoice(
+                                tno , 
+                                moduletno,
+                                modulecode,
+                                invoiceno,
+                                invoicedate
+                            )
+                            (
+                                select
+                                    :P182_TNO,
+                                    tno,
+                                    'DEBITNOTE',
+                                    debitnoteno,
+                                    debitnotedate
+                                from debitnote
+                                where debitnotedate between :P182_FROMDATE and :P182_TODATE
+                                and locationcode = :P182_LOCATIONCODE
+                            );
+                    
+                        end if;
+                    
+                    
+                        if :P182_MODULECODE = 'CREDITNOTE' then
+                            insert into einvoice(
+                                tno , 
+                                moduletno,
+                                modulecode,
+                                invoiceno,
+                                invoicedate
+                            )
+                            (
+                                select
+                                    :P182_TNO,
+                                    tno,
+                                    'CREDITNOTE',
+                                    CREDITNOTEno,
+                                    CREDITNOTEdate
+                                from CREDITNOTE
+                                where CREDITNOTEdate between :P182_FROMDATE and :P182_TODATE
+                                and locationcode = :P182_LOCATIONCODE
+                            );
+                    
+                        end if;
+                    
+                        if :P182_MODULECODE = 'CCINVOICE' then
+                            insert into einvoice(
+                                tno , 
+                                moduletno,
+                                modulecode,
+                                invoiceno,
+                                invoicedate
+                            )
+                            (
+                                select
+                                    :P182_TNO,
+                                    tno,
+                                    'CCINVOICE',
+                                    CCINVOICEno,
+                                    CCINVOICEdate
+                                from CCINVOICE
+                                where CCINVOICEdate between :P182_FROMDATE and :P182_TODATE
+                                and locationcode = :P182_LOCATIONCODE
+                            );
+                    
+                        end if;
+                    
+                        /*if :P182_MODULECODE = 'SERVICEBILL' then
+                            insert into einvoice(
+                                tno , 
+                                moduletno,
+                                modulecode,
+                                invoiceno,
+                                invoicedate
+                            )
+                            (
+                                select
+                                    :P182_TNO,
+                                    tno,
+                                    'SERVICEBILL',
+                                    SERVICEBILLno,
+                                    SERVICEBILLdate
+                                from SERVICEBILL
+                                where SERVICEBILLdate between :P182_FROMDATE and :P182_TODATE
+                                and locationcode = :P182_LOCATIONCODE
+                            );
+                    
+                        end if;
+                        */
+                    end;
+                    ```
+                itemsToSubmit: [
+                    P182_MODULECODE
+                    P182_TNO
+                    P182_FROMDATE
+                    P182_TODATE
+                    P182_LOCATIONCODE
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @e-invoice
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction pass (
+        name: Pass
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterclosedialog
+            selectionType: button
+            button: @pass
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    DECLARE
+                      tModuleCode  Varchar2(30);
+                      TMP          vARCHAR2(100) ;--:= :P80_PICKUPREQUESTNO;
+                    cursor cPassFail is
+                    		select
+                    				a.TNo
+                    		from PassFail a, ModuleFlow b, ModuleFlowUser c, BossUser d
+                    		where a.ModuleFlowTNo = b.TNo
+                    				and b.TNo = c.TNo
+                    				and a.BossUserCode = c.BossUserCode
+                    				and c.BossUserCode = d.BossUserCode
+                    				and a.ModuleTNo = ':P'||:APP_PAGE_ID||'_TNo'
+                    				and d.LoginName = User
+                    				and a.isPass is null
+                    				and a.IsFail is null
+                    				and a.IsForwarded is null
+                    				and a.IsRebounded is null										
+                    ;
+                    vPassFail cPassFail%rowtype;
+                    BEGIN
+                    
+                        select
+                        	d.ModuleCode, ':P'||:APP_PAGE_ID||'_'||labelcolumnname 
+                                    into tModuleCode,tmp
+                        from Location a, ModuleLocationDetail b , ModuleLocation c, Module d 
+                        where a.LocationCode = b.LocationCode
+                        	and b.tno = c.tno
+                        	and c.ModuleCode = d.ModuleCode --'DELIVERYCHALLANRETURN'
+                        	and c.CompanyCode = :global_CompanyCode
+                            and d.EntryPageNo = :APP_PAGE_ID
+                            ;
+                    
+                    			
+                    	open cPassFail;
+                    	fetch cPassFail into vPassFail;
+                    	if cPassFail%FOUND then
+                    			
+                    		
+                    			update PassFail a
+                    			set a.IsPass = 'YES',
+                    				a.remark = ':P'||:APP_PAGE_ID||'_PASSFAILREMARK'
+                    			where a.TNo = vPassFail.TNo;
+                    			
+                    			close cPassFail;
+                    			
+                    			
+                    			SendPassFailForward(tModuleCode, ':P'||:APP_PAGE_ID||'_TNo' , TMP, :global_CompanyCode );
+                    
+                                 if :P182_STATUS = 'ACTIVE' then
+                            
+                                    CREATEPAYMENTADVICEFORPO(:P182_TNO);
+                    
+                                  end if;
+                    
+                        end if;
+                    END;
+                    ```
+                itemsToSubmit: [
+                    P182_TNO
+                    P182_COMPANYCODE
+                    P182_STATUS
+                ]
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-set-value (
+            action: setValue
+            settings {
+                type: dialogReturnItem
+                returnItem: P163_REMARK
+            }
+            affectedElements {
+                selectionType: items
+                items: P182_PASSFAILREMARK
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction refresh (
+        name: Refresh
+        execution {
+            sequence: 120
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @getrecord
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @e-invoice
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process e-invoice-save-interactive-grid-data (
+        name: E-Invoice - Save Interactive Grid Data
+        type: executeCode
+        editableRegion: @e-invoice
+        source {
+            plsqlCode:
+                ```plsql
+                Begin
+                    case :APEX$ROW_STATUS
+                        when 'C' then
+                            Insert Into einvoice (                 
+                                    TNO,
+                                    MODULETNO,
+                                    MODULECODE,
+                                    REMARK,
+                                    CREATOR,
+                                    CREATIONTIME,
+                                    ACKNO,
+                                    ACKDATE,
+                                    IRN,
+                                    BUYERGSTIN,
+                                    INVOICENO,
+                                    INVOICEDATE,
+                                    EWBNO,
+                                    SIGNEDQRCODE,
+                                    EWBDATE,
+                                    VALIDTILLDATE,
+                                    CCINVOICETNO,
+                                    ERROR,
+                                    CANCELPORTALRESPONSE,
+                                    CANCELDATE,
+                                    CANCELERROR,
+                                    CANCELREASONCODE,
+                                    CANCELREMARK,
+                                    EWAYBILLPORTALRESPONSE,
+                                    EWAYBILLERROR,
+                                    PORTALRESPONSE,
+                                    ISDELETED,
+                                    DELETIONTIME,
+                                    DELETEDBY,
+                                    SELLERGSTIN,
+                                    LOCATIONCODE
+                
+                            )
+                            Values (
+                                :TNO,
+                                :MODULETNO,
+                                :MODULECODE,
+                                :REMARK,
+                                :CREATOR,
+                                :CREATIONTIME,
+                                :ACKNO,
+                                :ACKDATE,
+                                :IRN,
+                                :BUYERGSTIN,
+                                :INVOICENO,
+                                :INVOICEDATE,
+                                :EWBNO,
+                                :SIGNEDQRCODE,
+                                :EWBDATE,
+                                :VALIDTILLDATE,
+                                :CCINVOICETNO,
+                                :ERROR,
+                                :CANCELPORTALRESPONSE,
+                                :CANCELDATE,
+                                :CANCELERROR,
+                                :CANCELREASONCODE,
+                                :CANCELREMARK,
+                                :EWAYBILLPORTALRESPONSE,
+                                :EWAYBILLERROR,
+                                :PORTALRESPONSE,
+                                :ISDELETED,
+                                :DELETIONTIME,
+                                :DELETEDBY,
+                                :SELLERGSTIN,
+                                :LOCATIONCODE
+                
+                            );
+                        
+                        when 'U' then
+                            update einvoice Set
+                                    MODULETNO       =:MODULETNO,
+                                    MODULECODE      =:MODULECODE,
+                                    REMARK          =:REMARK,
+                                    CREATOR         =:CREATOR,
+                                    CREATIONTIME    =:CREATIONTIME,
+                                    ACKNO           =:ACKNO,
+                                    ACKDATE         =:ACKDATE,
+                                    IRN             =:IRN,
+                                    BUYERGSTIN      =:BUYERGSTIN,
+                                    INVOICENO       =:INVOICENO,
+                                    INVOICEDATE     =:INVOICEDATE,
+                                    EWBNO           =:EWBNO,
+                                    SIGNEDQRCODE    =:SIGNEDQRCODE,
+                                    EWBDATE         =:EWBDATE,
+                                    VALIDTILLDATE   =:VALIDTILLDATE,
+                                    CCINVOICETNO    =:CCINVOICETNO,
+                                    ERROR           =:ERROR,
+                                    CANCELPORTALRESPONSE=:CANCELPORTALRESPONSE,
+                                    CANCELDATE      =:CANCELDATE,
+                                    CANCELERROR     =:CANCELERROR,
+                                    CANCELREASONCODE=:CANCELREASONCODE,
+                                    CANCELREMARK    =:CANCELREMARK,
+                                    EWAYBILLPORTALRESPONSE=:EWAYBILLPORTALRESPONSE,
+                                    EWAYBILLERROR   =:EWAYBILLERROR,
+                                    PORTALRESPONSE  =:PORTALRESPONSE,
+                                    ISDELETED       =:ISDELETED,
+                                    DELETIONTIME    =:DELETIONTIME,
+                                    DELETEDBY       =:DELETEDBY,
+                                    SELLERGSTIN     =:SELLERGSTIN,
+                                    LOCATIONCODE    =:LOCATIONCODE
+                
+                            WHERE TNO = :TNO
+                              AND MODULETNO = :MODULETNO;
+                
+                        when 'D' then
+                            Delete From einvoice
+                            Where TNo = :TNO;
+                    end case;
+                exception when others then
+                    raise_application_error(-20010, sqlerrm);
+                End;
+                
+                
+                ```
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 21287511183941556
+        }
+        config {
+            buildOption: @commented-out
+        }
+    )
+
+    process get-document-no (
+        name: Get Document No
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+                    tmp         number ;
+                begin
+                     if :P182_Tno is null then
+                        Select GlobalTno.NextVal into :P182_Tno From Dual;
+                     end if;
+                    ----
+                    if :P182_PURCHASEORDERNO is null then
+                            SetDocNoNext(
+                					tModuleCode,
+                					:global_CompanyCode,
+                					:global_FinancialYearCode,
+                					:P182_LocationCode,
+                					:P182_DocTypeCode,
+                					NULL,
+                					TO_DATE(:P182_PURCHASEORDERDATE, 'DD-MM-RRRR')
+                				);
+                        :P182_PURCHASEORDERNO := GetDocNo(
+                                    tModuleCode,
+                                    :global_CompanyCode,
+                                    :global_FinancialYearCode,
+                                    :P182_LocationCode,
+                                    :P182_DocTypeCode,
+                                    NULL,
+                                    TO_DATE(:P182_PURCHASEORDERDATE, 'DD-MM-RRRR')
+                                    );
+                    end if;
+                    
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 21291935442941561
+        }
+    )
+
+    process get-tno (
+        name: Get TNo
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                If :P182_TNO is null then
+                    :P182_TNO := GlobalTNo.nextval;
+                    :P182_FORMSTATUS := 'NEWRECORD';
+                else
+                    :P182_FORMSTATUS := 'EDITRECORD';
+                End if;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 21291149845941561
+        }
+    )
+
+    process getonthetable (
+        name: GetOnTheTable
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                tmp  number;
+                tmp1 number;
+                begin
+                 -------- Checking Module Flow Prepared Or Not 
+                   select count(*) into tmp1 from moduleflow where modulecode = getModuleCodeForPageNo(:APP_PAGE_ID) and getdocumentstatuscode('MODULEFLOW',TNO)='ACTIVE';
+                   if nvl(tmp1,0) > 0 then
+                       :P182_MODULEFLOW := 'YES';
+                   else
+                       :P182_MODULEFLOW := 'NO';
+                   end if;
+                  
+                  ----- Checking On The Table 
+                   select count(*) into tmp from onthetable_apex where moduletno = :P182_TNO and loginname = :GLOBAL_LOGINNAME;
+                   if nvl(tmp,0) > 0 then
+                      :P182_ONTHETABLE := 'YES' ;
+                   else
+                       :P182_ONTHETABLE := 'NO';
+                   end if;
+                end;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: beforeHeader
+        }
+        advanced {
+            executionMappingIdentifier: 21291571462941561
+        }
+    )
+
+    process new-e-invoice-save-interactive-grid-data (
+        name: New-- E-Invoice - Save Interactive Grid Data
+        type: executeCode
+        editableRegion: @e-invoice
+        source {
+            plsqlCode:
+                ```plsql
+                Begin
+                    case 
+                        when :APEX$ROW_STATUS in ('C', 'U') then
+                            MERGE INTO einvoice e
+                            USING (SELECT :MODULETNO as M_TNO FROM DUAL) src
+                            ON (e.MODULETNO = src.M_TNO)
+                            WHEN MATCHED THEN
+                                UPDATE SET 
+                                    -- MODULETNO       = :MODULETNO,
+                                    MODULECODE      = :MODULECODE,
+                                    REMARK          = :REMARK,
+                                    CREATOR         = :CREATOR,
+                                    CREATIONTIME    = :CREATIONTIME,
+                                    ACKNO           = :ACKNO,
+                                    ACKDATE         = :ACKDATE,
+                                    IRN             = :IRN,
+                                    BUYERGSTIN      = :BUYERGSTIN,
+                                    INVOICENO       = :INVOICENO,
+                                    INVOICEDATE     = :INVOICEDATE,
+                                    EWBNO           = :EWBNO,
+                                    SIGNEDQRCODE    = :SIGNEDQRCODE,
+                                    EWBDATE         = :EWBDATE,
+                                    VALIDTILLDATE   = :VALIDTILLDATE,
+                                    CCINVOICETNO    = :CCINVOICETNO,
+                                    ERROR           = :ERROR,
+                                    CANCELPORTALRESPONSE = :CANCELPORTALRESPONSE,
+                                    CANCELDATE      = :CANCELDATE,
+                                    CANCELERROR     = :CANCELERROR,
+                                    CANCELREASONCODE = :CANCELREASONCODE,
+                                    CANCELREMARK    = :CANCELREMARK,
+                                    EWAYBILLPORTALRESPONSE = :EWAYBILLPORTALRESPONSE,
+                                    EWAYBILLERROR   = :EWAYBILLERROR,
+                                    PORTALRESPONSE  = :PORTALRESPONSE,
+                                    ISDELETED       = :ISDELETED,
+                                    DELETIONTIME    = :DELETIONTIME,
+                                    DELETEDBY       = :DELETEDBY,
+                                    SELLERGSTIN     = :SELLERGSTIN,
+                                    LOCATIONCODE    = :LOCATIONCODE
+                            WHEN NOT MATCHED THEN
+                                INSERT (
+                                    TNO, MODULETNO, MODULECODE, REMARK, CREATOR, CREATIONTIME, 
+                                    ACKNO, ACKDATE, IRN, BUYERGSTIN, INVOICENO, INVOICEDATE, 
+                                    EWBNO, SIGNEDQRCODE, EWBDATE, VALIDTILLDATE, CCINVOICETNO, 
+                                    ERROR, CANCELPORTALRESPONSE, CANCELDATE, CANCELERROR, 
+                                    CANCELREASONCODE, CANCELREMARK, EWAYBILLPORTALRESPONSE, 
+                                    EWAYBILLERROR, PORTALRESPONSE, ISDELETED, DELETIONTIME, 
+                                    DELETEDBY, SELLERGSTIN, LOCATIONCODE
+                                ) VALUES (
+                                    GlobalTNO.Nextval, 
+                                    :MODULETNO, :MODULECODE, :REMARK, :CREATOR, :CREATIONTIME, 
+                                    :ACKNO, :ACKDATE, :IRN, :BUYERGSTIN, :INVOICENO, :INVOICEDATE, 
+                                    :EWBNO, :SIGNEDQRCODE, :EWBDATE, :VALIDTILLDATE, :CCINVOICETNO, 
+                                    :ERROR, :CANCELPORTALRESPONSE, :CANCELDATE, :CANCELERROR, 
+                                    :CANCELREASONCODE, :CANCELREMARK, :EWAYBILLPORTALRESPONSE, 
+                                    :EWAYBILLERROR, :PORTALRESPONSE, :ISDELETED, :DELETIONTIME, 
+                                    :DELETEDBY, :SELLERGSTIN, :LOCATIONCODE
+                                );
+                        
+                        when :APEX$ROW_STATUS = 'D' then
+                            DELETE FROM einvoice WHERE TNO = :TNO;
+                    end case;
+                exception 
+                    when others then 
+                        raise_application_error(-20010, sqlerrm);
+                End;
+                
+                ```
+        }
+        execution {
+            sequence: 30
+        }
+        advanced {
+            executionMappingIdentifier: 33767189097181748
+        }
+    )
+
+    process prepare-url (
+        name: PREPARE_URL
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                   result varchar2(2000);
+                begin
+                   result:=apex_util.prepare_url(apex_application.g_x01);
+                   apex_json.open_object;
+                   apex_json.write('success', true);
+                   apex_json.write('url', result);
+                   apex_json.close_object;
+                exception
+                 when others then
+                   apex_json.open_object;
+                   apex_json.write('success', false);
+                   apex_json.write('message', sqlerrm);
+                   apex_json.close_object;
+                end;
+                ```
+        }
+        execution {
+            sequence: 60
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 21292725428941562
+        }
+    )
+
+    process send-pass-fail (
+        name: "Send Pass Fail "
+        type: executeCode
+        source {
+            plsqlCode: sendpassfailforward(getModuleCodeForPageNo(:APP_PAGE_ID) , :P182_TNO, :P182_PURCHASEORDERNO||' :', :GLOBAL_COMPANYCODE);
+        }
+        execution {
+            sequence: 40
+        }
+        advanced {
+            executionMappingIdentifier: 21292337587941561
+        }
+        serverSideCondition {
+            whenButtonPressed: @create
+        }
+    )
+
+    branch (
+        execution {
+            sequence: 10
+        }
+        behavior {
+            target: {
+                page: 134
+                clearCache: 134
+            }
+        }
+    )
+
+)
+

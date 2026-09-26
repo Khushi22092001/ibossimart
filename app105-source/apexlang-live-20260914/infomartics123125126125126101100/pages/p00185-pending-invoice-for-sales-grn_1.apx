@@ -1,0 +1,349 @@
+page 185 (
+    name: Pending  Invoice For Sales GRN
+    alias: PENDING-INVOICE-FOR-SALES-GRN
+    title: Pending  Invoice For Sales GRN
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region pendingccinvoice (
+        name: PendingCCinvoice
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select a.ccinvoiceno,
+                       a.ccinvoicedate,
+                       getpartyname(a.partycode) As PartyName,
+                       c.CityName,
+                       A.TNO
+                  From ccinvoice a, Party b, City C
+                 Where Not Exists
+                 (Select aa.tno From salesgrn aa Where aa.ccinvoicetno = a.tno)
+                      And a.companycode = :Global_CompanyCode
+                   and a.partycode = b.PartyCode  
+                	And getdocumentstatuscode('CCINVOICE',a.tno)='ACTIVE'
+                	and a.ccinvoicedate >= '01-apr-2023'
+                	
+                 and nvl(b.WorksCityCode,b.OfficeCityCode) = c.CityCode 
+                 
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: #DEFAULT#
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                excel
+                pdf
+            ]
+        }
+        advanced {
+            savedReportMappingIdentifier: 172839961071321509
+        }
+
+        savedReport 1728830 (
+            visibility: primary
+            view {
+                default: grid
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @CCINVOICENO
+                layout {
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @CCINVOICEDATE
+                layout {
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @PARTYNAME
+                layout {
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @CITYNAME
+                layout {
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @TNO
+                layout {
+                    show: false
+                    sequence: 5
+                }
+            )
+
+        )
+
+        column CCINVOICEDATE (
+            type: datePicker
+            heading {
+                heading: Ccinvoicedate
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                databaseColumn: CCINVOICEDATE
+                dataType: date
+            }
+        )
+
+        column CCINVOICENO (
+            type: textField
+            heading {
+                heading: Ccinvoiceno
+            }
+            layout {
+                sequence: 10
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: CCINVOICENO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column CITYNAME (
+            type: textField
+            heading {
+                heading: Cityname
+            }
+            layout {
+                sequence: 40
+            }
+            validation {
+                maxLength: 100
+            }
+            source {
+                databaseColumn: CITYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column PARTYNAME (
+            type: textarea
+            heading {
+                heading: Partyname
+            }
+            layout {
+                sequence: 30
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: PARTYNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column TNO (
+            type: numberField
+            heading {
+                heading: Tno
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: TNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+        pageHeader {
+            pageHeaderText: PendingCCinvoice
+        }
+    )
+
+    pageItem P185_REFERENCETNO (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+    )
+
+    button new (
+        buttonName: New
+        label: Back
+        layout {
+            sequence: 10
+            region: @pendingccinvoice
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-circle-o-left
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction close-dialog (
+        name: Close Dialog
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @new
+        }
+
+        action native-dialog-close (
+            action: closeDialog
+            settings {
+                itemsToReturn: P185_REFERENCETNO
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 10
+        }
+        when {
+            event: region/interactiveGrid/interactivegridselectionchange
+            selectionType: region
+            region: @pendingccinvoice
+        }
+
+        action native-dialog-close (
+            action: closeDialog
+            settings {
+                itemsToReturn: P185_REFERENCETNO
+            }
+            execution {
+                sequence: 30
+                fireOnInit: false
+            }
+        )
+
+        action native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    var documentstatuscode,
+                    model = this.data.model;
+                    
+                    documentstatuscode = model.getValue( this.data.selectedRecords[0], "TNO");
+                    
+                    apex.item( "P185_REFERENCETNO" ).setValue (documentstatuscode);
+                    
+                    ```
+            }
+            affectedElements {
+                selectionType: items
+                items: P185_DOCUMENTSTATUSCODE
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+)
+

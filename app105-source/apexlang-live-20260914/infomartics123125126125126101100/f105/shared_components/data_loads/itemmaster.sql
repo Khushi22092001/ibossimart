@@ -1,0 +1,396 @@
+prompt --application/shared_components/data_loads/itemmaster
+begin
+--   Manifest
+--     DATA LOAD: ItemMaster
+--   Manifest End
+wwv_flow_imp.component_begin (
+ p_version_yyyy_mm_dd=>'2026.03.30'
+,p_release=>'26.1.2'
+,p_default_workspace_id=>1466918471259373
+,p_default_application_id=>100
+,p_default_id_offset=>7541489808702750
+,p_default_owner=>'IMART'
+);
+wwv_flow_imp_shared.create_load_table(
+ p_id=>wwv_flow_imp.id(26817680791574545)
+,p_name=>'ItemMaster'
+,p_static_id=>'itemmaster'
+,p_target_type=>'TABLE'
+,p_table_name=>'IMPORTITEM'
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_loading_method=>'APPEND'
+,p_commit_interval=>200
+,p_error_handling=>'ABORT'
+,p_skip_validation=>'N'
+,p_version_scn=>'13503850'
+);
+wwv_flow_imp_shared.create_data_profile(
+ p_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ItemMaster'
+,p_format=>'XLSX'
+,p_encoding=>'utf-8'
+,p_default_xlsx_sheet_name=>'sheet1.xml'
+,p_has_header_row=>true
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26812407165574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'CONSUMPTIONACCOUNTCODE'
+,p_static_id=>'consumptionaccountcode'
+,p_sequence=>13
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'CONSUMPTIONACCOUNTCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26812708505574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'CWIPACCOUNTCODE'
+,p_static_id=>'cwipaccountcode'
+,p_sequence=>14
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'CWIPACCOUNTCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26812980649574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'DEALSINCODE'
+,p_static_id=>'dealsincode'
+,p_sequence=>15
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'DEALSINCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26814814919574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'HSNCODE'
+,p_static_id=>'hsncode'
+,p_sequence=>21
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_selector_type=>'NAME'
+,p_selector=>'HSNCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26813319704574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ISEQUIPMENT'
+,p_static_id=>'isequipment'
+,p_sequence=>16
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>3
+,p_selector_type=>'NAME'
+,p_selector=>'ISEQUIPMENT'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26815329001574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ISWEIGHMENTREQUIRED'
+,p_static_id=>'isweighmentrequired'
+,p_sequence=>23
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>3
+,p_selector_type=>'NAME'
+,p_selector=>'ISWEIGHMENTREQUIRED'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26810231270574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMCATEGORYCODE'
+,p_static_id=>'itemcategorycode'
+,p_sequence=>6
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMCATEGORYCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26809958347574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMCLASSCODE'
+,p_static_id=>'itemclasscode'
+,p_sequence=>5
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMCLASSCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26816018376574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMCLASSIFICATIONCODE'
+,p_static_id=>'itemclassificationcode'
+,p_sequence=>25
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMCLASSIFICATIONCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26808781296574542)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMCODE'
+,p_static_id=>'itemcode'
+,p_sequence=>1
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26810588028574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMDEPARTMENTCODE'
+,p_static_id=>'itemdepartmentcode'
+,p_sequence=>7
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMDEPARTMENTCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26817512519574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMGRADECODE'
+,p_static_id=>'itemgradecode'
+,p_sequence=>30
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'GRADECODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26816293794574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMLENGTHCODE'
+,p_static_id=>'itemlengthcode'
+,p_sequence=>26
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'LENGTHCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26810890079574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMLOCATIONCODE'
+,p_static_id=>'itemlocationcode'
+,p_sequence=>8
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMLOCATIONCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26817152046574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMMAKECODE'
+,p_static_id=>'itemmakecode'
+,p_sequence=>29
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'MAKECODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26809041930574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMNAME'
+,p_static_id=>'itemname'
+,p_sequence=>2
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>100
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMNAME'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26811811348574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMNATURECODE'
+,p_static_id=>'itemnaturecode'
+,p_sequence=>11
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMNATURECODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26813830789574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMSPECIFICATIONCODE'
+,p_static_id=>'itemspecificationcode'
+,p_sequence=>18
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMSPECIFICATIONCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26814184426574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMSPECIFICATIONNAME'
+,p_static_id=>'itemspecificationname'
+,p_sequence=>19
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>100
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMSPECIFICATIONNAME'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26816894815574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMTHICKNESSCODE'
+,p_static_id=>'itemthicknesscode'
+,p_sequence=>28
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_decimal_char=>'.'
+,p_selector_type=>'NAME'
+,p_selector=>'THICKNESSCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26809417462574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMTYPE'
+,p_static_id=>'itemtype'
+,p_sequence=>3
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>10
+,p_selector_type=>'NAME'
+,p_selector=>'ITEMTYPE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26816543643574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'ITEMWIDTHCODE'
+,p_static_id=>'itemwidthcode'
+,p_sequence=>27
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'WIDTHCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26811154154574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'MEASURINGUNITCODE1'
+,p_static_id=>'measuringunitcode'
+,p_sequence=>9
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'MEASURINGUNITCODE1'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26811457653574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'MEASURINGUNITCODE2'
+,p_static_id=>'measuringunitcode-2'
+,p_sequence=>10
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'MEASURINGUNITCODE2'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26814437306574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'MULTIPLYINGFACTOR'
+,p_static_id=>'multiplyingfactor'
+,p_sequence=>20
+,p_column_type=>'DATA'
+,p_data_type=>'NUMBER'
+,p_selector_type=>'NAME'
+,p_selector=>'MULTIPLYINGFACTOR'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26809631881574543)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'PARENTCODE'
+,p_static_id=>'parentcode'
+,p_sequence=>4
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'PARENTCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26815039769574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'QUALITYREQUIRED'
+,p_static_id=>'qualityrequired'
+,p_sequence=>22
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>3
+,p_selector_type=>'NAME'
+,p_selector=>'QUALITYREQUIRED'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26813608202574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'SERIALNOREQUIRED'
+,p_static_id=>'serialnorequired'
+,p_sequence=>17
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>3
+,p_selector_type=>'NAME'
+,p_selector=>'SERIALNOREQUIRED'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26812030635574544)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'STOCKACCOUNTCODE'
+,p_static_id=>'stockaccountcode'
+,p_sequence=>12
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'STOCKACCOUNTCODE'
+);
+wwv_flow_imp_shared.create_data_profile_col(
+ p_id=>wwv_flow_imp.id(26815704127574545)
+,p_data_profile_id=>wwv_flow_imp.id(26808483735574524)
+,p_name=>'WEIGHMENTUNITCODE'
+,p_static_id=>'weighmentunitcode'
+,p_sequence=>24
+,p_column_type=>'DATA'
+,p_data_type=>'VARCHAR2'
+,p_max_length=>30
+,p_selector_type=>'NAME'
+,p_selector=>'WEIGHMENTUNITCODE'
+);
+wwv_flow_imp.component_end;
+end;
+/

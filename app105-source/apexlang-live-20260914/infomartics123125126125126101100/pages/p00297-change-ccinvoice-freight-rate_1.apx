@@ -1,0 +1,189 @@
+page 297 (
+    name: Change CCInvoice Freight Rate
+    alias: CHANGE-CCINVOICE-FREIGHT-RATE
+    title: Change CCInvoice Freight Rate
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        resizable: false
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region freight (
+        name: "Freight "
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/inline-dialog
+            templateOptions: [
+                #DEFAULT#
+                js-dialog-size600x400
+            ]
+        }
+    )
+
+    pageItem P297_CCINVOICETNO (
+        type: popupLov
+        label {
+            label: CCInvoice No
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery: select ccinvoiceno,tno from ccinvoice
+        }
+        layout {
+            sequence: 20
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+        advanced {
+            customAttributes: readonly=true
+        }
+    )
+
+    pageItem P297_FREIGHTRATE (
+        type: textField
+        label {
+            label: New Freight Rate
+            alignment: left
+        }
+        layout {
+            sequence: 30
+            slot: contentBody
+            alignment: left
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button back (
+        buttonName: Back
+        label: Back
+        layout {
+            sequence: 40
+            slot: contentBody
+            column: 1
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    button change (
+        buttonName: Change
+        label: Change
+        layout {
+            sequence: 50
+            slot: contentBody
+            startNewRow: false
+            column: 10
+            columnSpan: 3
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    dynamicAction cancel-dialog (
+        name: Cancel Dialog
+        execution {
+            sequence: 10
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @back
+        }
+
+        action native-dialog-cancel (
+            action: cancelDialog
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process new (
+        name: New
+        type: closeDialog
+        settings {
+            itemsToReturn: P297_FREIGHTRATE
+        }
+        execution {
+            sequence: 20
+        }
+        advanced {
+            executionMappingIdentifier: 21389854141198226
+        }
+    )
+
+    process update-freight-rate (
+        name: update freight rate
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                vLoadingAdviceTno NUMBER;
+                begin
+                    if NVL(:P297_FREIGHTRATE,0) > 0 then
+                        Update ccinvoice x set x.freightrate = :P297_FREIGHTRATE
+                        where x.tno = :P297_CCINVOICETNO;
+                        if :P175_LOADINGADVICETNO is not null then
+                            update loadingadvice xx
+                               set xx.freightrate=:P297_FREIGHTRATE
+                            where xx.tno = :P175_LOADINGADVICETNO
+                            ;
+                        end if;
+                    end if;
+                    commit;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 21389701270198225
+        }
+        serverSideCondition {
+            type: never
+        }
+    )
+
+)
+

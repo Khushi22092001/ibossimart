@@ -1,0 +1,1242 @@
+page 798 (
+    name: New Ledger
+    alias: NEW-LEDGER
+    title: New Ledger
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        functionAndGlobalVariableDeclaration:
+            ```javascript-browser
+            function formatDate(date) {
+              var monthNames = [
+                "JAN", "FEB", "MAR",
+                "APR", "MAY", "JUN", "JUL",
+                "AUG", "SEP", "OCT",
+                "NOV", "DEC"
+              ];
+            
+              var day = date.getDate();
+              var monthIndex = date.getMonth();
+              var year = date.getFullYear();
+            
+              return day + '-' + monthNames[monthIndex] + '-' + year;
+            }
+            
+            function generatePDF() {
+              var username = 'weblogic';
+              var password = 'webboss123';
+              var bireporturl = $('#P103_BIREPORTURL').val()
+              var reportName = 'EECG/REPORT/ItemLedger.xdo';
+              var outputFormat = 'pdf';
+              var fromDate = new Date($('#P103_FROMDATE').val());
+              var toDate = new Date($('#P103_TODATE').val());
+            
+            var reportParams = 
+                  '&P103_ITEMCODE=' +$('#P103_ITEMCODE').val() +
+                  '&P103_FROMDATE='+ $('#P103_FROMDATE').val() +  
+                  '&P103_TODATE=' + $('#P103_TODATE').val()  
+                ;
+             
+                  
+              var reportURL = bireporturl+ reportName +
+                          '?id='+ username +
+                          '&passwd='+ password +
+                          '&_xpt=0&_xmode=1&_xf=pdf'+reportParams
+              window.open(reportURL, '_blank');
+            }
+            ```
+    }
+    css {
+        inline:
+            ```css
+            /*.a-GV-table tr:hover td{background-color:#FFFACD}
+            
+            .a-GV-table-headerLink{
+                color: white;
+            }
+            
+            #my_ig  .a-GV-headerGroup[data-idx="0"] {
+                color: white !important;
+                background-color: #10779f;
+            }
+            
+            #my_ig  .a-GV-headerGroup[data-idx="1"] {
+                color: white !important;
+                background-color: #10779f;
+            }
+            
+            
+            #my_ig  .a-GV-headerGroup[data-idx="2"] {
+                color: white !important;
+                background-color: #9f3910;
+            }
+            
+            #my_ig  .a-GV-headerGroup[data-idx="3"] {
+                color: white !important;
+                background-color: #749f10;
+            }
+            
+            #my_ig .TransactionDate {
+                color: white !important;
+               background-color: #10779f;
+            }
+            
+            #my_ig .ModuleCode {
+                color: white !important;
+                background-color: #10779f;
+            }
+            
+            #my_ig .TransactionNo {
+                color: white !important;
+                background-color: #10779f;
+            }
+            
+            #my_ig .Inward {
+                color: white !important;
+                background-color: #10779f;
+            }
+            
+            #my_ig .Outward {
+                color: white !important;
+                background-color: #9f3910;
+            }
+            
+            
+            #my_ig .Balance {
+                color: white !important;
+                background-color: #749f10;
+            }
+            
+            #my_ig .TransactionNo {
+                color: white !important;
+                background-color: #10779f;
+            }
+            
+            .a-GV-table .a-GV-cell, th.a-GV-header {
+            
+                border-color: black !important;
+            
+            }
+            
+            */
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region filter (
+        name: Filter
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/collapsible
+            templateOptions: [
+                #DEFAULT#
+                is-collapsed
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region item-ledger (
+        name: Item Ledger
+        type: interactiveGrid
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select x. mytno,
+                       x.TRANSACTIONDATE,
+                       x.modulecode,
+                       case when x.modulecode = 'Opening' then
+                                  X.TRANSACTIONNO
+                            when x.modulecode = 'CCINVOICE' then
+                           '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||175||':'||:APP_SESSION||'::::'||'P175_TNO,P175_FORMSTATUS,P175_CALLEDFROMPAGE'||':'||x.MODULETNO||',CALLED'||',10'||':NO')||'">'||X.TRANSACTIONNO||'</a>'
+                           when x.modulecode = 'INSPECTION' then
+                          '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||146||':'||:APP_SESSION||'::::'||'P146_TNO,P146_FORMSTATUS,P146_CALLEDFROMPAGE'||':'||x.MODULETNO||',CALLED'||',10'||':NO')||'">'||X.TRANSACTIONNO||'</a>'
+                          when x.modulecode = 'KITTINGUNKITTING' then
+                          '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||97||':'||:APP_SESSION||'::::'||'P97_TNO,P97_FORMSTATUS,P97_CALLEDFROMPAGE'||':'||x.MODULETNO||',CALLED'||',10'||':NO')||'">'||X.TRANSACTIONNO||'</a>'
+                          else X.TRANSACTIONNO
+                          end TransactionNo,
+                          x.Sku,
+                     
+                       --x.TransactionNo,
+                       x.STOCKINQUANTITY1,
+                       x.STOCKINAMOUNT,
+                       x.STOCKOUTQUANTITY1,
+                       x.STOCKOUTAMOUNT,
+                       --      x.BalanceQuantity,
+                       --      x.balanceamount,
+                       Sum(x.BalanceQuantity) over(Order By mytno rows unbounded preceding) BalanceQuantity,
+                       Sum(x.BalanceAmount) over(Order By mytno rows unbounded preceding) BalanceAmount,
+                       x.ITEMNAME,
+                       x.ITEMSPECIFICATION
+                  From (Select 1 As mytno,
+                               Null As TRANSACTIONDATE,
+                              'Opening' As modulecode,
+                               null as Moduletno,
+                               'Opening' As TransactionNo,
+                               Null As STOCKINQUANTITY1,
+                               --     Null As MEASURINGUNITCODE,
+                               Null As STOCKINAMOUNT,
+                               Null As STOCKOUTQUANTITY1,
+                               Null As STOCKOUTAMOUNT,
+                               Nvl(GetSLItemOpeningQuantity1(Null, :P798_ITEMCODE,:P798_ITEMSPECIFICATIONCODE, :GLOBAL_COMPANYCODE, :P798_FROMDATE),
+                                   0) As BalanceQuantity,
+                               Nvl(GetSLItemOpeningValue(Null, :P798_ITEMCODE,:P798_ITEMSPECIFICATIONCODE, :GLOBAL_COMPANYCODE, :P798_FROMDATE), 0) As balanceamount,
+                               NULL AS SKU,
+                               GETITEMNAME(:P798_ITEMCODE) AS ITEMNAME,
+                               GETITEMSPECIFICATIONNAME(:P798_ITEMCODE,:P798_ITEMSPECIFICATIONCODE) AS ITEMSPECIFICATION
+                        
+                    
+                          From dual
+                        Union All
+                        
+                        Select a.MyTNo,
+                               a.TRANSACTIONDATE,
+                               a.modulecode,
+                               a.moduletno,
+                               a.transactionno,
+                               a.STOCKINQUANTITY1,
+                               --E.MEASURINGUNITCODE,
+                               a.STOCKINAMOUNT,
+                               a.STOCKOUTQUANTITY1,
+                               a.STOCKOUTAMOUNT,
+                               Nvl(a.STOCKINQUANTITY1, 0) - Nvl(a.STOCKOUTQUANTITY1, 0) As balanceQuantity,
+                               Nvl(a.STOCKINAMOUNT, 0) - Nvl(a.STOCKOUTAMOUNT, 0) As balanceAmount,
+                                B.SKU,
+                                b.ITEMNAME,
+                                b.ITEMSPECIFICATIONNAME
+                          From Stockcard a, v_item_details b
+                         Where a.ModuleCode != 'ITEMOPENING'
+                           and a.ItemSpecificationCode = b.ItemSpecificationCode(+)
+                           and a.Itemcode             = b.ItemCode
+                              --   And a.StockTNo = c.TNO
+                              --   And c.StockModuleTNO = d.TNo(+)
+                              --   And A.MODULETNO = F.TNO(+)
+                           And a.CompanyCode = :GLOBAL_COMPANYCODE
+                        --    And A.ITEMCODE = :P798_ITEMCODE
+                        --    and a.ITEMSPECIFICATIONCODE = :P798_ITEMSPECIFICATIONCODE
+                           AND ( :P798_SKU IS NULL OR INSTR(':'||:P798_SKU||':',':'||B.SKU||':') > 0 )
+                           And a.TransactionDate Between :P798_FROMDATE And :P798_TODATE
+                           and ( :P798_TRANSACTION_NO IS NULL OR instr(':'||:P798_TRANSACTION_NO||':',':'||a.transactionno||':') > 0 ) 
+                           and ( :P798_ITEMCODE IS NULL OR instr(':'||:P798_ITEMCODE||':',':'||a.ITEMCODE||':') > 0 )
+                           and ( :P798_ITEMSPECIFICATIONCODE IS NULL OR instr(':'||:P798_ITEMSPECIFICATIONCODE||':',':'||a.ITEMSPECIFICATIONCODE||':') > 0 )
+                           ) x
+                
+                  
+                
+                
+                ```
+            pageItemsToSubmit: [
+                P798_ITEMCODE
+                P798_FROMDATE
+                P798_TODATE
+                P798_BIREPORTURL
+                P798_ITEMSPECIFICATIONCODE
+                P798_SKU
+                P798_TRANSACTION_NO
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @myirr
+            templateOptions: #DEFAULT#
+        }
+        advanced {
+            htmlDomId: my_ig
+        }
+        edit {
+            enabled: true
+        }
+        toolbar {
+            controls: [
+                searchCol
+                searchField
+                actionsMenu
+                resetButton
+                saveButton
+            ]
+        }
+        download {
+            formats: [
+                csv
+                html
+                pdf
+                excel
+            ]
+        }
+        componentAdvanced {
+            initJavaScriptFunction:
+                ```javascript-browser
+                function( options ) {
+                    //Tab and Shift-Tab will skip over cells that are read-only
+                    options.defaultGridViewOptions = {  
+                        skipReadonlyCells: true  
+                        
+                    }
+                    return options;
+                }
+                
+                ```
+        }
+        advanced {
+            savedReportMappingIdentifier: 769474147141202013
+        }
+
+        savedReport 203751 (
+            visibility: primary
+            view {
+                default: grid
+                settingsAreaExpanded: false
+            }
+            singleRowView {
+                displayedColumns: true
+            }
+
+            displayColumn (
+                column: @SKU
+                layout {
+                    width: 117
+                    sequence: 12
+                }
+            )
+
+            displayColumn (
+                column: @ITEMNAME
+                layout {
+                    width: 127
+                    sequence: 13
+                }
+            )
+
+            displayColumn (
+                column: @ITEMSPECIFICATION
+                layout {
+                    width: 209
+                    sequence: 14
+                }
+            )
+
+            displayColumn (
+                column: @APEX$ROW_ACTION
+                layout {
+                    frozen: true
+                    sequence: 1
+                }
+            )
+
+            displayColumn (
+                column: @TRANSACTIONNO
+                layout {
+                    width: 230
+                    sequence: 4
+                }
+            )
+
+            displayColumn (
+                column: @MYTNO
+                layout {
+                    show: false
+                    sequence: 2
+                }
+            )
+
+            displayColumn (
+                column: @TRANSACTIONDATE
+                layout {
+                    width: 92
+                    sequence: 3
+                }
+            )
+
+            displayColumn (
+                column: @MODULECODE
+                layout {
+                    width: 116
+                    sequence: 5
+                }
+            )
+
+            displayColumn (
+                column: @STOCKINQUANTITY1
+                layout {
+                    width: 128
+                    sequence: 6
+                }
+            )
+
+            displayColumn (
+                column: @STOCKINAMOUNT
+                layout {
+                    width: 127
+                    sequence: 7
+                }
+            )
+
+            displayColumn (
+                column: @STOCKOUTQUANTITY1
+                layout {
+                    width: 132
+                    sequence: 8
+                }
+            )
+
+            displayColumn (
+                column: @STOCKOUTAMOUNT
+                layout {
+                    width: 139
+                    sequence: 9
+                }
+            )
+
+            displayColumn (
+                column: @BALANCEQUANTITY
+                layout {
+                    width: 142
+                    sequence: 10
+                }
+            )
+
+            displayColumn (
+                column: @BALANCEAMOUNT
+                layout {
+                    width: 161
+                    sequence: 11
+                }
+            )
+
+            aggregate sum (
+                column: @STOCKINQUANTITY1
+            )
+
+            aggregate sum-2 (
+                column: @STOCKINAMOUNT
+                showGrandTotal: true
+            )
+
+            aggregate sum-3 (
+                column: @STOCKOUTQUANTITY1
+                showGrandTotal: true
+            )
+
+            aggregate sum-4 (
+                column: @STOCKOUTAMOUNT
+                showGrandTotal: true
+            )
+
+        )
+
+        columnGroup balance (
+            heading: Balance
+        )
+
+        columnGroup inward (
+            heading: Inward
+        )
+
+        columnGroup outward (
+            heading: Outward
+        )
+
+        column APEX$ROW_ACTION (
+            type: actionsMenu
+            layout {
+                sequence: 20
+            }
+        )
+
+        column APEX$ROW_SELECTOR (
+            type: rowSelector
+            layout {
+                sequence: 10
+            }
+        )
+
+        column BALANCEAMOUNT (
+            type: numberField
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 120
+                columnAlignment: end
+                group: @balance
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                databaseColumn: BALANCEAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(config) {
+                        config.defaultGridColumnOptions = {
+                            headingCssClasses: "Balance"
+                        }
+                        return config;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column BALANCEQUANTITY (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+                group: @balance
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                databaseColumn: BALANCEQUANTITY
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(config) {
+                        config.defaultGridColumnOptions = {
+                            headingCssClasses: "Balance"
+                        }
+                        return config;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column ITEMNAME (
+            type: textarea
+            heading {
+                heading: Itemname
+            }
+            layout {
+                sequence: 140
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: ITEMNAME
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column ITEMSPECIFICATION (
+            type: textarea
+            heading {
+                heading: Itemspecification
+            }
+            layout {
+                sequence: 150
+            }
+            validation {
+                maxLength: 4000
+            }
+            source {
+                databaseColumn: ITEMSPECIFICATION
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+        )
+
+        column MODULECODE (
+            type: textField
+            heading {
+                heading: Module
+            }
+            layout {
+                sequence: 50
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: MODULECODE
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(config) {
+                        config.defaultGridColumnOptions = {
+                            headingCssClasses: "ModuleCode"
+                        }
+                        return config;
+                    }
+                    ```
+            }
+        )
+
+        column MYTNO (
+            type: numberField
+            heading {
+                heading: Mytno
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+            source {
+                databaseColumn: MYTNO
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+        )
+
+        column SKU (
+            type: textField
+            heading {
+                heading: SKU
+            }
+            layout {
+                sequence: 130
+            }
+            validation {
+                maxLength: 30
+            }
+            source {
+                databaseColumn: SKU
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+            }
+        )
+
+        column STOCKINAMOUNT (
+            type: numberField
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+                group: @inward
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                databaseColumn: STOCKINAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(options) {
+                        options.defaultGridColumnOptions = {
+                            aggregates: ["SUM"] //or : "COUNT", "COUNT_DISTINCT", "AVG", "MIN", "MAX", "MEDIAN"
+                        };
+                        return options;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column STOCKINQUANTITY1 (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+                group: @inward
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                databaseColumn: STOCKINQUANTITY1
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(options) {
+                        options.defaultGridColumnOptions = {
+                            aggregates: ["SUM"] //or : "COUNT", "COUNT_DISTINCT", "AVG", "MIN", "MAX", "MEDIAN"
+                        };
+                        return options;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column STOCKOUTAMOUNT (
+            type: numberField
+            heading {
+                heading: Amount
+                alignment: end
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+                group: @outward
+            }
+            appearance {
+                formatMask: 999999999.99
+            }
+            source {
+                databaseColumn: STOCKOUTAMOUNT
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(options) {
+                        options.defaultGridColumnOptions = {
+                            aggregates: ["SUM"] //or : "COUNT", "COUNT_DISTINCT", "AVG", "MIN", "MAX", "MEDIAN"
+                        };
+                        return options;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column STOCKOUTQUANTITY1 (
+            type: numberField
+            heading {
+                heading: Quantity
+                alignment: end
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+                group: @outward
+            }
+            appearance {
+                formatMask: 999999999.999
+            }
+            source {
+                databaseColumn: STOCKOUTQUANTITY1
+                dataType: number
+            }
+            columnFilter {
+                lovType: none
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(options) {
+                        options.defaultGridColumnOptions = {
+                            aggregates: ["SUM"] //or : "COUNT", "COUNT_DISTINCT", "AVG", "MIN", "MAX", "MEDIAN"
+                        };
+                        return options;
+                    }
+                    
+                    ```
+            }
+        )
+
+        column TRANSACTIONDATE (
+            type: datePicker
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                databaseColumn: TRANSACTIONDATE
+                dataType: date
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(config) {
+                        config.defaultGridColumnOptions = {
+                            headingCssClasses: "TransactionDate"
+                        }
+                        return config;
+                    }
+                    ```
+            }
+        )
+
+        column TRANSACTIONNO (
+            type: link
+            heading {
+                heading: Transactionno
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                databaseColumn: TRANSACTIONNO
+                dataType: varchar2
+            }
+            columnFilter {
+                performanceImpactingOperators: [
+                    contains
+                    startsWith
+                    caseInsensitive
+                    regexp
+                ]
+                lovType: none
+            }
+            enableUsersTo {
+                sort: false
+            }
+            advanced {
+                columnInitJavaScriptFunction:
+                    ```javascript-browser
+                    function(config) {
+                        config.defaultGridColumnOptions = {
+                            headingCssClasses: "TransactionNo"
+                        }
+                        return config;
+                    }
+                    ```
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            size: a4
+            units: millimeters
+            width: 297
+            height: 210
+            borderWidth: 1
+            borderColor: #b5b0b0
+        }
+        pageHeader {
+            font: times
+            fontWeight: bold
+            fontSize: 18
+            pageHeaderText:
+                ```
+                  EECG INDUSTRIAL SOLUTIONS PVT.LTD.
+                         Item Ledger Report
+                Item Name : &P103_ITEMCODE.
+                ```
+        }
+        columnHeadings {
+            fontSize: 12
+            fontColor: #f4f4f4
+            backgroundColor: #10779f
+        }
+        columns {
+            fontSize: 11
+        }
+    )
+
+    pageItem P798_BIREPORTURL (
+        type: hidden
+        settings {
+            valueProtected: false
+        }
+        layout {
+            sequence: 90
+            region: @filter
+            slot: regionBody
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: select getmyparametervalue('BIREPORTURL') FROM dual
+        }
+    )
+
+    pageItem P798_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 50
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P798_ITEMCODE (
+        type: selectOne
+        label {
+            label: Item
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select itemname d, itemcode r
+                from item 
+                where itemtype not in ('2')
+                order by 1
+                ```
+        }
+        layout {
+            sequence: 10
+            region: @filter
+            slot: regionBody
+            alignment: left
+            column: 1
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P798_ITEMSPECIFICATIONCODE (
+        type: selectOne
+        label {
+            label: Items Specification
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                SELECT B.ITEMSPECIFICATIONNAME D, B.ITEMSPECIFICATIONCODE R
+                FROM ITEM A, ITEMSPECIFICATION B
+                WHERE A.TNO = B.TNO
+                AND A.ITEMCODE=:P798_ITEMCODE
+                ```
+        }
+        cascadingLov {
+            parentItems: P798_ITEMCODE
+            itemsToSubmit: P798_ITEMCODE
+        }
+        layout {
+            sequence: 30
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P798_SKU (
+        type: selectOne
+        label {
+            label: SKU
+            alignment: left
+        }
+        settings {
+            infiniteScroll: false
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select SKU d, SKU r
+                from ITEMSPECIFICATION
+                ```
+        }
+        layout {
+            sequence: 40
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P798_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 60
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/required
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    pageItem P798_TRANSACTION_NO (
+        type: textField
+        label {
+            label: Transaction No
+            alignment: left
+        }
+        layout {
+            sequence: 70
+            region: @filter
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            labelColumnSpan: 1
+        }
+        appearance {
+            template: @/optional
+            templateOptions: #DEFAULT#
+            width: 30
+        }
+    )
+
+    button refresh (
+        buttonName: Refresh
+        label: Refresh
+        layout {
+            sequence: 100
+            region: @filter
+            slot: regionBody
+            column: 12
+        }
+        appearance {
+            buttonTemplate: @/text
+            hot: true
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: definedByDynamicAction
+        }
+    )
+
+    dynamicAction ir-pagination (
+        name: IR_Pagination
+        execution {
+            sequence: 10
+        }
+        when {
+            event: ready
+        }
+
+        action plugin-ir-pagination (
+            action: plugin/addPaginationToIr
+            settings {
+                labelOfTotalNumbers: Total number of rows:
+                titleOfFirstPage: First page
+                titleOfLastPage: Last page
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    dynamicAction new (
+        name: New
+        execution {
+            sequence: 20
+        }
+        when {
+            event: click
+            selectionType: button
+            button: @refresh
+        }
+
+        action native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    begin
+                    raise_application_error(-20000,:P798_ITEMCODE||','||:P798_FROMDATE||','||:P798_TODATE||','||:P798_BIREPORTURL||','||:P798_ITEMSPECIFICATIONCODE||','||:P798_SKU);
+                    end;
+                    ```
+                itemsToSubmit: [
+                    P798_ITEMCODE
+                    P798_FROMDATE
+                    P798_TODATE
+                    P798_BIREPORTURL
+                    P798_ITEMSPECIFICATIONCODE
+                    P798_SKU
+                ]
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @item-ledger
+            }
+            execution {
+                sequence: 20
+                fireOnInit: false
+            }
+        )
+
+    )
+
+    process item-ledger-save-interactive-grid-data (
+        name: Item Ledger - Save Interactive Grid Data
+        type: interactiveGridAutoRowProcessing
+        editableRegion: @item-ledger
+        execution {
+            sequence: 10
+        }
+        advanced {
+            executionMappingIdentifier: 3502389045884321
+        }
+    )
+
+    process prepare-url (
+        name: PREPARE_URL
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                   result varchar2(2000);
+                begin
+                   result:=apex_util.prepare_url(apex_application.g_x01);
+                   apex_json.open_object;
+                   apex_json.write('success', true);
+                   apex_json.write('url', result);
+                   apex_json.close_object;
+                exception
+                 when others then
+                   apex_json.open_object;
+                   apex_json.write('success', false);
+                   apex_json.write('message', sqlerrm);
+                   apex_json.close_object;
+                end;
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 3505742916884332
+        }
+    )
+
+)
+
