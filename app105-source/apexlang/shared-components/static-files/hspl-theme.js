@@ -5464,3 +5464,106 @@ window.addEventListener('beforeunload', function () {
   document.addEventListener('apexafterrefresh', schedule, true);
   window.addEventListener('resize', schedule, { passive: true });
 })();
+
+/* HSPL_P118_LAYOUT_RECOVERY_V1
+   A page-118-only recovery bundle.  These rules are deliberately kept together
+   because a later application/static-file import can otherwise replace just
+   one of the separate visual refinements. */
+(function () {
+  function cell(id) {
+    var item = document.getElementById(id);
+    var field = item && item.closest('.t-Form-fieldContainer');
+    return field && field.parentElement && field.parentElement.classList.contains('col') ? field.parentElement : null;
+  }
+  function style(node, values) {
+    if (!node) return;
+    Object.keys(values).forEach(function (key) { node.style[key] = values[key]; });
+  }
+  function arrangeHeader() {
+    var quantity = cell('P118_QUANTITY');
+    var customer = cell('P118_CUSTOMERCODE');
+    var pending = cell('P118_PENDINGSOTNO');
+    var radios = document.querySelector('#P118_SHIPTO .apex-item-grid-row');
+    if (quantity) style(quantity, {
+      flex: '0 0 calc(33.333333% - 12px)', width: 'calc(33.333333% - 12px)',
+      maxWidth: 'calc(33.333333% - 12px)', marginLeft: '33.333333%', marginTop: '-64px'
+    });
+    if (customer && pending) {
+      var firstRow = customer.parentElement;
+      var secondRow = pending.parentElement;
+      if (firstRow !== secondRow && firstRow && secondRow && secondRow.classList.contains('row')) {
+        firstRow.appendChild(pending);
+        secondRow.remove();
+      }
+      style(firstRow, { display: 'flex', columnGap: '12px' });
+      [customer, pending].forEach(function (node) {
+        style(node, { flex: '0 0 calc(50% - 6px)', width: 'calc(50% - 6px)', maxWidth: 'calc(50% - 6px)' });
+      });
+    }
+    if (radios) style(radios, { display: 'flex', columnGap: '28px', alignItems: 'center' });
+  }
+  function arrangeCards() {
+    if (document.querySelector('.hspl-p118-compact-board')) return;
+    var ids = [
+      ['R667376656749376113', 'R667376419227376111', 'OTHER'],
+      ['R667376750619376114', 'R667376949381376116', 'POAMENDMENTDETAIL']
+    ];
+    var tracks = ids.map(function (track) {
+      return track.map(function (id) {
+        var region = document.getElementById(id);
+        return region && region.closest('.col');
+      });
+    });
+    if (tracks.some(function (track) { return track.some(function (node) { return !node; }); })) return;
+    var rows = [];
+    tracks.flat().forEach(function (node) {
+      var row = node.parentElement;
+      if (!rows.includes(row)) rows.push(row);
+    });
+    var parent = rows[0] && rows[0].parentElement;
+    if (!parent || rows.length !== 3 || rows.some(function (row) {
+      return row.parentElement !== parent || Array.prototype.filter.call(row.children, function (node) { return node.classList.contains('col'); }).length !== 2;
+    })) return;
+    var board = document.createElement('div');
+    board.className = 'hspl-p118-compact-board';
+    style(board, { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: '12px', alignItems: 'start', marginTop: '12px' });
+    tracks.forEach(function (trackNodes) {
+      var track = document.createElement('div');
+      track.className = 'hspl-p118-compact-track';
+      style(track, { display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '0' });
+      trackNodes.forEach(function (node) {
+        style(node, { flex: '0 0 auto', width: 'auto', maxWidth: 'none', padding: '0', margin: '0' });
+        track.appendChild(node);
+      });
+      board.appendChild(track);
+    });
+    parent.insertBefore(board, rows[0]);
+    rows.forEach(function (row) { row.remove(); });
+  }
+  function arrangeTotals() {
+    var nodes = ['P118_SUMOFAMOUNT', 'P118_SUMOFFOOTERAMOUNT', 'P118_PURCHASEORDERAMOUNT'].map(cell);
+    if (nodes.some(function (node) { return !node; })) return;
+    var rows = nodes.map(function (node) { return node.parentElement; });
+    var parent = rows[0] && rows[0].parentElement;
+    if (!parent || rows.some(function (row) { return !row.classList.contains('row') || row.parentElement !== parent; })) return;
+    if (rows[0] !== rows[1]) { rows[0].appendChild(nodes[1]); rows[1].remove(); }
+    if (rows[0] !== rows[2]) { rows[0].appendChild(nodes[2]); rows[2].remove(); }
+    style(rows[0], { display: 'flex', columnGap: '12px' });
+    nodes.forEach(function (node) {
+      style(node, { flex: '0 0 calc(33.333333% - 8px)', width: 'calc(33.333333% - 8px)', maxWidth: 'calc(33.333333% - 8px)' });
+    });
+  }
+  function apply() {
+    if (!document.documentElement.classList.contains('page-118') || window.innerWidth < 768) return;
+    arrangeHeader();
+    arrangeCards();
+    arrangeTotals();
+  }
+  function schedule() { window.requestAnimationFrame(apply); }
+  [0, 900, 1800, 2600, 3600, 5000, 6500].forEach(function (delay) { window.setTimeout(schedule, delay); });
+  document.addEventListener('apexreadyend', schedule, { once: true });
+  document.addEventListener('apexafterrefresh', schedule, true);
+  document.addEventListener('click', function (event) {
+    if (event.target.closest && event.target.closest('.t-Tabs-link')) window.setTimeout(schedule, 120);
+  }, true);
+})();

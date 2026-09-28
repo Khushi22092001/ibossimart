@@ -82,9 +82,147 @@ page 146 (
                           '&nQUser='+ username +
                           '&nQPassword='+ password +
                           '&bipParams={"_xmode":"1","_xpf":"","_xf":"pdf","_xpt":"1",'+reportParams+'"}'
-            //alert(reportURL);
+                    //alert(reportURL);
               window.open(reportURL, '_blank');
             }
+
+            /* HSPL_P146_COMPACT_CARD_BOARD_V1: preserve field order and card
+             * widths while letting the two card columns stack independently. */
+            (function () {
+              function titleOf(slot) {
+                var title = slot.querySelector('.t-Region-title, .t-Region-header h1, .t-Region-header h2, .t-Region-header h3');
+                return title ? title.textContent.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+              }
+              function arrange() {
+                if (!document.documentElement.classList.contains('page-146') || window.innerWidth < 768) return;
+                var root = document.getElementById('General');
+                var canvas = root && root.querySelector('.hspl-section-canvas');
+                if (!canvas || canvas.querySelector('.hspl-p146-card-board')) return;
+                var slots = Array.prototype.filter.call(canvas.querySelectorAll('.hspl-section-slot'), function (slot) {
+                  return slot.parentElement && slot.parentElement.parentElement === canvas;
+                });
+                var named = {};
+                slots.forEach(function (slot) { named[titleOf(slot)] = slot; });
+                var left = [named['select no'], named['transportation info']];
+                var right = [named['reference'], named['under signed']];
+                if (left.concat(right).some(function (slot) { return !slot; })) return;
+
+                var board = document.createElement('div');
+                board.className = 'hspl-p146-card-board';
+                var leftTrack = document.createElement('div');
+                leftTrack.className = 'hspl-p146-card-track';
+                var rightTrack = document.createElement('div');
+                rightTrack.className = 'hspl-p146-card-track';
+                board.appendChild(leftTrack);
+                board.appendChild(rightTrack);
+                canvas.insertBefore(board, left[0].parentElement);
+
+                [[leftTrack, left], [rightTrack, right]].forEach(function (entry) {
+                  entry[1].forEach(function (slot) {
+                    var row = slot.parentElement;
+                    entry[0].appendChild(slot);
+                    if (!row.querySelector('.hspl-section-slot')) row.remove();
+                  });
+                });
+              }
+              [300, 900, 1800, 3000].forEach(function (delay) { window.setTimeout(arrange, delay); });
+              document.addEventListener('apexafterrefresh', arrange, true);
+            })();
+
+            /* HSPL_P146_COMPACT_CARD_BOARD_V2: supports the native APEX row
+             * structure as well as the shared semantic-card structure. */
+            (function () {
+              function titleOf(card) {
+                var title = card.querySelector('.t-Region-title, .t-Region-header h1, .t-Region-header h2, .t-Region-header h3');
+                return title ? title.textContent.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+              }
+              function cardSlot(card, root) {
+                var node = card;
+                while (node && node !== root) {
+                  if (node.classList && node.classList.contains('col')) return node;
+                  node = node.parentElement;
+                }
+                return null;
+              }
+              function arrange() {
+                if (!document.documentElement.classList.contains('page-146') || window.innerWidth < 768) return;
+                var root = document.getElementById('General');
+                if (!root || root.querySelector('.hspl-p146-card-board')) return;
+                var named = {};
+                Array.prototype.forEach.call(root.querySelectorAll('.t-Region'), function (card) {
+                  var name = titleOf(card);
+                  if (name) named[name] = cardSlot(card, root);
+                });
+                var left = [named['select no'], named['transportation info']];
+                var right = [named['reference'], named['under signed']];
+                if (left.concat(right).some(function (slot) { return !slot; })) return;
+                var grid = left[0].parentElement && left[0].parentElement.parentElement;
+                if (!grid || left.concat(right).some(function (slot) { return slot.parentElement.parentElement !== grid; })) return;
+
+                var board = document.createElement('div');
+                board.className = 'hspl-p146-card-board';
+                var leftTrack = document.createElement('div');
+                leftTrack.className = 'hspl-p146-card-track';
+                var rightTrack = document.createElement('div');
+                rightTrack.className = 'hspl-p146-card-track';
+                board.appendChild(leftTrack);
+                board.appendChild(rightTrack);
+                grid.insertBefore(board, left[0].parentElement);
+                [[leftTrack, left], [rightTrack, right]].forEach(function (entry) {
+                  entry[1].forEach(function (slot) {
+                    var row = slot.parentElement;
+                    entry[0].appendChild(slot);
+                    if (!row.querySelector('.col')) row.remove();
+                  });
+                });
+              }
+              [350, 1000, 2200, 3500].forEach(function (delay) { window.setTimeout(arrange, delay); });
+              document.addEventListener('apexafterrefresh', arrange, true);
+            })();
+
+            /* HSPL_P146_COMPACT_CARD_GRID_V3: the four cards are rendered in
+             * two native APEX rows. Turn those rows into grid contents so a
+             * short right-side card never inherits the left-side row height. */
+            (function () {
+              function titleOf(card) {
+                var title = card.querySelector('.t-Region-title, .t-Region-header h1, .t-Region-header h2, .t-Region-header h3');
+                return title ? title.textContent.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+              }
+              function rowOf(card, root) {
+                var node = card.parentElement;
+                while (node && node !== root) {
+                  if (node.classList && node.classList.contains('row')) return node;
+                  node = node.parentElement;
+                }
+                return null;
+              }
+              function arrange() {
+                if (!document.documentElement.classList.contains('page-146') || window.innerWidth < 768) return;
+                var root = document.getElementById('General');
+                if (!root) return;
+                var named = {};
+                Array.prototype.forEach.call(root.querySelectorAll('.t-Region'), function (card) {
+                  var name = titleOf(card);
+                  if (name) named[name] = card;
+                });
+                var cards = [named['select no'], named['reference'], named['transportation info'], named['under signed']];
+                if (cards.some(function (card) { return !card; })) return;
+                var rows = cards.map(function (card) { return rowOf(card, root); });
+                if (rows.some(function (row) { return !row; })) return;
+                var grid = rows[0].parentElement;
+                if (!grid || rows.some(function (row) { return row.parentElement !== grid; })) return;
+
+                grid.classList.add('hspl-p146-native-card-grid');
+                rows.forEach(function (row) { row.classList.add('hspl-p146-native-card-row'); });
+                cards[0].classList.add('hspl-p146-card-select-no');
+                cards[1].classList.add('hspl-p146-card-reference');
+                cards[2].classList.add('hspl-p146-card-transportation');
+                cards[3].classList.add('hspl-p146-card-under-signed');
+              }
+              [400, 1200, 2600, 4200].forEach(function (delay) { window.setTimeout(arrange, delay); });
+              document.addEventListener('DOMContentLoaded', arrange);
+              document.addEventListener('apexafterrefresh', arrange, true);
+            })();
             
             
             
@@ -121,6 +259,136 @@ page 146 (
             html.page-146 #GrnDetail_ig .a-GV-w-scroll {
                 overflow-x: auto !important;
                 overflow-y: hidden !important;
+            }
+
+            /* HSPL_P146_COMPACT_FORM_V1: preserve the existing GRN section
+             * positions and field widths, while removing excess vertical
+             * padding and gaps from the header-form cards. */
+            @media (min-width: 768px) {
+                html.page-146 #General > .t-Region-bodyWrap > .t-Region-body {
+                    padding: 0 !important;
+                }
+
+                html.page-146 #General .t-Region:not(#General) {
+                    margin-bottom: 10px !important;
+                }
+
+                html.page-146 #General .t-Region:not(#General) > .t-Region-header {
+                    min-height: 44px !important;
+                    padding: 9px 16px !important;
+                }
+
+                html.page-146 #General .t-Region:not(#General) > .t-Region-bodyWrap > .t-Region-body {
+                    padding: 9px 12px 10px !important;
+                }
+
+                html.page-146 #General .t-Region:not(#General) .t-Form-fieldContainer {
+                    padding: 2px 4px !important;
+                }
+
+                html.page-146 #General .t-Region:not(#General) .t-Form-labelContainer {
+                    min-height: 17px !important;
+                    margin-bottom: 0 !important;
+                    padding-bottom: 2px !important;
+                }
+
+                html.page-146 #General .t-Region:not(#General) .t-Form-label {
+                    line-height: 17px !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-board {
+                    grid-column: 1 / -1 !important;
+                    display: grid !important;
+                    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                    width: 100% !important;
+                    max-width: none !important;
+                    flex: 0 0 100% !important;
+                    gap: 12px !important;
+                    align-items: start !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-track {
+                    display: flex !important;
+                    min-width: 0 !important;
+                    flex-direction: column !important;
+                    gap: 0 !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-track > .hspl-section-slot {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-track > .hspl-section-slot > .t-Region {
+                    margin-bottom: 6px !important;
+                }
+
+                /* HSPL_P146_COMPACT_CARD_GRID_V3 */
+                html.page-146 #General .hspl-p146-native-card-grid {
+                    display: grid !important;
+                    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                    column-gap: 12px !important;
+                    row-gap: 0 !important;
+                    align-items: start !important;
+                }
+
+                html.page-146 #General .hspl-p146-native-card-grid > .hspl-p146-native-card-row {
+                    display: contents !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-select-no,
+                html.page-146 #General .hspl-p146-card-transportation {
+                    grid-column: 1 !important;
+                    width: 100% !important;
+                    min-width: 0 !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-reference,
+                html.page-146 #General .hspl-p146-card-under-signed {
+                    grid-column: 2 !important;
+                    width: 100% !important;
+                    min-width: 0 !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-select-no,
+                html.page-146 #General .hspl-p146-card-reference {
+                    grid-row: 1 !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-transportation,
+                html.page-146 #General .hspl-p146-card-under-signed {
+                    grid-row: 2 !important;
+                }
+
+                /* HSPL_P146_COMPACT_CARD_GRID_V3_ROLLBACK: retain the native
+                 * APEX row container; it also owns the General form layout. */
+                html.page-146 #General .hspl-p146-native-card-grid {
+                    display: block !important;
+                }
+
+                html.page-146 #General .hspl-p146-native-card-grid > .hspl-p146-native-card-row {
+                    display: flex !important;
+                    flex-flow: row wrap !important;
+                }
+
+                html.page-146 #General .hspl-p146-card-select-no,
+                html.page-146 #General .hspl-p146-card-reference,
+                html.page-146 #General .hspl-p146-card-transportation,
+                html.page-146 #General .hspl-p146-card-under-signed {
+                    grid-column: auto !important;
+                    grid-row: auto !important;
+                    width: auto !important;
+                }
+
+                /* HSPL_P146_UNDER_SIGNED_LIFT_V1: use the empty area below
+                 * Reference without changing the native card order. */
+                html.page-146 #General .hspl-p146-card-under-signed {
+                    position: relative !important;
+                    transform: translateY(-128px) !important;
+                }
             }
             ```
     }
