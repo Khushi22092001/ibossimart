@@ -168,6 +168,91 @@ page 118 (
                }
                
             });
+
+            /* HSPL_P118_COMPACT_GENERAL_V1
+               Keep the authored Purchase Order General section order, while
+               allowing the two desktop card tracks to close their own vertical
+               gaps. The original APEX rows are restored below tablet width. */
+            (function () {
+                var state;
+                var leftNames = ['Currency', 'Texts', 'Other Informations'];
+                var rightNames = ['Select Indent', 'GST In Nature And Transaction', 'PO Amendment Detail'];
+                var allNames = leftNames.concat(rightNames);
+
+                function regionName(slot) {
+                    var region = Array.prototype.find.call(slot.children, function (child) {
+                        return child.classList && child.classList.contains('t-Region');
+                    });
+                    var title = region && region.querySelector('.t-Region-title');
+                    return title ? title.textContent.replace(/\s+/g, ' ').trim() : '';
+                }
+
+                function restore() {
+                    if (!state) return;
+                    state.rows.forEach(function (row) {
+                        state.slots.get(row).forEach(function (slot) { row.appendChild(slot); });
+                        state.board.parentNode.insertBefore(row, state.board);
+                    });
+                    state.board.remove();
+                    state = null;
+                }
+
+                function compact() {
+                    if (window.innerWidth < 768) {
+                        restore();
+                        return;
+                    }
+                    if (state) return;
+
+                    var root = document.getElementById('General') || document.getElementById('general');
+                    var container = root && root.querySelector(':scope > .t-Region-bodyWrap > .t-Region-body > .container');
+                    if (!container) return;
+
+                    var rows = Array.prototype.filter.call(container.children, function (child) {
+                        return child.classList && child.classList.contains('row');
+                    });
+                    var slotsByName = {};
+                    var compactRows = [];
+                    var slotsByRow = new Map();
+
+                    rows.forEach(function (row) {
+                        var slots = Array.prototype.filter.call(row.children, function (child) {
+                            return child.classList && child.classList.contains('col') && allNames.indexOf(regionName(child)) !== -1;
+                        });
+                        if (slots.length && slots.length === row.children.length) {
+                            compactRows.push(row);
+                            slotsByRow.set(row, slots);
+                            slots.forEach(function (slot) { slotsByName[regionName(slot)] = slot; });
+                        }
+                    });
+
+                    if (compactRows.length !== 3 || allNames.some(function (name) { return !slotsByName[name]; })) return;
+
+                    var board = document.createElement('div');
+                    var left = document.createElement('div');
+                    var right = document.createElement('div');
+                    board.className = 'hspl-p118-compact-board';
+                    left.className = 'hspl-p118-compact-track';
+                    right.className = 'hspl-p118-compact-track';
+                    leftNames.forEach(function (name) { left.appendChild(slotsByName[name]); });
+                    rightNames.forEach(function (name) { right.appendChild(slotsByName[name]); });
+                    board.appendChild(left);
+                    board.appendChild(right);
+                    container.insertBefore(board, compactRows[0]);
+                    compactRows.forEach(function (row) { row.remove(); });
+                    state = { board: board, rows: compactRows, slots: slotsByRow };
+                }
+
+                var timer;
+                function schedule() {
+                    window.clearTimeout(timer);
+                    timer = window.setTimeout(compact, 0);
+                }
+
+                [0, 180, 700, 1400].forEach(function (delay) { window.setTimeout(compact, delay); });
+                window.addEventListener('resize', schedule, { passive: true });
+                document.addEventListener('apexafterrefresh', schedule, true);
+            })();
             
             ```
     }
@@ -179,6 +264,41 @@ page 118 (
                 position: absolute;
                 left: 190px;
               top: 140px;
+            }
+
+            /* HSPL_P118_COMPACT_GENERAL_V1 */
+            @media (min-width: 768px) {
+                #General .hspl-p118-compact-board,
+                #general .hspl-p118-compact-board {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 12px;
+                    margin-top: 12px;
+                }
+
+                #General .hspl-p118-compact-track,
+                #general .hspl-p118-compact-track {
+                    display: flex;
+                    min-width: 0;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+
+                #General .hspl-p118-compact-track > .col,
+                #general .hspl-p118-compact-track > .col {
+                    float: none;
+                    width: auto;
+                    max-width: none;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                /* HSPL_P118_GENERAL_SHIPTO_ALIGNMENT_V1 */
+                #P118_SHIPTO .apex-item-grid-row {
+                    display: flex;
+                    align-items: center;
+                    column-gap: 28px;
+                }
             }
             
             
@@ -459,6 +579,7 @@ page 118 (
             sequence: 30
             parentRegion: @general
             slot: subRegions
+            startNewRow: true
         }
         appearance {
             template: @/standard
@@ -3154,7 +3275,7 @@ page 118 (
             sequence: 60
             parentRegion: @general
             slot: subRegions
-            startNewRow: false
+            startNewRow: true
         }
         appearance {
             template: @/standard
@@ -3213,6 +3334,7 @@ page 118 (
             sequence: 70
             parentRegion: @general
             slot: subRegions
+            startNewRow: true
             columnSpan: 6
         }
         appearance {
@@ -3842,6 +3964,7 @@ page 118 (
             sequence: 50
             parentRegion: @general
             slot: subRegions
+            startNewRow: true
         }
         appearance {
             template: @/standard
@@ -4406,6 +4529,9 @@ page 118 (
             region: @ship-to
             slot: regionBody
             alignment: left
+            startNewRow: true
+            column: 1
+            columnSpan: 6
             labelColumnSpan: 4
         }
         appearance {
@@ -5805,6 +5931,9 @@ page 118 (
             region: @ship-to
             slot: regionBody
             alignment: left
+            startNewRow: false
+            column: 7
+            columnSpan: 6
             labelColumnSpan: 4
         }
         appearance {
@@ -5999,6 +6128,9 @@ page 118 (
             region: @summary
             slot: regionBody
             alignment: left
+            startNewRow: false
+            column: 9
+            columnSpan: 4
             labelColumnSpan: 4
         }
         appearance {
@@ -6098,7 +6230,8 @@ page 118 (
             region: @general-2
             slot: regionBody
             alignment: left
-            startNewRow: false
+            startNewRow: true
+            column: 5
         }
         appearance {
             template: @/optional
@@ -6527,6 +6660,9 @@ page 118 (
             region: @summary
             slot: regionBody
             alignment: left
+            startNewRow: true
+            column: 1
+            columnSpan: 4
             labelColumnSpan: 4
         }
         appearance {
@@ -6559,6 +6695,9 @@ page 118 (
             region: @summary
             slot: regionBody
             alignment: left
+            startNewRow: false
+            column: 5
+            columnSpan: 4
             labelColumnSpan: 4
         }
         appearance {
@@ -13020,4 +13159,3 @@ page 118 (
     )
 
 )
-

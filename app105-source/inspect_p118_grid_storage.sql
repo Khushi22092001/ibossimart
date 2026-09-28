@@ -15,7 +15,7 @@ select item_name, grid_column, grid_column_span, begins_on_new_row, new_grid_row
   from apex_260100.apex_application_page_items
  where application_id = 105
    and page_id = 118
-   and item_name in ('P118_LOCATIONCODE','P118_DOCTYPECODE','P118_PURCHASEORDERDATE','P118_PURCHASEORDERNO','P118_PARTYCODE','P118_DELIVERYDATE','P118_QUANTITY')
+   and item_name in ('P118_LOCATIONCODE','P118_DOCTYPECODE','P118_PURCHASEORDERDATE','P118_PURCHASEORDERNO','P118_PARTYCODE','P118_DELIVERYDATE','P118_ISOPENSPEC','P118_QUANTITY','P118_CUSTOMERCODE','P118_PENDINGSOTNO')
  order by display_sequence;
 
 exit

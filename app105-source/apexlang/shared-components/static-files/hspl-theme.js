@@ -8,6 +8,72 @@
   } catch (ignore) {}
 })();
 
+/* HSPL_P118_DETAIL_TOTALS_HORIZONTAL_V1 */
+(function () {
+  function cell(itemId) {
+    var item = document.getElementById(itemId);
+    var field = item && item.closest('.t-Form-fieldContainer');
+    return field && field.parentElement && field.parentElement.classList.contains('col') ? field.parentElement : null;
+  }
+  function apply() {
+    if (!document.documentElement.classList.contains('page-118') || window.innerWidth < 768) return;
+    var cells = ['P118_SUMOFAMOUNT', 'P118_SUMOFFOOTERAMOUNT', 'P118_PURCHASEORDERAMOUNT'].map(cell);
+    if (cells.some(function (item) { return !item; })) return;
+    var rows = cells.map(function (item) { return item.parentElement; });
+    var parent = rows[0] && rows[0].parentElement;
+    if (!parent || rows.some(function (row) { return !row.classList.contains('row') || row.parentElement !== parent; })) return;
+    if (rows[0] !== rows[1]) {
+      rows[0].appendChild(cells[1]);
+      rows[1].remove();
+    }
+    if (rows[0] !== rows[2]) {
+      rows[0].appendChild(cells[2]);
+      rows[2].remove();
+    }
+    rows[0].style.display = 'flex';
+    rows[0].style.columnGap = '12px';
+    cells.forEach(function (item) {
+      item.style.flex = '0 0 calc(33.333333% - 8px)';
+      item.style.width = 'calc(33.333333% - 8px)';
+      item.style.maxWidth = 'calc(33.333333% - 8px)';
+    });
+  }
+  function schedule() { window.requestAnimationFrame(apply); }
+  [1800, 2600, 3400, 4500].forEach(function (delay) { window.setTimeout(schedule, delay); });
+  document.addEventListener('apexreadyend', schedule, { once: true });
+  document.addEventListener('apexafterrefresh', schedule, true);
+  document.addEventListener('click', function (event) {
+    if (event.target.closest && event.target.closest('.t-Tabs-link')) window.setTimeout(schedule, 120);
+  }, true);
+})();
+
+/* HSPL_P118_QUANTITY_VERTICAL_ALIGNMENT_V1 */
+(function () {
+  function apply() {
+    if (!document.documentElement.classList.contains('page-118') || window.innerWidth < 768) return;
+    var item = document.getElementById('P118_QUANTITY');
+    var field = item && item.closest('.t-Form-fieldContainer');
+    var cell = field && field.parentElement && field.parentElement.classList.contains('col') ? field.parentElement : null;
+    if (cell) cell.style.marginTop = '-64px';
+  }
+  [0, 180, 700, 1400].forEach(function (delay) { window.setTimeout(apply, delay); });
+  document.addEventListener('apexafterrefresh', apply, true);
+})();
+
+/* HSPL_P118_QUANTITY_VERTICAL_ALIGNMENT_V2 */
+(function () {
+  function apply() {
+    if (!document.documentElement.classList.contains('page-118') || window.innerWidth < 768) return;
+    var item = document.getElementById('P118_QUANTITY');
+    var field = item && item.closest('.t-Form-fieldContainer');
+    var cell = field && field.parentElement && field.parentElement.classList.contains('col') ? field.parentElement : null;
+    if (cell) cell.style.marginTop = '-64px';
+  }
+  [1800, 2600, 3400, 4500].forEach(function (delay) { window.setTimeout(apply, delay); });
+  document.addEventListener('apexreadyend', apply, { once: true });
+  document.addEventListener('apexafterrefresh', apply, true);
+})();
+
 /* ==========================================================================
    HINDUSTAN GROUP — theme behaviour (loaded app-wide via application.apx)
 
@@ -5248,3 +5314,153 @@ window.addEventListener('beforeunload', function () {
 /* Run proven card compaction after late APEX form hydration (Sales Order included). */
 (function(){function card(s){return [...s.children].find(x=>x.classList&&x.classList.contains("t-Region")&&x.querySelector(":scope > .t-Region-header")&&x.querySelector(".t-Form-fieldContainer"));}function apply(){if(innerWidth<768||!document.documentElement.classList.contains("hspl-compact-form")||document.documentElement.classList.contains("page-69"))return;document.querySelectorAll(".t-Body-main .container").forEach(function(grid){var sets=[...grid.children].filter(x=>x.classList.contains("row")).map(r=>[...r.children].filter(s=>s.classList.contains("col")&&card(s))).filter(a=>a.length);if(sets.length<2||sets.some(a=>a.length>2))return;grid.classList.add("hspl-card-canvas");});}function schedule(){requestAnimationFrame(apply);}[0,180,700,1400].forEach(d=>setTimeout(schedule,d));document.addEventListener("apexreadyend",schedule,{once:true});document.addEventListener("apexafterrefresh",schedule,true);addEventListener("resize",schedule,{passive:true});})();
 /* Late card masonry adapter deliberately disabled: preserve authored rows. */
+
+/* HSPL_P118_RUNTIME_LAYOUT_V4
+   Purchase Order has independent left/right region stacks.  APEX renders those
+   stacks as paired flex rows, which reserves the height of the taller card on
+   the other side.  Scope the adapter to page 118 and move only those six
+   already-paired region slots into two visual tracks.  No fields or APEX
+   regions are changed. */
+(function () {
+  var state;
+  var lowerCards = [
+    ['Currency', 'Texts', 'Other Informations'],
+    ['Select Indent', 'GST In Nature And Transaction', 'PO Amendment Detail']
+  ];
+
+  function title(slot) {
+    var node = slot && slot.querySelector('.t-Region-title,.t-Region-header');
+    return node ? node.textContent.replace(/\s+/g, ' ').trim() : '';
+  }
+
+  function fieldCell(itemId) {
+    var item = document.getElementById(itemId);
+    var container = item && item.closest('.t-Form-fieldContainer');
+    return container && container.parentElement && container.parentElement.classList.contains('col')
+      ? container.parentElement
+      : null;
+  }
+
+  function rememberStyle(node) {
+    if (!state.styles.has(node)) state.styles.set(node, node.getAttribute('style'));
+  }
+
+  function setStyle(node, values) {
+    if (!node) return;
+    rememberStyle(node);
+    Object.keys(values).forEach(function (key) { node.style[key] = values[key]; });
+  }
+
+  function restore() {
+    if (!state) return;
+    if (state.board && state.board.isConnected) {
+      state.rows.forEach(function (row) {
+        row.slots.forEach(function (slot) { row.node.appendChild(slot); });
+        state.board.parentNode.insertBefore(row.node, state.board);
+      });
+      state.board.remove();
+    }
+    state.styles.forEach(function (style, node) {
+      if (style === null) node.removeAttribute('style'); else node.setAttribute('style', style);
+    });
+    state = null;
+  }
+
+  function arrangeHeaderFields() {
+    var quantity = fieldCell('P118_QUANTITY');
+    var customer = fieldCell('P118_CUSTOMERCODE');
+    var pending = fieldCell('P118_PENDINGSOTNO');
+    var radioGroup = document.querySelector('#P118_SHIPTO .apex-item-grid-row');
+
+    if (quantity) {
+      setStyle(quantity, {
+        flex: '0 0 calc(33.333333% - 12px)', width: 'calc(33.333333% - 12px)',
+        maxWidth: 'calc(33.333333% - 12px)', marginLeft: '33.333333%'
+      });
+    }
+    if (customer && pending) {
+      var customerRow = customer.parentElement;
+      var pendingRow = pending.parentElement;
+      if (customerRow && pendingRow && customerRow !== pendingRow && pendingRow.classList.contains('row')) {
+        customerRow.appendChild(pending);
+        pendingRow.remove();
+      }
+      [customer, pending].forEach(function (cell) {
+        setStyle(cell, {
+          flex: '0 0 calc(50% - 6px)', width: 'calc(50% - 6px)', maxWidth: 'calc(50% - 6px)'
+        });
+      });
+      setStyle(pending, { marginLeft: '12px' });
+    }
+    if (radioGroup) setStyle(radioGroup, { display: 'flex', columnGap: '28px', alignItems: 'center' });
+  }
+
+  function findSlot(root, expectedTitle) {
+    return Array.prototype.find.call(root.querySelectorAll('.row > .col'), function (slot) {
+      return title(slot) === expectedTitle;
+    });
+  }
+
+  function arrangeCards() {
+    var cards = [
+      ['R667376656749376113', 'R667376419227376111', 'OTHER'],
+      ['R667376750619376114', 'R667376949381376116', 'POAMENDMENTDETAIL']
+    ];
+    var slots = cards.map(function (track) {
+      return track.map(function (regionId) {
+        var region = document.getElementById(regionId);
+        return region && region.closest('.col');
+      });
+    });
+    if (slots.some(function (track) { return track.some(function (slot) { return !slot; }); })) return;
+
+    var rows = [];
+    slots.flat().forEach(function (slot) {
+      var row = slot.parentElement;
+      if (!rows.some(function (entry) { return entry.node === row; })) {
+        rows.push({ node: row, slots: Array.prototype.filter.call(row.children, function (child) { return child.classList.contains('col'); }) });
+      }
+    });
+    var parent = rows[0] && rows[0].node.parentElement;
+    if (!parent || rows.length !== 3 || rows.some(function (row) {
+      return row.slots.length !== 2 || row.node.parentElement !== parent;
+    })) return;
+
+    var board = document.createElement('div');
+    board.className = 'hspl-p118-compact-board';
+    setStyle(board, {
+      display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: '12px',
+      alignItems: 'start', marginTop: '12px'
+    });
+    slots.forEach(function (trackSlots) {
+      var track = document.createElement('div');
+      track.className = 'hspl-p118-compact-track';
+      setStyle(track, { display: 'flex', flexDirection: 'column', gap: '12px', minWidth: '0' });
+      trackSlots.forEach(function (slot) {
+        setStyle(slot, { flex: '0 0 auto', width: 'auto', maxWidth: 'none', padding: '0', margin: '0' });
+        track.appendChild(slot);
+      });
+      board.appendChild(track);
+    });
+    parent.insertBefore(board, rows[0].node);
+    rows.forEach(function (row) { row.node.remove(); });
+    state.board = board;
+    state.rows = rows;
+  }
+
+  function apply() {
+    var html = document.documentElement;
+    if (!html.classList.contains('page-118')) return;
+    if (state && (!state.board || !state.board.isConnected)) state = null;
+    if (window.innerWidth < 768) { restore(); return; }
+    if (!state) state = { board: null, rows: [], styles: new Map() };
+    arrangeHeaderFields();
+    if (!state.board) arrangeCards();
+  }
+
+  function schedule() { window.requestAnimationFrame(apply); }
+  [0, 180, 700, 1400, 2200].forEach(function (delay) { window.setTimeout(schedule, delay); });
+  document.addEventListener('apexreadyend', schedule, { once: true });
+  document.addEventListener('apexafterrefresh', schedule, true);
+  window.addEventListener('resize', schedule, { passive: true });
+})();
