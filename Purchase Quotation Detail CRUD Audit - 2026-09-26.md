@@ -130,3 +130,118 @@ Fix deployed:
 - Post-deploy saved-data check: 35 detail rows, 0 total mismatches and 0 rows with Rate present but Amount blank.
 
 The previously created orphan rows were not silently deleted. They are excluded from the clicked-row FD display because they do not match a real detail SNO and should be handled in a separately approved data-cleanup step.
+
+## FD opening regression follow-up
+
+Reported symptom: after the exact-SNO protection was deployed, clicking FD showed `Clicked quotation row could not be identified` and the modal did not open.
+
+Root cause: the first version tried to identify the clicked record by scanning the Interactive Grid model for the link SNO. In this grid/render state, the model value and rendered link context were not comparable at click time, so the safety guard blocked the action before the FD server process ran.
+
+Fix deployed:
+
+- The FD button now passes its own DOM element to the handler.
+- The handler obtains the exact Interactive Grid record from the clicked table row's `data-id`; it no longer relies only on a whole-grid SNO scan.
+- SNO scanning remains as a numeric/string fallback.
+- If the grid model is temporarily unavailable, the modal is no longer blocked; it opens with the link's exact SNO and refreshes normally.
+- The clicked-row validation and conditional tax repair remain active when the live model record is available.
+- Fresh pre-fix backup: `app105-source/backups/quotation-fd-domcontext-before-20260926-204607/live-before/f105_page_710.sql`.
+- Rollback script: `app105-source/rollback_quotation_fd_domcontext_20260926.sql`.
+- Live deployment and re-export succeeded. JavaScript syntax verification passed (16,327 characters checked).
+
+## Unsaved detail row FD server error follow-up
+
+Reported symptom: the clicked row was identified and the request reached the FD process, but the popup still did not open. APEX displayed `ORA-20001: Clicked quotation detail row was not found` repeatedly.
+
+Root cause: `P710_PREPARE_FD` required the clicked `(TNO,SNO)` to exist in the database before opening FD. Interactive Grid detail lines can have valid TNO/SNO and edited values in the browser before the main detail record is saved. The strict database-parent check therefore rejected a valid current grid row.
+
+Fix deployed:
+
+- The clicked Interactive Grid row's TNO, SNO, Specification and live Amount are authoritative for FD preparation, even while the detail row is unsaved.
+- The database-parent existence error was removed completely.
+- If Item Specification is absent from the live model, the process may fall back to the saved detail record.
+- If Party, Transaction Type or HSN is incomplete, FD still opens with any existing rows instead of raising an error.
+- If all tax inputs are available, only the exact clicked `(TNO,SNO)` footer is validated/repaired.
+- Repeated clicks no longer accumulate `ORA-20001` notifications from this process.
+- Fresh pre-fix backup: `app105-source/backups/quotation-fd-unsavedrow-before-20260926-210609/live-before/f105_page_710.sql`.
+- Rollback script: `app105-source/rollback_quotation_fd_unsavedrow_20260926.sql`.
+- Live deployment and re-export succeeded. The old error text is absent from the deployed page and JavaScript syntax verification passed (16,327 characters checked).
+
+## Delayed HSN initialization follow-up
+
+Reported symptom: the second enquiry item did not show HSN until the cursor reached or changed the Quantity section.
+
+Root cause confirmed:
+
+- The Quotation Detail region displayed only `QUOTATIONDETAIL.HSNCODE`.
+- Both Enquiry-to-Quotation Get Item processes inserted Item, Specification and Quantity but omitted HSN.
+- The old focus-based HSN action is intentionally disabled.
+- Therefore HSN stayed blank until an actual Quantity/Rate calculation called `P710_CALCULATE_DETAIL`, which fetched HSN from Item Specification Master.
+
+Database audit found 39 saved quotation detail rows where HSN is blank but Item Specification Master has a valid HSN.
+
+Fix deployed:
+
+- Quotation Detail now displays Item Specification Master HSN immediately whenever the saved detail HSN is blank.
+- HSN is a derived read-only/query-only grid column, so Tab does not need to enter Quantity to initialize it.
+- Both Get Item insert paths now fetch HSN from Item Specification Master and save it with the new quotation detail row.
+- Existing saved blank-HSN rows are displayed correctly without rewriting historical business data.
+- Verified sample: `TRD076 / 55668600 -> 72163100`; `TRD093 / 55668582 -> 72169990`.
+- Fresh pre-fix backup: `app105-source/backups/quotation-hsn-init-before-20260926-212403/live-before/f105_page_710.sql`.
+- Rollback script: `app105-source/rollback_quotation_hsn_init_20260926.sql`.
+- Live deployment and re-export succeeded. One region fallback and two Get Item HSN insertions are present; JavaScript syntax verification passed (16,327 characters checked).
+
+## Save-time calculation integrity guard
+
+Requirement: if any Purchase Quotation detail calculation is wrong, blank or stale at Create/Save time, the form must not save and the user must receive an exact row-wise error.
+
+Fix deployed:
+
+- A browser pre-submit guard checks the current Interactive Grid before submit. It reports the SNO and expected/found value for obvious Discount Amount, Rate After Discount, Amount, FD/Other, Total and summary mismatches while retaining entered values.
+- An authoritative server process runs at After Submit sequence 75, after Quotation Detail (50), Detail Quality (60) and Detail Footer (70) DML but before later processing. Any error raises `ORA-20020`; the entire current save transaction is rolled back.
+- Server verification covers Item/Specification presence, positive Quantity, valid Rate UOM, Primary/Secondary Quantity conversion, Discount %, Discount Amount, Rate After Discount, manual/effective Rate-based Amount, HSN/SAC, FD tax row count, footer head/legend/percentage/value, Other/FD Amount, row Total and the three header summary totals.
+- Manual Rate remains allowed. Rate After Discount remains a derived reference value; Amount is validated using the actual Rate and the selected/fallback Rate UOM.
+- Blank derived values are reported as `<blank>` rather than misleading `0.00`.
+- Up to 10 exact problems are shown in one save attempt; no silent correction or partial header/detail commit is performed.
+
+Verification:
+
+- Fresh pre-change backup: `app105-source/backups/quotation-save-calc-guard-before-20260926-213409/live-before/f105_page_710.sql`.
+- Rollback script: `app105-source/rollback_quotation_save_calc_guard_20260926.sql`.
+- The live process is present at sequence 75 with condition `REQUEST in (SAVE, CREATE)` and its PL/SQL parses successfully.
+- Source and final live-export JavaScript both pass syntax verification (20,599 characters).
+- A rollback-only negative test temporarily changed one row Amount by `123.45`. The live guard blocked it with exact SNO, expected Amount, found Amount, row Total and Summary Amount errors; the test transaction was rolled back.
+- Existing quotation TNO `56983631` is currently blocked for two historical rows until recalculated: SNO `56983635` has Secondary Quantity `0` instead of `40` and blank Discount Amount instead of `0.00`; SNO `56983648` has Secondary Quantity `0` instead of `60` and blank Discount Amount instead of `0.00`.
+
+Historical data found but not changed:
+
+- 39 Quotation Detail rows have no matching Quotation header.
+- 38 Quotation Detail Footer rows have no matching detail parent.
+- 7 saved detail rows have Footer Amount different from the sum of their child footer rows.
+
+These historical orphan/mismatch rows were intentionally not deleted or rewritten. They require a separately approved data-cleanup exercise.
+
+## Summary display order
+
+The Purchase Quotation Summary fields were reordered without changing their calculation or save logic:
+
+1. Sum Of Amount
+2. Sum Of Footer Amount
+3. Quotation Amount
+
+Live APEX metadata confirms item sequences `290`, `300` and `330` respectively. Fresh backup: `app105-source/backups/quotation-summary-order-before-20260926-222519/live-before/f105_page_710.sql`. Rollback script: `app105-source/rollback_quotation_summary_order_20260926.sql`.
+
+## Held Tab focus runaway
+
+Reported symptom: keeping Tab pressed inside Quotation Detail made focus run out of the current row/grid and later appear back on the row.
+
+Root cause: Windows/browser key repeat emits many `keydown` events while Tab remains held. Oracle APEX Interactive Grid treats each repeated event as a separate navigation action. It can cross the row/grid boundary while an asynchronous row calculation repaints the active row, producing the apparent leave-and-return behaviour. No active legacy Dynamic Action was explicitly forcing focus back to the row.
+
+Fix deployed:
+
+- In Purchase Quotation Detail, the first physical Tab or Shift+Tab keydown remains normal.
+- Further `event.repeat` keydowns from the same held key are prevented until Tab is released.
+- Separate fast Tab presses continue normally because each has its own keyup/keydown cycle.
+- The guard is limited to Page 710 Quotation Detail and does not change calculations, row values or Tab behaviour elsewhere.
+- Fresh backup: `app105-source/backups/quotation-tab-hold-guard-before-20260926-223132/live-before/f105_page_710.sql`.
+- Rollback script: `app105-source/rollback_quotation_tab_hold_guard_20260926.sql`.
+- Source and live re-export JavaScript syntax verification passed (21,309 characters), and the deployed live export contains `HSPL_P710_HELD_TAB_GUARD_V1`.

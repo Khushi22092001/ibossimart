@@ -7,11 +7,11 @@ begin
      set javascript_file_urls = regexp_replace(
            javascript_file_urls,
            '#APP_FILES#hspl-theme[.]js[^[:space:]]*',
-           '#APP_FILES#hspl-theme.js?version=#APP_VERSION#&cb=20260926formgridtotals32'),
+           '#APP_FILES#hspl-theme.js?version=#APP_VERSION#&cb=20260927formgridtotals33'),
          css_file_urls = regexp_replace(
            css_file_urls,
            '#APP_FILES#hspl-theme[.]css[^[:space:]]*',
-           '#APP_FILES#hspl-theme.css?version=#APP_VERSION#&cb=20260926formgridtotals32'),
+           '#APP_FILES#hspl-theme.css?version=#APP_VERSION#&cb=20260927formgridtotals33'),
          files_version = files_version + 1,
          version_scn = dbms_flashback.get_system_change_number,
          last_updated_on = sysdate,

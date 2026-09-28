@@ -2007,6 +2007,7 @@
   function fieldForCell(cell, context) {
     var direct = cell && (cell.getAttribute("data-column") || cell.getAttribute("data-property"));
     var heading = "";
+    var headerIdKey = "";
     var ids;
     var header;
     var headerNodes;
@@ -2018,7 +2019,10 @@
     ids = String(cell.getAttribute("headers") || "").split(/\s+/).filter(Boolean);
     ids.some(function (id) {
       header = doc.getElementById(id) || doc.getElementById(id + "_HDR");
-      if (header) heading = (header.textContent || "").trim();
+      if (header) {
+        heading = (header.textContent || "").trim();
+        headerIdKey = normalizedName(String(header.id || "").replace(/_HDR$/i, ""));
+      }
       return !!heading;
     });
     /* APEX 26 splits frozen selectors from the scrolling data table.  Its data
@@ -2037,9 +2041,12 @@
         var owner = node.closest && node.closest("th,td");
         return owner && owner.cellIndex === targetHeaderIndex;
       });
-      if (header) heading = (header.textContent || "").trim();
+      if (header) {
+        heading = (header.textContent || "").trim();
+        headerIdKey = normalizedName(String(header.id || "").replace(/_HDR$/i, ""));
+      }
     }
-    wanted = normalizedName(direct || heading);
+    wanted = normalizedName(direct);
     Array.prototype.forEach.call(context.columns || [], function (column) {
       var property = column && (column.property || column.name || column.id);
       if (property) candidates.push({
@@ -2051,7 +2058,19 @@
     Object.keys(context.fields || {}).forEach(function (property) {
       candidates.push({ property: property, propertyKey: normalizedName(property), headingKey: "" });
     });
+    /* Column captions are not unique: Indent page 108 has Primary and
+       Secondary columns both titled Indent/Sanctioned. Prefer the authored
+       column static id (for example INDENTQUANTITY2_HDR) before falling back
+       to a caption, otherwise the first Primary field is reused for the
+       Secondary total. Generated C... header ids simply miss this exact
+       lookup and continue through the normal heading fallback. */
     var match = candidates.find(function (candidate) {
+      return wanted && candidate.propertyKey === wanted;
+    }) || candidates.find(function (candidate) {
+      return headerIdKey && candidate.propertyKey === headerIdKey;
+    });
+    wanted = normalizedName(heading);
+    if (!match) match = candidates.find(function (candidate) {
       return wanted && (candidate.propertyKey === wanted || candidate.headingKey === wanted);
     });
     return match ? match.property : (direct || "");
@@ -5239,6 +5258,10 @@
       // icon-only Cancel control.  Capture both semantic button labels so a
       // register return always uses the persisted filter state.
       var candidate = event.target.closest('button, a, input');
+      /* An inline dialog's Back/Cancel is local to that dialog.  It must not
+         be mistaken for the form-level return control and redirect away from
+         the form that owns the dialog. */
+      if (candidate && candidate.closest('.ui-dialog, .a-Dialog')) return;
       var label = candidate && String(candidate.getAttribute('data-otel-label') || candidate.getAttribute('aria-label') ||
         candidate.getAttribute('title') || candidate.value || candidate.textContent || '').replace(/\s+/g, ' ').trim();
       var back = candidate && (candidate.matches('#back,#cancel,.back,[name="CANCEL"],[data-button-name="CANCEL"],button[data-otel-label="Back"],button[data-otel-label="CANCEL"]') ||

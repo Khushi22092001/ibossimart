@@ -11,9 +11,17 @@ for (const path of process.argv.slice(2)) {
     throw new Error(`Page JavaScript block not found in ${path}`);
   }
   const segment = source.slice(start, end);
-  const strings = [...segment.matchAll(/'(?:''|[^'])*'/g)]
-    .map((match) => match[0].slice(1, -1).replace(/''/g, "'"));
-  const javascript = strings.join("\n");
+  const matches = [...segment.matchAll(/'(?:''|[^'])*'/g)];
+  let javascript = "";
+  let previousEnd = 0;
+  for (const match of matches) {
+    const separator = segment.slice(previousEnd, match.index);
+    if (javascript && !separator.includes("||")) {
+      javascript += "\n";
+    }
+    javascript += match[0].slice(1, -1).replace(/''/g, "'");
+    previousEnd = match.index + match[0].length;
+  }
   new Function(javascript);
   console.log(`${path}: JavaScript syntax OK (${javascript.length} chars)`);
 }
