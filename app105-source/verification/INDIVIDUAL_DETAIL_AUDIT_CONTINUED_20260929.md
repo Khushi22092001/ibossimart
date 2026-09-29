@@ -2,6 +2,8 @@
 
 Status: **Partial verification; not an all-forms pass.**
 
+Register initial expansion/delayed colours are also in audit scope. See [register loading audit](REGISTER_LOADING_AUDIT_20260929.md). It records confirmed inconsistent first-paint guards and the still-unverified expanded-to-normal timing; no fix is claimed.
+
 Scope includes Detail tabs AND standalone lower Detail grids/regions, including modal forms. Empty registers were opened through Add New after explicit user authorization. No record Save/Create, Get Items, calculation, approval, import or deployment was performed during this audit. Temporary 960×900 viewport tests were reset afterward. Scroll tests used actual pointer drags, not injected CSS or programmatic scrollLeft assignments.
 
 ## Subsequent actual horizontal-drag checks

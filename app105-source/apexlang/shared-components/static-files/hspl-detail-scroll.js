@@ -18,7 +18,12 @@
 
   function eligible(grid) {
     var panel = grid.closest('.a-Tabs-panel,[role="tabpanel"]');
+    var region = regionFor(grid);
+    var heading = region && region.querySelector('.t-Region-title,.t-IRR-title');
+    var standaloneDetail = heading && /detail/i.test(heading.textContent || '') &&
+      !!doc.querySelector('.t-Form-fieldContainer,[id$="_FORMSTATUS"]');
     return !!grid.closest('#tabcontainer,.hspl-form-tabs') || detailPanel(panel) ||
+      standaloneDetail ||
       grid.classList.contains('hspl-detail-grid') ||
       (/detail/i.test(grid.id || '') &&
        !!doc.querySelector('.t-Form-fieldContainer,[id$="_FORMSTATUS"]'));
@@ -75,6 +80,13 @@
     if (anchor.parentElement && anchor.nextElementSibling !== state.bar) {
       anchor.parentElement.insertBefore(state.bar, anchor.nextSibling);
     }
+    // The legacy totals dock reclaims APEX's unused footer with a negative
+    // margin. Its old grid frame must not paint through the following summary.
+    // Clip only that unused slot, never the scroll viewport or any data row.
+    var gap = dock && state.owner ? Math.max(0, state.grid.getBoundingClientRect().bottom -
+      Math.max(dock.getBoundingClientRect().top, state.owner.getBoundingClientRect().bottom)) : 0;
+    state.grid.classList.toggle('hspl-detail-docked-grid', gap > 1);
+    state.grid.style.setProperty('--hspl-unused-footer-slot', Math.floor(gap) + 'px');
   }
 
   function sync(state, value, fromBar) {
@@ -116,6 +128,13 @@
     }
     var overflow = range(state.owner);
     state.bar.hidden = overflow <= 1;
+    // Hide redundant tracks only while the replacement has a real owner.
+    // Keep APEX's scroll containers and their event handlers intact.
+    state.grid.classList.toggle('hspl-detail-scroll-managed', overflow > 1);
+    var panel = state.grid.closest('.a-Tabs-panel,[role="tabpanel"]') || state.region;
+    panel.querySelectorAll('.mi-detail-hscroll').forEach(function (track) {
+      track.classList.toggle('hspl-detail-legacy-track', overflow > 1);
+    });
     if (overflow <= 1) return;
     // The bar's travel exactly matches the real container's scroll range.
     var width = Math.ceil(state.bar.clientWidth + overflow);
