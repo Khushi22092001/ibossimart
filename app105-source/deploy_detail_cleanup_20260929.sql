@@ -15,8 +15,8 @@ end;
 @@deploy_detail_cleanup_js_20260929.sql
 @@deploy_detail_cleanup_css_20260929.sql
 update apex_260100.wwv_flows
-   set css_file_urls=regexp_replace(css_file_urls,'(#APP_FILES#hspl-detail-compact[.]css)[^[:space:]]*','\1?cb=20260929cleanup1'),
-       javascript_file_urls=regexp_replace(javascript_file_urls,'(#APP_FILES#hspl-detail-scroll[.]js)[^[:space:]]*','\1?cb=20260929cleanup1'),
+   set css_file_urls=regexp_replace(css_file_urls,'(#APP_FILES#hspl-detail-compact[.]css)[^[:space:]]*','\1?cb=20260929cleanup2'),
+       javascript_file_urls=regexp_replace(javascript_file_urls,'(#APP_FILES#hspl-detail-scroll[.]js)[^[:space:]]*','\1?cb=20260929cleanup2'),
        files_version=files_version+1,
        version_scn=dbms_flashback.get_system_change_number,
        last_updated_on=sysdate
