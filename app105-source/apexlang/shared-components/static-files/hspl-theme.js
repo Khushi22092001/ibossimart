@@ -1,12 +1,7 @@
-/* Capture a queued sidebar handoff before the rest of this shared runtime can
-   allow APEX to paint the previous branch state. */
-(function () {
-  try {
-    if (window.sessionStorage && sessionStorage.getItem('hspl-nav-next-state')) {
-      document.documentElement.classList.add('hspl-nav-resolving');
-    }
-  } catch (ignore) {}
-})();
+/* Sidebar ownership belongs exclusively to hspl-sidebar-state.js.  Do not
+   set a second pending state here: the former handoff controller competed
+   with the dedicated controller and produced an expanded-then-collapsed
+   frame after login and navigation. */
 
 /* HSPL_P118_DETAIL_TOTALS_HORIZONTAL_V1 */
 (function () {
@@ -661,6 +656,9 @@
     var unnamedCandidates = [];
     Array.prototype.forEach.call(doc.querySelectorAll('.t-Region'), function (region) {
       if (region.classList.contains('js-filter-drawer') || region.classList.contains('hspl-drawer')) return;
+      /* Dashboard filters are inline cards, never register drawers. Promoting
+         one moves its date fields and destroys the dashboard's APEX grid. */
+      if (region.classList.contains('ds-dash-filters')) return;
       var title = regionTitle(region);
       if (title === 'filter' || title === 'filters') {
         region.classList.add('hspl-drawer');
@@ -4150,6 +4148,10 @@
    document consumes it once. No delayed observer is allowed to reopen/close
    the shell later, which removes the visible navigation flicker. */
 (function () {
+  /* Retired: hspl-sidebar-state.js is the single navigation-state owner.
+     Leaving this older controller active caused both controllers to click the
+     native APEX toggle during post-login startup. */
+  return;
   var branchKey = 'hspl-nav-open-label';
   var intentKey = 'hspl-nav-next-state';
   var preferenceKey = 'hspl-nav-preferred-state';

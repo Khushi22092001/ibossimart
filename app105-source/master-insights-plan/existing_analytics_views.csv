@@ -1,0 +1,703 @@
+"VIEW_NAME","VIEW_SQL"
+"BI_RECEIVABLE","With t_Allocated as (
+  select
+    aa.DrVoucherTNo as VoucherTNo,
+    aa.DrVoucherSNo as VoucherSNo,
+    -1 * sum(aa.Amount) as AllocatedAmount
+  from DrCrAllocation aa, Voucher bb, Voucher cc
+  where aa.DrVoucherTNo = bb.TNo
+    and aa.CrVoucherTNo = cc.TNo
+  group by
+    aa.DrVoucherTNo,
+    aa.DrVoucherSNo
+  union all
+  select
+    aa.CrVoucherTNo as VoucherTNo,
+    aa.CrVoucherSNo as VoucherSNo,
+    sum(aa.Amount) as AllocatedAmount
+  from DrCrAllocation aa, Voucher bb, Voucher cc
+  where aa.DrVoucherTNo = bb.TNo
+    and aa.CrVoucherTNo = cc.TNo
+  group by
+    aa.CrVoucherTNo,
+    aa.CrVoucherSNo
+), t_Bill as (
+  select
+    aa.TNo,
+    aa.ccInvoiceNo As BillNo,
+    aa.ccInvoiceDate As BillDate
+  from ccInvoice aa
+  union all
+  select
+    aa.TNo,
+    aa.ServiceBillNo As BillNo,
+    aa.ServiceBillDate As BillDate
+  from ServiceBill aa
+), t_Balance as (
+        select
+            a.TNo,
+            a.SNo,
+            a.VoucherDate,
+            b.VoucherNo,
+            a.LocationCode,
+            d.BillNo as BillNo,
+            d.BillDate as BillDate,
+            trunc(sysdate) - nvl(d.BillDate, a.VoucherDate) as BillAge,
+            a.AccountCode,
+            a.Amount as VoucherAmount,
+            c.AllocatedAmount,
+            a.Amount - nvl(c.AllocatedAmount, 0) as BalanceAmount
+        from VoucherDetail a, Voucher b, t_Allocated c, AccountOpening d
+        where a.TNo = b.TNo
+            and a.TNO= c.VoucherTNo(+)
+            and a.SNo = c.VoucherSNo(+)
+            and a.ModuleTNo = d.TNo(+)
+            and b.VoucherNo = 'OPENING'
+            and round(a.Amount - nvl(c.AllocatedAmount, 0), 0) != 0
+        union all
+        select
+            a.TNo,
+            a.SNo,
+            a.VoucherDate,
+            b.VoucherNo,
+            a.LocationCode,
+            d.BillNo,
+            d.BillDate,
+            trunc(sysdate) - nvl(d.BillDate, a.VoucherDate) as BillAge,
+            a.AccountCode,
+            a.Amount as VoucherAmount,
+            c.AllocatedAmount,
+            a.Amount - nvl(c.AllocatedAmount, 0) as BalanceAmount
+        from VoucherDetail a, Voucher b, t_Allocated c, t_Bill d
+        where a.TNo = b.TNo
+            and a.TNO= c.VoucherTNo(+)
+            and a.SNo = c.VoucherSNo(+)
+            and b.ModuleTNo = d.TNo(+)
+            and b.VoucherNo != 'OPENING'
+            and round(a.Amount - nvl(c.AllocatedAmount, 0), 0) != 0
+)
+select
+    x.LocationCode,
+    y.PartyName,
+    x.billno,
+    x.voucherdate,
+    x.BillAge,
+    Sum(x.VoucherAmount) As VoucherAmount,
+    Sum(x.AllocatedAmount) As AllocatedAmount,
+    sum(x.BalanceAmount) as TotalBalance,
+    X.AccountCode,
+    y.partytypecode
+
+from t_Balance x, Party y
+where x.AccountCode = y.PartyCode
+    and y.PartyTypeCode IN ('CUSTOMER')
+group by  x.LocationCode,
+    y.PartyName,
+    x.AccountCode,
+    y.partytypecode,
+    x.BillNo,
+    x.BillAge,
+    x.voucherdate
+having round(sum(x.BalanceAmount), 3) != 0
+order by y.PartyName, x.LocationCode
+"
+"BI_SALES_AGENT","(
+SELECT
+     PARTYCODE,
+     PARTYNAME,
+     OFFICEADDRESS1||''||OFFICEADDRESS2||''||OFFICEADDRESS3 AS ADDRESS,
+     C.CITYNAME,
+     C.CITYCODE,
+     S.STATECODE,
+     S.STATENAME,
+     S.GSTSTATECODE,
+     'INDIA' AS COUNTRY
+FROM PARTY P, CITY C, STATE S
+WHERE PARTYTYPECODE = 'AGENT'
+  AND P.OFFICECITYCODE = C.CITYCODE(+)
+  AND P.OFFICESTATECODE = S.STATECODE(+)
+)
+"
+"PCC_FREIGHTADVICE","select x.""TNO"",x.""COMPANYCODE"",x.""FINANCIALYEARCODE"",x.""LOCATIONCODE"",x.""DOCTYPECODE"",x.""FREIGHTADVICENO"",x.""FREIGHTADVICEDATE"",x.""TRANSPORTERCODE"",x.""FREIGHTTYPECODE"",x.""PARTYBILLNO"",x.""PARTYBILLDATE"",x.""MONEYTRANSFERMODECODE"",x.""MONEYTRANSFERREFERENCENO"",x.""DEBITACCOUNTCODE"",x.""CREDITACCOUNTCODE"",x.""TDSMASTERCODE"",x.""ITEMWISEFOOTER"",x.""REMARK"",x.""SUMOFAMOUNT"",x.""SUMOFFOOTERAMOUNT"",x.""FREIGHTADVICEAMOUNT"",x.""SUMOFTDSAMOUNT"",x.""SUMOFDEDUCTIONAMOUNT"",x.""SUMOFADVANCEAMOUNT"",x.""SUMOFPAYMENTCOMMISSION"",x.""SUMOFNETPAYABLEAMOUNT"",x.""AMOUNTAFTERTDS"",x.""TDSDEDUCTABLEAMOUNT"",x.""TDSALREADYDEDUCTEDON"",x.""PAIDTO"",x.""NARRATION"",x.""CREATOR"",x.""CREATIONTIME"",x.""BANKACCOUNTNO"",x.""TRANSACTIONTYPECODE"",x.""REVERSECHARGEIFAPPLICABLE"",x.""NATUREOFSUPPLYCODE"",x.""DUEDATE"",x.""REVERSECHARGEFOOTERNATURECODE"",x.""TDSNATURECODE"",x.""TDSPAYEECATEGORYCODE"",x.""PANNO"",x.""TDSTAXCATEGORYCODE"",x.""TDSTHRESHOLD"",x.""TDSTRANSACTIONTHRESHOLD"",x.""TOTALTDSPERCENT"",x.""ADVANCEORBILL"",x.""THRESHOLDPLUSMINUS"",x.""TDSDEDUCTEDINADVANCE"",x.""PAIDAMOUNT"",x.""PAIDINADVANCE"",x.""TDSCERTIFICATENO"",x.""TDSCERTIFICATEFILENAME"",x.""TDSLOWERRATEAPPLICABLE"",x.""TDSLOWERRATE"",x.""CESSLOWERRATE"",x.""SURCHARGELOWERRATE"",x.""FOOTERNATURECODE"",x.""BANKCODE"",x.""PAIDTOCODE"",x.""CHANGEFREIGHTRATE"",x.""SUMOFGPSDEDUCTIONAMOUNT"",x.""IFSCCODE"",x.""PAYMENTMETHODCODE"",x.""SMSFLAG"",x.""LOANAMOUNT"",x.""LOANTOTRANSPORTERTNO"",x.""NOOFLR"",x.""NETPAYABLEAFTERLOAN"",x.""PASSONQUANTITYCODE"",x.""BILLEDONQUANTITYCODE"",x.""SUMOFBILLEDAMOUNT"",x.""SUMOFBILLEDFOOTERAMOUNT"",x.""BILLEDFREIGHTADVICEAMOUNT"",x.""SUMOFFREIGHTDEDUCTIONAMOUNT"",x.""SUMOFTRIPSHEETAMOUNT"",x.""SUMOFPODOTHERAMOUNT"",x.""SUMOFTRIPSHEETOTHERAMOUNT"",x.""SUMOFUNLOADINGFREIGHTAMOUNT"",x.""SUMOFTRIPSHEETTDSAMOUNT"",x.""BILLINROUNDFIGURE"",x.""FREIGHTAMOUNTBEFOREROUND"",x.""ROUNDOFF"", cast('A' as varchar2(10)) panel from freightadvice x"
+"PCC_PURCHASEBILL","select x.""TNO"",x.""COMPANYCODE"",x.""FINANCIALYEARCODE"",x.""LOCATIONCODE"",x.""DOCTYPECODE"",x.""PURCHASEBILLNO"",x.""PURCHASEBILLDATE"",x.""PARTYBILLNO"",x.""PARTYBILLDATE"",x.""PURCHASEORDERTNO"",x.""CURRENCYUNITCODE"",x.""CURRENCYVALUE"",x.""PARTYCODE"",x.""SUMOFAMOUNT"",x.""SUMOFFOOTERAMOUNT"",x.""PURCHASEBILLAMOUNT"",x.""REMARK"",x.""ITEMWISEFOOTER"",x.""SUPPLIERCODE"",x.""MANUFACTURERCODE"",x.""SUMOFFOOTERAMOUNTWITHRATE"",x.""JOBORDERTNO"",x.""DELIVERYORDERTNO"",x.""RAKETNO"",x.""CREATOR"",x.""BILLEDON"",x.""EXCISEBILLNO"",x.""EXCISEBILLDATE"",x.""BILLEDITEM"",x.""UPDATELANDINGIFSUPPLEMENTARY"",x.""TRANCTIONTYPECODE"",x.""TRANSACTIONTYPECODE"",x.""NATUREOFSUPPLYCODE"",x.""PORTCODE"",x.""BILLOFENTRYTNO"",x.""CREATIONTIME"",x.""FREIGHTADVANCEAMOUNT"",x.""TDSPAYEECATEGORYCODE"",x.""FREIGHTPOSTEDTOSTOCK"",x.""INCLUDEINPURCHASEBILL"",x.""TAXINROUND"",x.""BILLINROUNDFIGURE"",x.""PURCHASEBILLAMOUNTBEFOREROUND"",x.""ROUNDOFF"", cast('A' as varchar2(10)) panel from purchasebill x"
+"PCC_PURCHASEORDER","select x.""TNO"",x.""COMPANYCODE"",x.""FINANCIALYEARCODE"",x.""LOCATIONCODE"",x.""DOCTYPECODE"",x.""DEPARTMENTCODE"",x.""EMPLOYEECODE"",x.""PURCHASEORDERNO"",x.""PURCHASEORDERDATE"",x.""DELIVERYDATE"",x.""CURRENCYUNITCODE"",x.""CURRENCYVALUE"",x.""WORKORDERTNO"",x.""PARTYCODE"",x.""QUOTATIONTNO"",x.""RATECONTRACTTNO"",x.""DELIVERYORDERTNO"",x.""INDENTTNO"",x.""PURCHASEORDERAMOUNT"",x.""SUBJECTTEXT"",x.""REFERENCETEXT"",x.""LETTERTEXT"",x.""TITLETEXT"",x.""REMARK"",x.""ITEMWISEFOOTER"",x.""SUMOFAMOUNT"",x.""SUMOFFOOTERAMOUNT"",x.""AGENTCODE"",x.""CREDITDAYS"",x.""STORAGELOCATIONCODE"",x.""STOCKDATE"",x.""COMMISSIONRATE"",x.""CREATOR"",x.""FREIGHTTYPECODE"",x.""FREIGHTCONTRACTTNO"",x.""FREIGHTRATE"",x.""ISEVENTRANSACTION"",x.""COMPARATIVESTATEMENTTNO"",x.""XPLANT"",x.""EXPARTYPLANT"",x.""LIFTINGFROMCITYCODE"",x.""UNLOADINGCITYCODE"",x.""TRANCTIONTYPECODE"",x.""TRANSACTIONTYPECODE"",x.""PAYMENTBYLC"",x.""NATUREOFSUPPLYCODE"",x.""PREDI"",x.""DELIVERYSCHEDULEWITHPO"",x.""ITEMWISESCHEDULE"",x.""REFERENCEPURCHASEORDERTNO"",x.""CREATIONTIME"",x.""PAIDAMOUNT"",x.""ROYALTYPERCENTAGE"",x.""ROYALTYPENALTYPERUNIT"",x.""ISFULLADVANCE"",x.""POADVANCEAMOUNT"",x.""PAYMENTADVICELOCATIONCODE"",x.""MARINEINSURANCETNO"",x.""MARINEINSURANCEAMOUNT"",x.""SAUDAPATRAKNO"",x.""SAUDAPATRAKDATE"",x.""LENDINGONGROSS"",x.""SHIPTO"",x.""CUSTOMERCODE"",x.""PENDINGSOTNO"",x.""ISOPENSPEC"",x.""QUANTITY"",x.""MAILSTATUS"",x.""MAILID"", cast('A' as varchar2(10)) panel from purchaseorder x"
+"PENDINGBILLS","Select a.tno As ReferenceModuleTNo,
+       A.COMPANYCODE As companyCode,
+       a.PartyBillNo As ReferenceModuleNo,
+       A.PARTYBILLDATE As ReferenceModuleDate,
+       b.pbpassAmount - b.sumoftdsamount  As ReferenceModuleAmount,
+       a.PurchaseBillAmount As pbpassamount,
+			 (Nvl(b.PAIDAMOUNT,0) + Nvl(b.PAIDINADVANCE,0) + Nvl(b.SUMOFTDSAMOUNT,0) ) AS PaidAmount,
+       --Nvl(E.AMOUNT, 0) + Nvl(g.allocatedamount, 0) AS PaidAmount, -- +
+       --Nvl(h.returnamount, 0) As PaidAmount,
+			 b.PbpassAmount - (Nvl(b.PAIDAMOUNT,0) + Nvl(b.PAIDINADVANCE,0) + Nvl(b.SUMOFTDSAMOUNT,0)) As BalanceAmount,
+      /* 02-JUL-2024
+       (nvl(B.pbpassAmount, 0) -
+        Nvl(b.sumoftdsamount,0) -
+        nvl(E.Amount, 0)  -
+       Nvl(g.allocatedamount, 0) + Nvl(h.returnamount, 0) -
+       (Select Nvl(Sum(x.amount), 0)
+           From paymentadvicereference x, PURCHASEBILLDETAIL Y
+          Where x.referencemoduletno = Y.PURCHASEORDERTNO
+            And Y.TNO = A.TNO) - Nvl(h.returnamount, 0)) As BalanceAmount,
+
+			 Nvl((Select Sum(x.amount)
+             From paymentadvicereference x, PURCHASEBILLDETAIL Y
+            Where x.referencemoduletno = Y.PURCHASEORDERTNO
+              And Y.TNO = A.TNO),
+           0) As advanceamount,
+			 */
+			 Nvl(b.PAIDINADVANCE,0) As AdvanceAmount,
+       -- 0 As tobepaidagainstbill,
+       a.PartyBillDate As InvoiceDate,
+       'PURCHASEBILL' As ReferenceModuleCode,
+       a.PartyCode,
+     --  b.pbpassdate As duedate,
+        (Select Max(aa.grndate) + Max(x.creditdays)
+          From PURCHASEORDER         x,
+               PURCHASEBILLDETAIL    Y,
+               purchasebillgrndetail z,
+               grn                   aa
+         Where x.tno = y.purchaseordertno
+           And y.tno = a.tno
+           And y.tno = z.tno
+           And aa.tno = z.grntno
+           And rownum = 1) As DueDate,
+       a.locationcode,
+       (Select yy.itemnaturename
+          From item xx, itemnature yy, purchasebilldetail zz
+         Where xx.itemnaturecode = yy.itemnaturecode
+           And xx.itemcode = zz.itemcode
+           And zz.tno = a.tno
+           And Rownum = 1) As itemnature,
+       (Select Min(grndate)
+          From grn x, purchasebillgrndetail b
+         Where x.tno = b.grntno
+           And b.tno = a.tno
+
+        ) As UnloadingDate,
+       (Select Nvl(GETPARTYNAME(AGENTCODE), 'DIRECT')
+          From PURCHASEORDER x, PURCHASEBILLDETAIL Y
+         Where x.tno = y.purchaseordertno
+           And y.tno = a.tno
+           And rownum = 1) As AgentName,
+
+       Decode((Select yy.itemnaturename
+                From item xx, itemnature yy, purchasebilldetail zz
+               Where xx.itemnaturecode = yy.itemnaturecode
+                 And xx.itemcode = zz.itemcode
+                 And zz.tno = a.tno
+                 And Rownum = 1),
+              'STOREITEM',
+              'STOREITEM',
+
+              (Select XX.itemname
+                 From item xx, purchasebilldetail yy
+                Where xx.itemcode = yy.itemcode
+                  And yy.tno = a.tno
+                  And Rownum = 1)
+
+              ) As ItemName,
+       (Select Sum(quantity1) From pbpassdetail x Where x.tno = b.tno) PassQuantity,
+
+       (Select GETPARTYNAME(x.partycode) || ' / @ ' || to_char(z.rate) ||
+               ' / ' || TO_CHAR(Z.QUANTITY1) || ' ' ||
+               Z.RATEMEASURINGUNITCODE || ' / ' || x.freighttypecode ||
+               ' / ' || to_char(x.freightrate)
+          From PURCHASEORDER x, PURCHASEBILLDETAIL Y, PURCHASEORDERDETAIL Z
+         Where x.tno = y.purchaseordertno
+           And x.tno = z.tno
+           And y.tno = a.tno
+           And rownum = 1) As PODetail,
+       (Select x.purchaseorderno || ' / ' ||
+               to_char(x.purchaseorderdate, 'DD-MON-RRRR')||
+               to_char(x.deliverydate, 'DD-MON-RRRR')
+          From PURCHASEORDER x, PURCHASEBILLDETAIL Y
+         Where x.tno = y.purchaseordertno
+           And y.tno = a.tno
+           And rownum = 1) As PONO
+
+  From PURCHASEBILL a,
+       PBPASS b,
+     "
+"SLC_SALESCONFIRM","select q.""TNO"",q.""COMPANYCODE"",q.""FINANCIALYEARCODE"",q.""LOCATIONCODE"",q.""DOCTYPECODE"",q.""PARTYQUOTATIONNO"",q.""PARTYQUOTATIONDATE"",q.""PARTYCODE"",q.""EMPLOYEECODE"",q.""VALIDITYDATE"",q.""CURRENCYUNITCODE"",q.""CURRENCYVALUE"",q.""SUMOFAMOUNT"",q.""SUMOFFOOTER"",q.""SUBJECTTEXT"",q.""REFERENCETEXT"",q.""LETTERTEXT"",q.""TITLETEXT"",q.""ITEMWISEFOOTER"",q.""REMARK"",q.""SUMOFFOOTERAMOUNT"",q.""SALESQUOTATIONNO"",q.""SALESQUOTATIONDATE"",q.""SALESQUOTATIONAMOUNT"",q.""SALESENQUIRYTNO"",q.""AGENTCODE"",q.""CONSIGNEECODE"",q.""VALIDITYUPTODATE"",q.""CREATIONTIME"",q.""CREATOR"",q.""REVISIONSALESQUOTATIONTNO"",q.""ROUNDINGAMOUNT"",q.""REASONOFLOSS"",
+       q.salesquotationno     salesconfirmno,
+       q.salesquotationdate   salesconfirmdate,
+       q.salesquotationamount salesconfirmamount,
+       cast('A' as varchar2(10)) panel
+  from salesquotation q"
+"SLC_SALESORDER","select s.""TNO"",s.""COMPANYCODE"",s.""FINANCIALYEARCODE"",s.""LOCATIONCODE"",s.""DOCTYPECODE"",s.""SALESORDERNO"",s.""SALESORDERDATE"",s.""DEPARTMENTCODE"",s.""EMPLOYEECODE"",s.""DELIVERYDATE"",s.""CURRENCYUNITCODE"",s.""CURRENCYVALUE"",s.""PARTYCODE"",s.""AGENTCODE"",s.""CONSIGNEECODE"",s.""SALESEXECUTIVECODE"",s.""SUMOFAMOUNT"",s.""SUMOFFOOTERAMOUNT"",s.""SALESORDERAMOUNT"",s.""SUBJECTTEXT"",s.""REFERENCETEXT"",s.""LETTERTEXT"",s.""TITLETEXT"",s.""REMARK"",s.""ITEMWISEFOOTER"",s.""REFERENCETNO"",s.""VALIDITYUPTODATE"",s.""VALIDITYDAYS"",s.""CREDITDAYS"",s.""COMMISSIONRATE"",s.""TRANSPORTERCODE"",s.""FREIGHTTYPECODE"",s.""DESPATCHCATEGORYCODE"",s.""CREATOR"",s.""CREATIONTIME"",s.""FROMCITYCODE"",s.""TOCITYCODE"",s.""TRANSACTIONTYPECODE"",s.""NATUREOFSUPPLYCODE"",s.""PARTYPONO"",s.""PARTYPODATE"",s.""EXECUTEDAT"",s.""PORECEIPTTNO"",s.""ISOPENSPEC"",s.""QUANTITY"",s.""TRADEDISCOUNTTNO"",s.""TRADETYPECODE"",s.""REVISIONSALESORDERTNO"",s.""PURCHASEORDERTNO"",s.""WORKORDERTNO"",s.""DELIVERYORDERTNO"",s.""SALESQUOTATIONTNO"",
+       coalesce(
+         s.salesquotationtno,
+         (select max(pr.salesquotationtno)
+            from poreceipt pr
+           where pr.tno=s.poreceipttno)
+       ) salesconfirmtno,
+       (select max(da.vehicleno)
+          from despatchadvice da
+         where da.salesordertno = s.tno) vehicleno,
+       cast('A' as varchar2(10)) panel
+  from salesorder s"
+"SLC_SCBALANCE","with confirmed as (
+  select d.tno, sum(nvl(d.quantity1,0)) scqty
+    from slc_salesconfirmdetail d group by d.tno
+), ordered as (
+  select so.salesconfirmtno tno, sum(nvl(d.quantity1,0)) soqty
+    from slc_salesorder so
+    join salesorderdetail d on d.tno=so.tno
+   group by so.salesconfirmtno
+), dispatched as (
+  select so.salesconfirmtno tno, sum(nvl(d.quantity1,0)) daqty
+    from slc_salesorder so
+    join despatchadvice da on da.salesordertno=so.tno
+    join despatchadvicedetail d on d.tno=da.tno
+   group by so.salesconfirmtno
+), invoiced as (
+  select so.salesconfirmtno tno, sum(nvl(d.quantity1,0)) ccqty
+    from slc_salesorder so
+    join ccinvoice ci on ci.salesordertno=so.tno
+    join ccinvoicedetail d on d.tno=ci.tno
+   group by so.salesconfirmtno
+)
+select sc.tno,
+       sc.salesconfirmno,
+       sc.salesconfirmdate,
+       getpartyname(sc.partycode) partyname,
+       nvl(c.scqty,0) scqty,
+       nvl(o.soqty,0) soqty,
+       nvl(d.daqty,0) daqty,
+       nvl(i.ccqty,0) ccqty,
+       greatest(nvl(c.scqty,0)-nvl(i.ccqty,0),0) balanceqty
+  from slc_salesconfirm sc
+  left join confirmed c on c.tno=sc.tno
+  left join ordered o on o.tno=sc.tno
+  left join dispatched d on d.tno=sc.tno
+  left join invoiced i on i.tno=sc.tno"
+"STOCKCARD","select
+        rownum as MyTNo,zz.TRANSACTIONNO,
+        zz.""COMMONTNO"",zz.""STOCKTNO"",zz.""USEDSTOCKTNO"",zz.""ITEMCODE"",zz.""ITEMSPECIFICATIONCODE"",zz.""STOCKTYPE"",zz.""TNO"",zz.""TRANSACTIONDATE"",zz.""MODULECODE"",zz.""MODULETNO"",zz.""COMPANYCODE"",zz.""FINANCIALYEARCODE"",zz.""QUANTITY1"",zz.""QUANTITY2"",zz.""RATE"",zz.""AMOUNT"",zz.""STOCKINQUANTITY1"",zz.""STOCKINQUANTITY2"",zz.""STOCKINAMOUNT"",zz.""STOCKOUTQUANTITY1"",zz.""STOCKOUTQUANTITY2"",zz.""STOCKOUTAMOUNT"",zz.""LOCATIONCODE""
+    from (
+  select
+   z.*
+  from (
+  select
+   a.TNo as CommonTNo,
+   a.TNo  as StockTNo,
+   null as UsedStockTNo,
+   a.ItemCode,
+   a.ItemSpecificationCode,
+   'IN' AS StockType,
+   a.TNo,
+   a.StockDate as TransactionDate,
+   a.StockModuleCode as ModuleCode,
+	 Case When a.StockModuleCode = 'INSPECTION' Then
+            a.GRNTNo
+				Else
+					  a.StockModuleTno
+	 End ModuleTno,
+   a.CompanyCode,
+   a.FinancialYearCode,
+   a.StockQuantity1 as Quantity1,
+   a.StockQuantity2 as Quantity2,
+   a.Rate,
+   a.Amount,
+   a.StockQuantity1 as StockInQuantity1,
+   a.StockQuantity2 as StockInQuantity2,
+   a.Amount as StockInAmount,
+   null as StockOutQuantity1,
+   null as StockOutQuantity2,
+   null as StockOutAmount,
+   a.LocationCode,
+	 Case When GRNTNO Is Not Null And a.StockModuleCode = 'INSPECTION' Then
+		         GetModuleNo('GRN',A.GRNTNO)
+				Else
+					   GetModuleNo(A.STOCKMODULECODE,A.STOCKMODULETNO)
+	End TRANSACTIONNO
+  from Stock a
+  where a.StockModuleCode != 'ITEMOPENING'
+
+  union all
+  select
+   a.TNo as CommonTNo,
+   null as StockTNo,
+   a.TNO as UsedStockTNO,
+   b.ItemCode,
+   b.ItemSpecificationCode,
+   'OUT' AS StockType,
+   b.TNo,
+   a.UsedStockDate as TransactionDate,
+   a.ModuleCode,
+   a.ModuleTNo,
+   a.CompanyCode,
+   a.FinancialYearCode,
+   (-1) * a.UsedStockQuantity1 as Quantity1,
+   (-1) * a.UsedStockQuantity2 as Quantity2,
+   b.Rate,
+   (-1) * b.Rate * a.UsedStockQuantity1 as Amount,
+   null as StockInQuantity1,
+   null as StockInQuantity2,
+   null as StockInAmount,
+   a.UsedStockQuantity1 as StockOutQuantity1,
+   a.UsedStockQuantity2 as StockOutQuantity2,
+   b.Rate * a.UsedStockQuantity1 as StockOutAmount,
+   a.LocationCode,
+  GetModuleNo(A.MODULECODE,A.MODULETNO) As TRANSACTIONNO
+  from UsedStock a, Stock b
+  where a.StockTNO = b.TNO
+  ) z
+  order by z.TransactionDate, z.StockType, z.CommonTNo
+    ) zz
+"
+"V_DASHBOARD_SALES_SUMMARY","WITH AGGR_DESPATCH AS (
+    -- Step 1: Pre-aggregate Dispatches at the exact item-line level
+    SELECT
+        DA_MAIN.REFERENCETNO AS SO_TNO,
+        DAD_SUB.ITEMCODE,
+        DAD_SUB.ITEMSPECIFICATIONCODE,
+        DA_MAIN.DESPATCHADVICENO,
+        DA_MAIN.DESPATCHADVICEDATE,
+        SUM(DAD_SUB.QUANTITY1) AS TOTAL_DISPATCH_QTY
+    FROM DESPATCHADVICE DA_MAIN
+    JOIN DESPATCHADVICEDETAIL DAD_SUB ON DAD_SUB.TNO = DA_MAIN.TNO
+    GROUP BY DA_MAIN.REFERENCETNO, DA_MAIN.DESPATCHADVICENO, DA_MAIN.DESPATCHADVICEDATE, DAD_SUB.ITEMCODE, DAD_SUB.ITEMSPECIFICATIONCODE
+),
+AGGR_LOADING AS (
+    -- Step 2: Pre-aggregate Loading Advice at the exact item-line level
+    SELECT
+        LA_MAIN.SALESORDERTNO AS SO_TNO,
+        LAD_SUB.ITEMCODE,
+        LAD_SUB.ITEMSPECIFICATIONCODE,
+        LA_MAIN.LOADINGADVICENO,
+        LA_MAIN.LOADINGADVICEDATE,
+        SUM(LAD_SUB.QUANTITY1) AS TOTAL_LOADING_QTY
+    FROM LOADINGADVICE LA_MAIN
+    JOIN LOADINGADVICEDETAIL LAD_SUB ON LAD_SUB.TNO = LA_MAIN.TNO
+    GROUP BY LA_MAIN.SALESORDERTNO, LA_MAIN.LOADINGADVICENO, LA_MAIN.LOADINGADVICEDATE, LAD_SUB.ITEMCODE, LAD_SUB.ITEMSPECIFICATIONCODE
+)
+SELECT
+     SO.TNO AS SALES_ORDER_TNO
+    ,SO.FINANCIALYEARCODE
+    ,SO.COMPANYCODE
+    ,SO.LOCATIONCODE
+    ,SO.DOCTYPECODE AS SO_DOCTYPECODE
+    ,SO.SALESORDERNO
+    ,SO.SALESORDERDATE
+    ,SO.PARTYCODE
+    ,P.PARTYNAME
+    ,SO.SALESEXECUTIVECODE
+    ,E.EMPLOYEENAME
+    ,VI.ITEMCODE
+    ,VI.ITEMSPECIFICATIONCODE
+    ,VI.ITEMNAME
+    ,VI.ITEMSPECIFICATIONNAME
+    ,VI.ITEMCATEGORYCODE
+    ,VI.ITEMCATEGORYNAME
+    , SOD.QUANTITY1 AS ORDERED_QTY
+    ,SOD.RATE
+    ,SOD.AMOUNT AS BASE_AMOUNT
+    ,SOD.FOOTERAMOUNT
+    ,SOD.TOTALAMOUNT AS SO_TOTAL_AMOUNT
+    ,GETDOCUMENTSTATUSCODE('SALESORDER', SO.TNO) AS SO_STATUS
+
+    -- Dispatch Details
+    ,DA.DESPATCHADVICENO
+    ,DA.DESPATCHADVICEDATE
+    ,NVL(DA.TOTAL_DISPATCH_QTY, 0) AS DISPATCHED_QTY
+
+    -- Loading Details
+    ,LA.LOADINGADVICENO
+    ,LA.LOADINGADVICEDATE
+    ,NVL(LA.TOTAL_LOADING_QTY, 0) AS LOADINGADVICE_QTY
+
+    -- 1. Strict Pending Dispatch Qty (Ordered - Connected Dispatch Only)
+    ,GREATEST(SOD.QUANTITY1 - NVL(DA.TOTAL_DISPATCH_QTY, 0), 0) AS PENDING_DESPATCH_QTY
+
+    -- 2. Strict Pending Loading Qty (Ordered - Connected Loading Only)
+    ,GREATEST(SOD.QUANTITY1 - NVL(LA.TOTAL_LOADING_QTY, 0), 0) AS PENDING_LOADING_QTY
+
+    -- 3. Unified Balance Pending Qty (Handles either Despatch or Loading pipeline)
+    ,GREATEST(SOD.QUANTITY1 - NVL(DA.TOTAL_DISPATCH_QTY, 0) - NVL(LA.TOTAL_LOADING_QTY, 0), 0) AS BALANCE_PENDING_QTY
+
+    -- 4. Cancelled / Short-Closed Qty Logic
+    ,CASE
+        WHEN GETDOCUMENTSTATUSCODE('SALESORDER', SO.TNO) = 'SHORTCLOSED'
+        THEN GREATEST(SOD.QUANTITY1 - NVL(DA.TOTAL_DISPATCH_QTY, 0) - NVL(LA.TOTAL_LOADING_QTY, 0), 0)
+        ELSE 0
+     END AS CANCELLED_QTY
+
+FROM SALESORDER SO
+JOIN SALESORDERDETAIL SOD ON SO.TNO = SOD.TNO
+LEFT JOIN PARTY P ON SO.PARTYCODE = P.PARTYCODE
+LEFT JOIN EMPLOYEE E ON E.EMPLOYEECODE = SO.SALESEXECUTIVECODE
+LEFT JOIN V_ITEM_DETAILS VI ON VI.ITEMCODE = SOD.ITEMCODE AND VI.ITEMSPECIFICATIONCODE = SOD.ITEMSPECIFICATIONCODE
+LEFT JOIN FINANCIALYEAR FY ON SO.FINANCIALYEARCODE = FY.FINANCIALYEARCODE
+LEFT JOIN AGGR_DESPATCH DA ON DA.SO_TNO = SO.TNO AND DA.ITEMCODE = SOD.ITEMCODE AND DA.ITEMSPECIFICATIONCODE = SOD.ITEMSPECIFICATIONCODE
+LEFT JOIN AGGR_LOADING LA ON LA.SO_TNO = SO.TNO AND LA.ITEMCODE = SOD.ITEMCODE AND LA.ITEMSPECIFICATIONCODE = SOD.ITEMSPECIFICATIONCODE"
+"V_LATEST_ACTIVE_SALESORDERS","WITH REVISION_TREE AS (
+    SELECT
+        TNO AS CURRENT_SO_TNO,
+        SalesOrderNo AS CURRENT_SO_NO,
+        CONNECT_BY_ROOT TNO AS ROOT_SO_TNO,
+        CONNECT_BY_ROOT SalesOrderNo AS ROOT_SO_NO
+    FROM SalesOrder
+    START WITH REVISIONSALESORDERTNO IS NULL
+    CONNECT BY PRIOR TNO = REVISIONSALESORDERTNO
+),
+root_so_quantities AS (
+    -- Fetch original baseline transaction targets
+    SELECT sod.TNO, sod.ITEMCODE, sod.ITEMSPECIFICATIONCODE, NVL(sod.Quantity1, 0) AS BASE_SO_QTY, NVL(sod.RATE, 0) AS BASE_SO_RATE, NVL(sod.TotalAmount,0) as BASE_SO_AMOUNT
+    FROM SalesOrderDetail sod
+)
+SELECT DISTINCT
+    so.TNO,
+    REGEXP_REPLACE(so.SalesOrderNo, '.*/0*([0-9]+)', '0\1') AS SO_No_Clean,
+    so.SalesOrderDate,
+    so.SalesOrderNo,
+    so.PartyPONO,
+    so.PartyPODate,
+    so.PartyCode,
+    so.Agentcode,
+    so.SALESEXECUTIVECODE,
+    so.REMARK,
+    sod.ITEMCODE,
+    sod.ITEMSPECIFICATIONCODE,
+    NVL(sod.Quantity1, 0) AS CURRENT_SO_QTY,
+    sod.Rate,
+    sod.Amount,
+    rt.ROOT_SO_TNO,
+    rt.ROOT_SO_NO,
+    NVL(rsq.BASE_SO_QTY, 0) AS BASE_SO_QTY,
+    NVL(rsq.BASE_SO_RATE, 0) AS BASE_SO_RATE,
+    NVL(rsq.BASE_SO_AMOUNT,0) AS BASE_SO_AMOUNT
+FROM SalesOrder so
+JOIN REVISION_TREE rt ON so.TNO = rt.CURRENT_SO_TNO
+JOIN SalesOrderDetail sod ON so.TNo = sod.TNO
+LEFT JOIN root_so_quantities rsq ON rt.ROOT_SO_TNO = rsq.TNO
+    AND sod.ItemCode = rsq.ItemCode
+    AND sod.ItemSpecificationCode = rsq.ItemSpecificationCode
+WHERE EXISTS (
+    SELECT 1 FROM DOCUMENTSTATUSDETAIL dsd
+    WHERE dsd.MODULECODE = 'SALESORDER'
+      AND dsd.MODULETNO = so.TNO
+      AND dsd.DOCUMENTSTATUSCODE = 'ACTIVE'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM SalesOrder child_so
+    WHERE child_so.REVISIONSALESORDERTNO = so.TNO
+)"
+"V_LATEST_PURCHASE_ORDERS","WITH Amendment_Hierarchy AS (
+    SELECT
+        TNO AS Amendment_TNO,
+        PURCHASEORDERTNO,
+        PARTYCODE,
+        CONNECT_BY_ROOT PURCHASEORDERTNO AS ROOT_PO_TNO,
+        CONNECT_BY_ISLEAF AS IsLatest
+    FROM POAmendment
+    START WITH PURCHASEORDERTNO IS NOT NULL
+    CONNECT BY PRIOR TNO = PURCHASEORDERTNO
+),
+Latest_Amendments AS (
+    SELECT
+        ROOT_PO_TNO AS PO_TNO,
+        PARTYCODE,
+        Amendment_TNO
+    FROM Amendment_Hierarchy
+    WHERE IsLatest = 1
+),
+CombinedRecords AS (
+    SELECT
+        po.TNO AS PO_TNO,
+        pod.TNO AS Source_TNO,
+        'ORIGINAL' AS Record_Type,
+        po.PARTYCODE,
+        po.PURCHASEORDERNO,
+        po.PURCHASEORDERDATE,
+        null as PO_AMENDMENT_NO,
+        null as PO_AMENDMENT_DATE,
+        pod.ITEMCODE,
+        pod.ITEMSPECIFICATIONCODE,
+        pod.QUANTITY1,
+        pod.RATE,
+        pod.AMOUNT
+    FROM PurchaseOrder po
+    JOIN PurchaseOrderDetail pod ON po.TNO = pod.TNO
+
+    UNION ALL
+
+    SELECT
+        la.PO_TNO,
+        pad.TNO AS Source_TNO,
+        'AMENDED' AS Record_Type,
+        la.PARTYCODE,
+        (SELECT po.PURCHASEORDERNO FROM PURCHASEORDER po WHERE po.TNO = la.PO_TNO) AS PURCHASEORDERNO,
+        (SELECT po.PURCHASEORDERDATE FROM PURCHASEORDER po WHERE po.TNO = la.PO_TNO) AS PURCHASEORDERDATE,
+        (SELECT pa.POAMENDMENTNO FROM POAMENDMENT pa WHERE pa.TNO = pad.TNO) AS PO_AMENDMENT_NO,
+        (SELECT pa.POAMENDMENTDATE FROM POAMENDMENT pa WHERE pa.TNO = pad.TNO) AS PO_AMENDMENT_DATE,
+        pad.ITEMCODE,
+        pad.ITEMSPECIFICATIONCODE,
+        pad.QUANTITY1,
+        pad.RATE,
+        pad.AMOUNT
+    FROM Latest_Amendments la
+    JOIN POAmendmentDetail pad ON la.Amendment_TNO = pad.TNO
+),
+FilteredRecords AS (
+    SELECT
+        PO_TNO,
+        Source_TNO,
+        Record_Type,
+        PARTYCODE,
+        PURCHASEORDERNO,
+        PURCHASEORDERDATE,
+        PO_AMENDMENT_NO,
+        PO_AMENDMENT_DATE,
+        ITEMCODE,
+        ITEMSPECIFICATIONCODE,
+        QUANTITY1,
+        RATE,
+        AMOUNT,
+        COUNT(CASE WHEN Record_Type = 'AMENDED' THEN 1 END) OVER (PARTITION BY PO_TNO) AS Has_Amendment
+    FROM CombinedRecords
+)
+SELECT
+    PO_TNO AS BASE_PO_TNO,
+    Source_TNO AS Latest_Detail_TNO,
+    Record_Type,
+    PARTYCODE,
+    PURCHASEORDERNO,
+    PURCHASEORDERDATE,
+    PO_AMENDMENT_NO,
+    PO_AMENDMENT_DATE,
+    ITEMCODE,
+    ITEMSPECIFICATIONCODE,
+    QUANTITY1,
+    RATE,
+    AMOUNT
+FROM FilteredRecords
+WHERE 1 = 1
+  AND (
+        (Has_Amendment > 0 AND Record_Type = 'AMENDED')
+        OR
+        (Has_Amendment = 0 AND Record_Type = 'ORIGINAL')
+      )"
+"V_STOCKCARD","SELECT
+    ROW_NUMBER() OVER (
+        ORDER BY zz.TransactionDate, zz.StockType, zz.CommonTNo
+    ) AS MyTNo,
+
+    zz.TRANSACTIONNO,
+    zz.CommonTNo,
+    zz.StockTNo,
+    zz.UsedStockTNo,
+    zz.ItemCode,
+    zz.ItemSpecificationCode,
+    zz.StockType,
+    zz.TNo,
+    zz.TransactionDate,
+    zz.ModuleCode,
+    zz.ModuleTNo,
+    zz.CompanyCode,
+    zz.FinancialYearCode,
+    zz.Quantity1,
+    zz.Quantity2,
+    zz.Rate,
+    zz.Amount,
+    zz.StockInQuantity1,
+    zz.StockInQuantity2,
+    zz.StockInAmount,
+    zz.StockOutQuantity1,
+    zz.StockOutQuantity2,
+    zz.StockOutAmount,
+    zz.LocationCode
+
+FROM (
+
+    /* ===================== STOCK IN ===================== */
+    SELECT
+        a.TNo AS CommonTNo,
+        a.TNo AS StockTNo,
+        NULL AS UsedStockTNo,
+        a.ItemCode,
+        a.ItemSpecificationCode,
+        'IN' AS StockType,
+        a.TNo,
+        a.StockDate AS TransactionDate,
+        a.StockModuleCode AS ModuleCode,
+
+        CASE
+            WHEN a.StockModuleCode = 'INSPECTION' THEN a.GRNTNo
+            ELSE a.StockModuleTno
+        END AS ModuleTno,
+
+        a.CompanyCode,
+        a.FinancialYearCode,
+
+        a.StockQuantity1 AS Quantity1,
+        a.StockQuantity2 AS Quantity2,
+        a.Rate,
+        a.Amount,
+
+        a.StockQuantity1 AS StockInQuantity1,
+        a.StockQuantity2 AS StockInQuantity2,
+        a.Amount AS StockInAmount,
+
+        NULL AS StockOutQuantity1,
+        NULL AS StockOutQuantity2,
+        NULL AS StockOutAmount,
+
+        a.LocationCode,
+
+        CASE
+            WHEN a.GRNTNO IS NOT NULL AND a.StockModuleCode = 'INSPECTION' THEN
+                GetModuleNo('GRN', a.GRNTNO)
+            ELSE
+                GetModuleNo(a.StockModuleCode, a.StockModuleTNO)
+        END AS TRANSACTIONNO
+
+    FROM Stock a
+    WHERE a.StockModuleCode <> 'ITEMOPENING'
+
+
+    UNION ALL
+
+
+    /* ===================== STOCK OUT ===================== */
+    SELECT
+        a.TNo AS CommonTNo,
+        NULL AS StockTNo,
+        a.TNo AS UsedStockTNo,
+        b.ItemCode,
+        b.ItemSpecificationCode,
+        'OUT' AS StockType,
+        b.TNo,
+
+        a.UsedStockDate AS TransactionDate,
+        a.ModuleCode,
+        a.ModuleTNo,
+
+        a.CompanyCode,
+        a.FinancialYearCode,
+
+        -a.UsedStockQuantity1 AS Quantity1,
+        -a.UsedStockQuantity2 AS Quantity2,
+
+        b.Rate,
+        -b.Rate * a.UsedStockQuantity1 AS Amount,
+
+        NULL AS StockInQuantity1,
+        NULL AS StockInQuantity2,
+        NULL AS StockInAmount,
+
+        a.UsedStockQuantity1 AS StockOutQuantity1,
+        a.UsedStockQuantity2 AS StockOutQuantity2,
+        b.Rate * a.UsedStockQuantity1 AS StockOutAmount,
+
+        a.LocationCode,
+
+        GetModuleNo(a.ModuleCode, a.ModuleTNo) AS TRANSACTIONNO
+
+    FROM UsedStock a
+    JOIN Stock b
+        ON a.StockTNO = b.TNO
+
+) zz"

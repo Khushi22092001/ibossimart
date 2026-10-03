@@ -1,0 +1,2 @@
+connmgr list
+exit

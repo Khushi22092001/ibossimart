@@ -286,6 +286,8 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_display_sequence=>999
 ,p_plug_item_display_point=>'ABOVE'
 ,p_location=>null
+,p_plug_display_when_condition=>':APP_USER is not null and lower(:APP_USER) <> ''nobody'''
+,p_plug_display_when_cond2=>'PLSQL_EXPRESSION'
 ,p_plug_source=>'<link rel="stylesheet" href="#APP_FILES#hspl-master-forms.css?cb=20260831o"><script src="#APP_FILES#hspl-master-forms.js?cb=20260831t"></script>'
 ,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
   'expand_shortcuts', 'N',

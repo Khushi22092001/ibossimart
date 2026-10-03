@@ -4,7 +4,7 @@
  * scroll owner. Never set table/column widths or touch the APEX data model. */
 (function () {
   'use strict';
-  var doc = document, states = new Map(), pending = false;
+  var doc = document, states = new Map(), rowStates = new Map(), pending = false;
 
   function detailPanel(panel) {
     if (!panel) return false;
@@ -67,6 +67,109 @@
       if (!/SUMOF|BEFORE|ROUND/.test(key) && /AMOUNT|TOTAL/.test(key)) tone = 'final';
       field.setAttribute('data-summary-tone', tone);
     });
+    (panel || state.region).querySelectorAll('.t-Region').forEach(function (region) {
+      if (region.contains(state.grid) || !region.querySelector('.hspl-summary-card') ||
+          !(state.grid.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+      var fields = Array.prototype.slice.call(region.querySelectorAll('.t-Form-fieldContainer'));
+      // Only flatten amount-summary regions; leave mixed form sections alone.
+      if (!fields.length || fields.some(function (field) {
+        return !field.classList.contains('hspl-summary-card');
+      })) return;
+      var container = fields[0].closest('.container');
+      if (!container || fields.some(function (field) { return !container.contains(field); })) return;
+      region.classList.add('hspl-detail-summary-wide');
+      container.classList.add('hspl-summary-flow');
+      var column = region.parentElement, row = column && column.parentElement;
+      if (column && column.classList.contains('col') && row && row.classList.contains('row')) {
+        // APEX inserts empty offset columns. Remove only the empty spacer,
+        // never a sibling field/region, and retain the original DOM and events.
+        Array.prototype.forEach.call(row.children, function (sibling) {
+          if (sibling !== column && sibling.classList.contains('col') &&
+              sibling.querySelector('.apex-grid-nbsp') &&
+              !sibling.querySelector('.t-Form-fieldContainer,.t-Region,button,input,select,textarea')) {
+            sibling.classList.add('hspl-summary-empty-offset');
+          }
+        });
+        column.classList.add('hspl-summary-full-column');
+        row.classList.add('hspl-summary-layout-row');
+      }
+    });
+  }
+
+  function compactRows(state) {
+    var grid = state.grid;
+    if (!grid.getBoundingClientRect().width) return;
+    var bodies = Array.prototype.slice.call(grid.querySelectorAll('.a-GV-bdy'));
+    var height = 0, rowHeight = 0, renderedCount = 0, hiddenCount = 0;
+    bodies.forEach(function (body) {
+      hiddenCount = Math.max(hiddenCount, Array.prototype.filter.call(
+        body.querySelectorAll('tbody .a-GV-row[data-id]'), function (row) {
+          return row.getBoundingClientRect().height === 0;
+        }).length);
+      var rows = Array.prototype.filter.call(body.querySelectorAll('tbody .a-GV-row[data-id]'), function (row) {
+        return row.getBoundingClientRect().height > 0;
+      });
+      renderedCount = Math.max(renderedCount, rows.length);
+      var measuredRows = rows.map(function (row) { return row.getBoundingClientRect().height; });
+      // Include the active editor's height in the six-row cap even when it
+      // moves past row six. Sort measurements only, never DOM/data rows.
+      var visibleHeight = 0;
+      measuredRows.sort(function (a, b) { return b - a; }).slice(0, 6).forEach(function (measured) {
+        rowHeight = Math.max(rowHeight, measured);
+        visibleHeight += measured;
+      });
+      height = Math.max(height, visibleHeight);
+      body.querySelectorAll('.a-GV-altMessage').forEach(function (message) {
+        height = Math.max(height, message.getBoundingClientRect().height);
+      });
+    });
+    var view = grid.querySelector('.a-IG-gridView.a-GV'), view$ = null, model = null;
+    if (view && window.apex && apex.jQuery) {
+      view$ = apex.jQuery(view);
+      try { model = view$.grid('getModel'); } catch (ignore) { /* Not initialized yet. */ }
+    }
+    if (state.model !== model) {
+      if (state.model && state.subscription) state.model.unSubscribe(state.subscription);
+      state.model = model;
+      state.subscription = model ? model.subscribe({ onChange: function (type) {
+        if (/^(insert|delete|refresh|refreshRecords|addData|clearChanges|revert|metaChange|destroy)$/.test(type)) schedule();
+      } }) : null;
+    }
+    // The old initial-capacity cap could be one row forever. Count model rows
+    // as well as rendered rows: APEX virtual rendering may only render the
+    // current tiny viewport. Read only; never fetch/insert/update model data.
+    var count = renderedCount;
+    if (model && rowHeight) {
+      var total = model.getTotalRecords(true);
+      // Some legacy grids retain a hidden aggregate record behind their
+      // external totals dock. Never reserve an extra data-row slot for it.
+      if (total >= 0) count = Math.max(count, Math.min(6, total - hiddenCount));
+    }
+    // Use the measured sum when rows are rendered (the active editor can be
+    // taller than inactive rows). Estimate only rows not yet virtual-rendered.
+    if (rowHeight && renderedCount < Math.min(6, count)) {
+      height += (Math.min(6, count) - renderedCount) * rowHeight;
+    }
+    if (!height) return;
+    var target = Math.ceil(height + 2);
+    grid.classList.add('hspl-detail-content-height');
+    if (grid.style.getPropertyValue('--hspl-detail-row-height') !== target + 'px') {
+      grid.style.setProperty('--hspl-detail-row-height', target + 'px');
+      // Resize only after a real height change. No resizeColumns, refresh,
+      // stretch setting, focus movement or keyboard-event interception.
+      if (view$ && model) view$.grid('resize');
+    }
+    // APEX still owns selection/editing. Only correct vertical clipping of
+    // its active row after Tab/model insertion or after the six-row cap.
+    var active = view && view.querySelector('.a-GV-bdy .a-GV-row.is-active');
+    if (active && view.contains(doc.activeElement)) {
+      var scroll = active.closest('.a-GV-w-scroll,.a-GV-w-frozen,.a-GV-bdy');
+      if (scroll) {
+        var rect = active.getBoundingClientRect(), bounds = scroll.getBoundingClientRect();
+        if (rect.bottom > bounds.bottom) scroll.scrollTop += rect.bottom - bounds.bottom;
+        else if (rect.top < bounds.top) scroll.scrollTop -= bounds.top - rect.top;
+      }
+    }
   }
 
   function place(state) {
@@ -89,24 +192,60 @@
     state.grid.style.setProperty('--hspl-unused-footer-slot', Math.floor(gap) + 'px');
   }
 
+  function cacheScrollTargets(state) {
+    // Geometry/DOM discovery belongs to refresh/resize, not the gesture path.
+    state.targets = [state.bar].concat(Array.prototype.slice.call(
+      state.grid.querySelectorAll('.a-GV-w-hdr')));
+    if (state.region) totalsDocks(state.region).forEach(function (dock) {
+      var views = [dock].concat(Array.prototype.slice.call(
+        dock.querySelectorAll('[class*="live-total-dock-scroll"]')));
+      views.forEach(function (view) {
+        if (range(view) > 1) state.targets.push(view);
+      });
+    });
+  }
+
+  function writeScroll(state, node, value) {
+    if (node.scrollLeft === value) return;
+    // Native scroll notifications are asynchronous. A synchronous `syncing`
+    // flag alone cannot distinguish their echoes from a fresh user gesture.
+    node.scrollLeft = value;
+    state.echoPositions.set(node, node.scrollLeft);
+  }
+
   function sync(state, value, fromBar) {
     if (!state.owner || state.syncing) return;
     state.syncing = true;
-    if (fromBar) state.owner.scrollLeft = value;
-    var actual = state.owner.scrollLeft;
-    if (state.bar.scrollLeft !== actual) state.bar.scrollLeft = actual;
-    state.grid.querySelectorAll('.a-GV-w-hdr').forEach(function (header) {
-      if (header.scrollLeft !== actual) header.scrollLeft = actual;
-    });
-    if (state.region) totalsDocks(state.region).forEach(function (dock) {
-      // Depending on the existing layout, either the dock or its inner
-      // viewport owns scrolling. Synchronize only containers with a range.
-      var views = [dock].concat(Array.prototype.slice.call(dock.querySelectorAll('[class*="live-total-dock-scroll"]')));
-      views.forEach(function (view) {
-        if (range(view) > 1 && view.scrollLeft !== actual) view.scrollLeft = actual;
+    try {
+      if (fromBar) writeScroll(state, state.owner, value);
+      var actual = state.owner.scrollLeft;
+      state.targets.forEach(function (target) {
+        writeScroll(state, target, actual);
       });
+    } finally {
+      state.syncing = false;
+    }
+  }
+
+  function queueScroll(state, source) {
+    if (!state.owner || state.syncing) return;
+    var value = source.scrollLeft;
+    if (state.echoPositions.has(source)) {
+      var expected = state.echoPositions.get(source);
+      state.echoPositions.delete(source);
+      if (value === expected) return;
+    }
+    // Keep the latest real gesture; don't let an older owner echo pull a
+    // moving thumb backwards. One commit per paint, with no artificial delay,
+    // animation, wheel scaling, or replacement of native drag/momentum.
+    state.pendingScroll = { value: value, fromBar: source === state.bar };
+    if (state.scrollFrame !== null) return;
+    state.scrollFrame = window.requestAnimationFrame(function () {
+      state.scrollFrame = null;
+      var intent = state.pendingScroll;
+      state.pendingScroll = null;
+      if (intent && state.grid.isConnected) sync(state, intent.value, intent.fromBar);
     });
-    state.syncing = false;
   }
 
   function update(state) {
@@ -114,6 +253,10 @@
     var nextOwner = owner(state.grid);
     if (state.owner !== nextOwner) {
       if (state.owner) state.owner.removeEventListener('scroll', state.onOwnerScroll);
+      if (state.scrollFrame !== null) window.cancelAnimationFrame(state.scrollFrame);
+      state.scrollFrame = null;
+      state.pendingScroll = null;
+      state.echoPositions = new WeakMap();
       state.owner = nextOwner;
       if (state.owner) {
         state.owner.addEventListener('scroll', state.onOwnerScroll, { passive: true });
@@ -121,6 +264,7 @@
       }
     }
     place(state);
+    cacheScrollTargets(state);
     styleDetailSummary(state);
     if (!state.owner || !state.grid.getBoundingClientRect().width) {
       state.bar.hidden = true;
@@ -140,7 +284,8 @@
     var width = Math.ceil(state.bar.clientWidth + overflow);
     if (state.space.style.width !== width + 'px') state.space.style.width = width + 'px';
     state.bar.setAttribute('data-scroll-owner', state.owner.className);
-    sync(state, state.owner.scrollLeft, false);
+    // A scan must not rewind a gesture waiting for this frame's commit.
+    if (state.scrollFrame === null) sync(state, state.owner.scrollLeft, false);
   }
 
   function bind(grid) {
@@ -155,9 +300,10 @@
     space.className = 'hspl-detail-scrollbar-space';
     space.setAttribute('aria-hidden', 'true');
     bar.appendChild(space);
-    var state = { grid: grid, bar: bar, space: space, owner: null, syncing: false };
-    state.onOwnerScroll = function () { sync(state, state.owner.scrollLeft, false); };
-    bar.addEventListener('scroll', function () { sync(state, bar.scrollLeft, true); }, { passive: true });
+    var state = { grid: grid, bar: bar, space: space, owner: null, syncing: false,
+      targets: [], echoPositions: new WeakMap(), scrollFrame: null, pendingScroll: null };
+    state.onOwnerScroll = function () { queueScroll(state, state.owner); };
+    bar.addEventListener('scroll', function () { queueScroll(state, bar); }, { passive: true });
     if (window.ResizeObserver) {
       state.resize = new ResizeObserver(schedule);
       state.resize.observe(grid);
@@ -170,12 +316,33 @@
   function scan() {
     pending = false;
     doc.querySelectorAll('.a-IG').forEach(function (grid) {
+      var rowState = rowStates.get(grid);
+      if (!rowState) {
+        rowState = { grid: grid };
+        if (window.ResizeObserver) {
+          rowState.resize = new ResizeObserver(schedule);
+          rowState.resize.observe(grid);
+        }
+        rowStates.set(grid, rowState);
+      }
+      if (rowState.resize) grid.querySelectorAll('.a-GV-table').forEach(function (table) {
+        rowState.resize.observe(table);
+      });
+      compactRows(rowState);
       if (eligible(grid)) update(bind(grid));
+    });
+    rowStates.forEach(function (state, grid) {
+      if (!grid.isConnected) {
+        if (state.resize) state.resize.disconnect();
+        if (state.model && state.subscription) state.model.unSubscribe(state.subscription);
+        rowStates.delete(grid);
+      }
     });
     states.forEach(function (state, grid) {
       if (!grid.isConnected) {
         if (state.resize) state.resize.disconnect();
         if (state.owner) state.owner.removeEventListener('scroll', state.onOwnerScroll);
+        if (state.scrollFrame !== null) window.cancelAnimationFrame(state.scrollFrame);
         state.bar.remove();
         states.delete(grid);
       }
@@ -192,15 +359,18 @@
     scan();
     new MutationObserver(function (records) {
       if (records.some(function (record) {
-        return Array.prototype.some.call(record.addedNodes, function (node) {
+        return record.removedNodes.length || Array.prototype.some.call(record.addedNodes, function (node) {
           return node.nodeType === 1 && !node.classList.contains('hspl-detail-scrollbar') &&
             !node.classList.contains('hspl-detail-scrollbar-space');
         });
       })) schedule();
     }).observe(doc.body, { childList: true, subtree: true });
     if (window.apex && apex.jQuery) apex.jQuery(doc).on(
-      'apexafterrefresh.hsplDetailScroll apexreadyend.hsplDetailScroll atabsactivate.hsplDetailScroll', schedule);
+      'apexafterrefresh.hsplDetailScroll apexreadyend.hsplDetailScroll atabsactivate.hsplDetailScroll interactivegridviewmodelcreate.hsplDetailScroll gridpagechange.hsplDetailScroll gridcurrentcellchange.hsplDetailScroll gridmodechange.hsplDetailScroll', schedule);
   }
+  doc.addEventListener('focusin', function (event) {
+    if (event.target.closest && event.target.closest('.a-IG')) schedule();
+  });
   doc.addEventListener('click', function (event) {
     if (event.target.closest && event.target.closest('[role="tab"],.t-Tabs-link,.apex-rds a')) schedule();
   }, true);

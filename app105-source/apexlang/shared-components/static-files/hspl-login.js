@@ -22,5 +22,8 @@
   var note=document.createElement('p');note.className='hspl-login-access-note';note.innerHTML='<i class="fa fa-lock" aria-hidden="true"></i> Authorized workspace access';card.appendChild(note);
   var footer=document.createElement('p');footer.className='hspl-login-powered';footer.innerHTML='Powered by <strong>Infomatics Technologies</strong>';pane.appendChild(footer);
  }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+ /* This file is emitted after the Login form markup. Run in this parser task,
+    before APEX ready handlers and a possible first paint; waiting for
+    DOMContentLoaded produced the visible native-login -> branded-login swap. */
+ if(document.querySelector('.t-Login-region'))init();else document.addEventListener('DOMContentLoaded',init,{once:true});
 })();

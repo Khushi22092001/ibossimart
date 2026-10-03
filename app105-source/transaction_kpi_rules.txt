@@ -1,0 +1,484 @@
+
+VIEW_NAME                      TEXT                                                                                                                                                                             
+______________________________ ________________________________________________________________________________________________________________________________________________________________________________ 
+V_LATEST_ACTIVE_SALESORDERS    WITH REVISION_TREE AS (                                                                                                                                                          
+                                   SELECT                                                                                                                                                                       
+                                       TNO AS CURRENT_SO_TNO,                                                                                                                                                   
+                                       SalesOrderNo AS CURRENT_SO_NO,                                                                                                                                           
+                                       CONNECT_BY_ROOT TNO AS ROOT_SO_TNO,                                                                                                                                      
+                                       CONNECT_BY_ROOT SalesOrderNo AS ROOT_SO_NO                                                                                                                               
+                                   FROM SalesOrder                                                                                                                                                              
+                                   START WITH REVISIONSALESORDERTNO IS NULL                                                                                                                                     
+                                   CONNECT BY PRIOR TNO = REVISIONSALESORDERTNO                                                                                                                                 
+                               ),                                                                                                                                                                               
+                               root_so_quantities AS (                                                                                                                                                          
+                                   -- Fetch original baseline transaction targets                                                                                                                               
+                                   SELECT sod.TNO, sod.ITEMCODE, sod.ITEMSPECIFICATIONCODE, NVL(sod.Quantity1, 0) AS BASE_SO_QTY, NVL(sod.RATE, 0) AS BASE_SO_RATE, NVL(sod.TotalAmount,0) as BASE_SO_AMOUNT    
+                                   FROM SalesOrderDetail sod                                                                                                                                                    
+                               )                                                                                                                                                                                
+                               SELECT DISTINCT                                                                                                                                                                  
+                                   so.TNO,                                                                                                                                                                      
+                                   REGEXP_REPLACE(so.SalesOrderNo, '.*/0*([0-9]+)', '0\1') AS SO_No_Clean,                                                                                                      
+                                   so.SalesOrderDate,                                                                                                                                                           
+                                   so.SalesOrderNo,                                                                                                                                                             
+                                   so.PartyPONO,                                                                                                                                                                
+                                   so.PartyPODate,                                                                                                                                                              
+                                   so.PartyCode,                                                                                                                                                                
+                                   so.Agentcode,                                                                                                                                                                
+                                   so.SALESEXECUTIVECODE,                                                                                                                                                       
+                                   so.REMARK,                                                                                                                                                                   
+                                   sod.ITEMCODE,                                                                                                                                                                
+                                   sod.ITEMSPECIFICATIONCODE,                                                                                                                                                   
+                                   NVL(sod.Quantity1, 0) AS CURRENT_SO_QTY,                                                                                                                                     
+                                   sod.Rate,                                                                                                                                                                    
+                                   sod.Amount,                                                                                                                                                                  
+                                   rt.ROOT_SO_TNO,                                                                                                                                                              
+                                   rt.ROOT_SO_NO,                                                                                                                                                               
+                                   NVL(rsq.BASE_SO_QTY, 0) AS BASE_SO_QTY,                                                                                                                                      
+                                   NVL(rsq.BASE_SO_RATE, 0) AS BASE_SO_RATE,                                                                                                                                    
+                                   NVL(rsq.BASE_SO_AMOUNT,0) AS BASE_SO_AMOUNT                                                                                                                                  
+                               FROM SalesOrder so                                                                                                                                                               
+                               JOIN REVISION_TREE rt ON so.TNO = rt.CURRENT_SO_TNO                                                                                                                              
+                               JOIN SalesOrderDetail sod ON so.TNo = sod.TNO                                                                                                                                    
+                               LEFT JOIN root_so_quantities rsq ON rt.ROOT_SO_TNO = rsq.TNO                                                                                                                     
+                                   AND sod.ItemCode = rsq.ItemCode                                                                                                                                              
+                                   AND sod.ItemSpecificationCode = rsq.ItemSpecificationCode                                                                                                                    
+                               WHERE EXISTS (                                                                                                                                                                   
+                                   SELECT 1 FROM DOCUMENTSTATUSDETAIL dsd                                                                                                                                       
+                                   WHERE dsd.MODULECODE = 'SALESORDER'                                                                                                                                          
+                                     AND dsd.MODULETNO = so.TNO                                                                                                                                                 
+                                     AND dsd.DOCUMENTSTATUSCODE = 'ACTIVE'                                                                                                                                      
+                               )                                                                                                                                                                                
+                               AND NOT EXISTS (                                                                                                                                                                 
+                                   SELECT 1 FROM SalesOrder child_so                                                                                                                                            
+                                   WHERE child_so.REVISIONSALESORDERTNO = so.TNO                                                                                                                                
+                               )                                                                                                                                                                                
+V_LATEST_PURCHASE_ORDERS       WITH Amendment_Hierarchy AS (                                                                                                                                                    
+                                   SELECT                                                                                                                                                                       
+                                       TNO AS Amendment_TNO,                                                                                                                                                    
+                                       PURCHASEORDERTNO,                                                                                                                                                        
+                                       PARTYCODE,                                                                                                                                                               
+                                       CONNECT_BY_ROOT PURCHASEORDERTNO AS ROOT_PO_TNO,                                                                                                                         
+                                       CONNECT_BY_ISLEAF AS IsLatest                                                                                                                                            
+                                   FROM POAmendment                                                                                                                                                             
+                                   START WITH PURCHASEORDERTNO IS NOT NULL                                                                                                                                      
+                                   CONNECT BY PRIOR TNO = PURCHASEORDERTNO                                                                                                                                      
+                               ),                                                                                                                                                                               
+                               Latest_Amendments AS (                                                                                                                                                           
+                                   SELECT                                                                                                                                                                       
+                                       ROOT_PO_TNO AS PO_TNO,                                                                                                                                                   
+                                       PARTYCODE,                                                                                                                                                               
+                                       Amendment_TNO                                                                                                                                                            
+                                   FROM Amendment_Hierarchy                                                                                                                                                     
+                                   WHERE IsLatest = 1                                                                                                                                                           
+                               ),                                                                                                                                                                               
+                               CombinedRecords AS (                                                                                                                                                             
+                                   SELECT                                                                                                                                                                       
+                                       po.TNO AS PO_TNO,                                                                                                                                                        
+                                       pod.TNO AS Source_TNO,                                                                                                                                                   
+                                       'ORIGINAL' AS Record_Type,                                                                                                                                               
+                                       po.PARTYCODE,                                                                                                                                                            
+                                       po.PURCHASEORDERNO,                                                                                                                                                      
+                                       po.PURCHASEORDERDATE,                                                                                                                                                    
+                                       null as PO_AMENDMENT_NO,                                                                                                                                                 
+                                       null as PO_AMENDMENT_DATE,                                                                                                                                               
+                                       pod.ITEMCODE,                                                                                                                                                            
+                                       pod.ITEMSPECIFICATIONCODE,                                                                                                                                               
+                                       pod.QUANTITY1,                                                                                                                                                           
+                                       pod.RATE,                                                                                                                                                                
+                                       pod.AMOUNT                                                                                                                                                               
+                                   FROM PurchaseOrder po                                                                                                                                                        
+                                   JOIN PurchaseOrderDetail pod ON po.TNO = pod.TNO                                                                                                                             
+                                                                                                                                                                                                                
+                                   UNION ALL                                                                                                                                                                    
+                                                                                                                                                                                                                
+                                   SELECT                                                                                                                                                                       
+                                       la.PO_TNO,                                                                                                                                                               
+                                       pad.TNO AS Source_TNO,                                                                                                                                                   
+                                       'AMENDED' AS Record_Type,                                                                                                                                                
+                                       la.PARTYCODE,                                                                                                                                                            
+                                       (SELECT po.PURCHASEORDERNO FROM PURCHASEORDER po WHERE po.TNO = la.PO_TNO) AS PURCHASEORDERNO,                                                                           
+                                       (SELECT po.PURCHASEORDERDATE FROM PURCHASEORDER po WHERE po.TNO = la.PO_TNO) AS PURCHASEORDERDATE,                                                                       
+                                       (SELECT pa.POAMENDMENTNO FROM POAMENDMENT pa WHERE pa.TNO = pad.TNO) AS PO_AMENDMENT_NO,                                                                                 
+                                       (SELECT pa.POAMENDMENTDATE FROM POAMENDMENT pa WHERE pa.TNO = pad.TNO) AS PO_AMENDMENT_DATE,                                                                             
+                                       pad.ITEMCODE,                                                                                                                                                            
+                                       pad.ITEMSPECIFICATIONCODE,                                                                                                                                               
+                                       pad.QUANTITY1,                                                                                                                                                           
+                                       pad.RATE,                                                                                                                                                                
+                                       pad.AMOUNT                                                                                                                                                               
+                                   FROM Latest_Amendments la                                                                                                                                                    
+                                   JOIN POAmendmentDetail pad ON la.Amendment_TNO = pad.TNO                                                                                                                     
+                               ),                                                                                                                                                                               
+                               FilteredRecords AS (                                                                                                                                                             
+                                   SELECT                                                                                                                                                                       
+                                       PO_TNO,                                                                                                                                                                  
+                                       Source_TNO,                                                                                                                                                              
+                                       Record_Type,                                                                                                                                                             
+                                       PARTYCODE,                                                                                                                                                               
+                                       PURCHASEORDERNO,                                                                                                                                                         
+                                       PURCHASEORDERDATE,                                                                                                                                                       
+                                       PO_AMENDMENT_NO,                                                                                                                                                         
+                                       PO_AMENDMENT_DATE,                                                                                                                                                       
+                                       ITEMCODE,                                                                                                                                                                
+                                       ITEMSPECIFICATIONCODE,                                                                                                                                                   
+                                       QUANTITY1,                                                                                                                                                               
+                                       RATE,                                                                                                                                                                    
+                                       AMOUNT,                                                                                                                                                                  
+                                       COUNT(CASE WHEN Record_Type = 'AMENDED' THEN 1 END) OVER (PARTITION BY PO_TNO) AS Has_Amendment                                                                          
+                                   FROM CombinedRecords                                                                                                                                                         
+                               )                                                                                                                                                                                
+                               SELECT                                                                                                                                                                           
+                                   PO_TNO AS BASE_PO_TNO,                                                                                                                                                       
+                                   Source_TNO AS Latest_Detail_TNO,                                                                                                                                             
+                                   Record_Type,                                                                                                                                                                 
+                                   PARTYCODE,                                                                                                                                                                   
+                                   PURCHASEORDERNO,                                                                                                                                                             
+                                   PURCHASEORDERDATE,                                                                                                                                                           
+                                   PO_AMENDMENT_NO,                                                                                                                                                             
+                                   PO_AMENDMENT_DATE,                                                                                                                                                           
+                                   ITEMCODE,                                                                                                                                                                    
+                                   ITEMSPECIFICATIONCODE,                                                                                                                                                       
+                                   QUANTITY1,                                                                                                                                                                   
+                                   RATE,                                                                                                                                                                        
+                                   AMOUNT                                                                                                                                                                       
+                               FROM FilteredRecords                                                                                                                                                             
+                               WHERE 1 = 1                                                                                                                                                                      
+                                 AND (                                                                                                                                                                          
+                                       (Has_Amendment > 0 AND Record_Type = 'AMENDED')                                                                                                                          
+                                       OR                                                                                                                                                                       
+                                       (Has_Amendment = 0 AND Record_Type = 'ORIGINAL')                                                                                                                         
+                                     )                                                                                                                                                                          
+
+
+TABLE_NAME                   COLUMN_NAME                     DATA_TYPE    
+____________________________ _______________________________ ____________ 
+INDENT                       TNO                             NUMBER       
+INDENT                       COMPANYCODE                     VARCHAR2     
+INDENT                       FINANCIALYEARCODE               VARCHAR2     
+INDENT                       LOCATIONCODE                    VARCHAR2     
+INDENT                       DOCTYPECODE                     VARCHAR2     
+INDENT                       INDENTNO                        VARCHAR2     
+INDENT                       DEPARTMENTCODE                  VARCHAR2     
+INDENT                       WORKORDERTNO                    NUMBER       
+INDENT                       REMARK                          VARCHAR2     
+INDENT                       INDENTDATE                      DATE         
+INDENT                       ISCOMBINEDINDENT                VARCHAR2     
+INDENT                       JOBORDERTNO                     NUMBER       
+INDENT                       TASKSNO                         NUMBER       
+INDENT                       MAINTENANCEPLANTNO              NUMBER       
+INDENT                       BREAKDOWNTNO                    NUMBER       
+INDENT                       CREATOR                         VARCHAR2     
+INDENT                       PROJECTTNO                      NUMBER       
+INDENT                       RETENTIONMONEY                  NUMBER       
+INDENT                       ACTIVETIME                      DATE         
+INDENT                       MAJORTASKSNO                    NUMBER       
+INDENT                       WBDSCODE                        VARCHAR2     
+INDENT                       TASKNATURECODE                  VARCHAR2     
+INDENT                       ITEMNATURECODE                  VARCHAR2     
+INDENT                       ISAUTOINDENT                    VARCHAR2     
+INDENT                       REQUISITIONTNO                  NUMBER       
+INDENT                       EQUIPMENTMAINTENANCEORDERTNO    NUMBER       
+INDENT                       CREATIONTIME                    DATE         
+INDENT                       REFINDENTTNO                    NUMBER       
+INDENT                       VNO                             NUMBER       
+INDENT                       MODULECODE                      VARCHAR2     
+INDENT                       MODULETNO                       NUMBER       
+INDENTDETAIL                 TNO                             NUMBER       
+INDENTDETAIL                 ITEMCODE                        VARCHAR2     
+INDENTDETAIL                 ITEMSPECIFICATIONCODE           VARCHAR2     
+INDENTDETAIL                 QUANTITY1                       NUMBER       
+INDENTDETAIL                 QUANTITY2                       NUMBER       
+INDENTDETAIL                 REQUIREMENTTIMEINDAYS           NUMBER       
+INDENTDETAIL                 STOCKINHAND                     NUMBER       
+INDENTDETAIL                 REMARK                          VARCHAR2     
+INDENTDETAIL                 DESCRIPTION                     VARCHAR2     
+INDENTDETAIL                 SNO                             NUMBER       
+INDENTDETAIL                 DOCUMENTSTATUSCODE              VARCHAR2     
+INDENTDETAIL                 SERIALNO                        NUMBER       
+INDENTDETAIL                 ORDEREDQUANTITY1                NUMBER       
+INDENTDETAIL                 ORDEREDQUANTITY2                NUMBER       
+INDENTDETAIL                 QOH1                            NUMBER       
+INDENTDETAIL                 QOH2                            NUMBER       
+INDENTDETAIL                 JOBTYPECODE                     VARCHAR2     
+INDENTDETAIL                 INDENTQUANTITY1                 NUMBER       
+INDENTDETAIL                 INDENTQUANTITY2                 NUMBER       
+INDENTDETAIL                 RATE                            NUMBER       
+INDENTDETAIL                 AMOUNT                          NUMBER       
+INDENTDETAIL                 BOMCODE                         VARCHAR2     
+INDENTDETAIL                 ACCEPTANCEONCOMMISSIONING       VARCHAR2     
+INDENTDETAIL                 PHYSICALQUANTITY1               NUMBER       
+INDENTDETAIL                 PHYSICALQUANTITY2               NUMBER       
+INDENTDETAIL                 EQUIPMENTTNO                    NUMBER       
+INDENTDETAIL                 PRIORITYCODE                    VARCHAR2     
+INDENTDETAIL                 STATUSMODIFICATIONTIME          DATE         
+INDENTDETAIL                 STATUSMODIFICATIONBYUSER        VARCHAR2     
+INDENTDETAIL                 ENQUIRYTNO                      NUMBER       
+INDENTDETAIL                 SN                              NUMBER       
+PBPASSDETAIL                 TNO                             NUMBER       
+PBPASSDETAIL                 SNO                             NUMBER       
+PBPASSDETAIL                 PURCHASEORDERTNO                NUMBER       
+PBPASSDETAIL                 ITEMCODE                        VARCHAR2     
+PBPASSDETAIL                 ITEMSPECIFICATIONCODE           VARCHAR2     
+PBPASSDETAIL                 DESCRIPTION                     VARCHAR2     
+PBPASSDETAIL                 PURCHASEBILLQUANTITY1           NUMBER       
+PBPASSDETAIL                 PURCHASEBILLQUANTITY2           NUMBER       
+PBPASSDETAIL                 RECEIVEDQUANTITY1               NUMBER       
+PBPASSDETAIL                 RECEIVEDQUANTITY2               NUMBER       
+PBPASSDETAIL                 QUANTITY1                       NUMBER       
+PBPASSDETAIL                 QUANTITY2                       NUMBER       
+PBPASSDETAIL                 RATE                            NUMBER       
+PBPASSDETAIL                 RATEMEASURINGUNITCODE           VARCHAR2     
+PBPASSDETAIL                 AMOUNT                          NUMBER       
+PBPASSDETAIL                 QUALITYDEDUCTION                NUMBER       
+PBPASSDETAIL                 QUALITYBONUS                    NUMBER       
+PBPASSDETAIL                 FOOTERAMOUNT                    NUMBER       
+PBPASSDETAIL                 TOTALAMOUNT                     NUMBER       
+PBPASSDETAIL                 REMARK                          VARCHAR2     
+PBPASSDETAIL                 QUALITYDEDUCTIONAUTO            NUMBER       
+PBPASSDETAIL                 QUALITYBONUSAUTO                NUMBER       
+PBPASSDETAIL                 QUALITYDEDUCTIONMANUAL          NUMBER       
+PBPASSDETAIL                 QUALITYBONUSMANUAL              NUMBER       
+PBPASSDETAIL                 OTHERDEDUCTION                  NUMBER       
+PBPASSDETAIL                 ROUNDING                        NUMBER       
+PBPASSDETAIL                 FOOTERAMOUNTWITHRATE            NUMBER       
+PBPASSDETAIL                 JOBORDERTNO                     NUMBER       
+PBPASSDETAIL                 ENTRYTAXPERCENT                 NUMBER       
+PBPASSDETAIL                 ENTRYTAXAMOUNT                  NUMBER       
+PBPASSDETAIL                 FOOTERCOSTAMOUNT                NUMBER       
+PBPASSDETAIL                 ENTRYTAXFOOTERNATURECODE        VARCHAR2     
+PBPASSDETAIL                 ENTRYTAXAMOUNTFORFREIGHT        NUMBER       
+PBPASSDETAIL                 EXTRAFOOTERFORENTRYTAX          NUMBER       
+PBPASSDETAIL                 TAXRULECODE                     VARCHAR2     
+PBPASSDETAIL                 QUALITYCODE                     VARCHAR2     
+PBPASSDETAIL                 PRORATA                         NUMBER       
+PURCHASEORDERDETAILINDENT    TNO                             NUMBER       
+PURCHASEORDERDETAILINDENT    SNO                             NUMBER       
+PURCHASEORDERDETAILINDENT    INDENTTNO                       NUMBER       
+PURCHASEORDERDETAILINDENT    ITEMCODE                        VARCHAR2     
+PURCHASEORDERDETAILINDENT    ITEMSPECIFICATIONCODE           VARCHAR2     
+PURCHASEORDERDETAILINDENT    DESCRIPTION                     VARCHAR2     
+PURCHASEORDERDETAILINDENT    QUANTITY1                       NUMBER       
+PURCHASEORDERDETAILINDENT    QUANTITY2                       VARCHAR2     
+PURCHASEORDERDETAILINDENT    TOLERANCE                       NUMBER       
+PURCHASEORDERDETAILINDENT    RATEMEASURINGUNITCODE           VARCHAR2     
+PURCHASEORDERDETAILINDENT    RATE                            NUMBER       
+PURCHASEORDERDETAILINDENT    AMOUNT                          NUMBER       
+PURCHASEORDERDETAILINDENT    FOOTERAMOUNT                    NUMBER       
+PURCHASEORDERDETAILINDENT    TOTALAMOUNT                     NUMBER       
+PURCHASEORDERDETAILINDENT    REMARK                          VARCHAR2     
+PURCHASEORDERDETAILINDENT    DOCUMENTSTATUSCODE              VARCHAR2     
+PURCHASEORDERDETAILINDENT    SHORTAGETOLERANCE               NUMBER       
+PURCHASEORDERDETAILINDENT    SHORTAGEDEDUCTIONFROM           VARCHAR2     
+PURCHASEORDERDETAILINDENT    SHORTAGETOLERANCEMETHOD         VARCHAR2     
+PURCHASEORDERDETAILINDENT    DEDUCTIONBASISCODE              VARCHAR2     
+PURCHASEORDERDETAILINDENT    DEDUCTIONRATE                   VARCHAR2     
+PURCHASEORDERDETAILINDENT    PRORATA                         NUMBER       
+PURCHASEORDERDETAILINDENT    QUALITYCODE                     VARCHAR2     
+PURCHASEORDERDETAILINDENT    WITHOUTDISCOUNTRATE             NUMBER       
+PURCHASEORDERDETAILINDENT    DISCOUNTPERCENTAGE              NUMBER       
+PURCHASEORDERDETAILINDENT    DISCOUNTRATE                    NUMBER       
+V_LATEST_PURCHASE_ORDERS     BASE_PO_TNO                     NUMBER       
+V_LATEST_PURCHASE_ORDERS     LATEST_DETAIL_TNO               NUMBER       
+V_LATEST_PURCHASE_ORDERS     RECORD_TYPE                     VARCHAR2     
+V_LATEST_PURCHASE_ORDERS     PARTYCODE                       VARCHAR2     
+V_LATEST_PURCHASE_ORDERS     PURCHASEORDERNO                 VARCHAR2     
+V_LATEST_PURCHASE_ORDERS     PURCHASEORDERDATE               DATE         
+V_LATEST_PURCHASE_ORDERS     PO_AMENDMENT_NO                 VARCHAR2     
+V_LATEST_PURCHASE_ORDERS     PO_AMENDMENT_DATE               DATE         
+V_LATEST_PURCHASE_ORDERS     ITEMCODE                        VARCHAR2     
+V_LATEST_PURCHASE_ORDERS     ITEMSPECIFICATIONCODE           VARCHAR2     
+V_LATEST_PURCHASE_ORDERS     QUANTITY1                       NUMBER       
+V_LATEST_PURCHASE_ORDERS     RATE                            NUMBER       
+V_LATEST_PURCHASE_ORDERS     AMOUNT                          NUMBER       
+
+138 rows selected. 
+
+
+NAME                          TEXT                                                                                                         
+_____________________________ ____________________________________________________________________________________________________________ 
+APEX_GETPENDINGPOQUANTITY1    Function apex_GetPendingPOQuantity1(pItemCode              Varchar2,                                         
+APEX_GETPENDINGPOQUANTITY1                                                          pItemSpecificationCode Varchar2,                       
+APEX_GETPENDINGPOQUANTITY1                                                          pPurchaseOrderTNo      Number)                         
+APEX_GETPENDINGPOQUANTITY1      Return Number Is                                                                                           
+APEX_GETPENDINGPOQUANTITY1      rtvalue          Number;                                                                                   
+APEX_GETPENDINGPOQUANTITY1      tTotalAccepted   Number;                                                                                   
+APEX_GETPENDINGPOQUANTITY1      tTotalMaterialIn Number;                                                                                   
+APEX_GETPENDINGPOQUANTITY1      tTotalOrder      Number;                                                                                   
+APEX_GETPENDINGPOQUANTITY1    Begin                                                                                                        
+APEX_GETPENDINGPOQUANTITY1      Select                                                                                                     
+APEX_GETPENDINGPOQUANTITY1                                                                                                                 
+APEX_GETPENDINGPOQUANTITY1      --a.itemcode,                                                                                              
+APEX_GETPENDINGPOQUANTITY1      --a.ITEMSPECIFICATIONCODE,                                                                                 
+APEX_GETPENDINGPOQUANTITY1      --a.DESCRIPTION,                                                                                           
+APEX_GETPENDINGPOQUANTITY1      --GETPENDINGPOQUANTITY1(a.itemcode,a.ITEMSPECIFICATIONCODE,:P155_PURCHASEORDERTNO)-nvl(c.quantity1,0),     
+APEX_GETPENDINGPOQUANTITY1       a.quantity1 - nvl(e.quantity1, 0) - nvl(d.quantity1, 0) -                                                 
+APEX_GETPENDINGPOQUANTITY1       Nvl(c.quantity1, 0)                                                                                       
+APEX_GETPENDINGPOQUANTITY1        Into rtvalue                                                                                             
+APEX_GETPENDINGPOQUANTITY1                                                                                                                 
+APEX_GETPENDINGPOQUANTITY1        From PurchaseOrderDetail a,                                                                              
+APEX_GETPENDINGPOQUANTITY1             (Select BB.PURCHASEORDERTNO,                                                                        
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMCODE,                                                                                
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMSPECIFICATIONCODE,                                                                   
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY1) QUANTITY1,                                                                
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY2) QUANTITY2                                                                 
+APEX_GETPENDINGPOQUANTITY1                From loadingadvice Bb, loadingadvicedetail Cc                                                    
+APEX_GETPENDINGPOQUANTITY1               Where BB.TNO = CC.TNO                                                                             
+APEX_GETPENDINGPOQUANTITY1                 And Not Exists (Select 1                                                                        
+APEX_GETPENDINGPOQUANTITY1                        From materialin xx                                                                       
+APEX_GETPENDINGPOQUANTITY1                       Where xx.loadingadvicetno = bb.tno)                                                       
+APEX_GETPENDINGPOQUANTITY1                 And Not Exists                                                                                  
+APEX_GETPENDINGPOQUANTITY1               (Select 1 From grn xx Where xx.loadingadvicetno = bb.tno)                                         
+APEX_GETPENDINGPOQUANTITY1               Group By BB.PURCHASEORDERTNO,                                                                     
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMCODE,                                                                             
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMSPECIFICATIONCODE) C,                                                             
+APEX_GETPENDINGPOQUANTITY1             (Select BB.PURCHASEORDERTNO,                                                                        
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMCODE,                                                                                
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMSPECIFICATIONCODE,                                                                   
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY1) QUANTITY1,                                                                
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY2) QUANTITY2                                                                 
+APEX_GETPENDINGPOQUANTITY1                From materialin Bb, materialindetail Cc                                                          
+APEX_GETPENDINGPOQUANTITY1               Where BB.TNO = CC.TNO                                                                             
+APEX_GETPENDINGPOQUANTITY1                 And Not Exists                                                                                  
+APEX_GETPENDINGPOQUANTITY1               (Select 1 From grn xx Where xx.materialintno = bb.tno)                                            
+APEX_GETPENDINGPOQUANTITY1               Group By BB.PURCHASEORDERTNO,                                                                     
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMCODE,                                                                             
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMSPECIFICATIONCODE) D,                                                             
+APEX_GETPENDINGPOQUANTITY1             (Select BB.PURCHASEORDERTNO,                                                                        
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMCODE,                                                                                
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMSPECIFICATIONCODE,                                                                   
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.receivedQUANTITY1) QUANTITY1,                                                        
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.receivedQUANTITY2) QUANTITY2                                                         
+APEX_GETPENDINGPOQUANTITY1                From grn Bb, grndetail Cc                                                                        
+APEX_GETPENDINGPOQUANTITY1               Where BB.TNO = CC.TNO                                                                             
+APEX_GETPENDINGPOQUANTITY1               Group By BB.PURCHASEORDERTNO,                                                                     
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMCODE,                                                                             
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMSPECIFICATIONCODE) e                                                              
+APEX_GETPENDINGPOQUANTITY1       Where a.tno = Create                                                                                      
+APEX_GETPENDINGPOQUANTITY1          Or Replace Function                                                                                    
+APEX_GETPENDINGPOQUANTITY1       apex_GetPendingPOQuantity1(pItemCode Varchar2,                                                            
+APEX_GETPENDINGPOQUANTITY1                                        pItemSpecificationCode Varchar2,                                         
+APEX_GETPENDINGPOQUANTITY1                                        pPurchaseOrderTNo Number) Return                                         
+APEX_GETPENDINGPOQUANTITY1       Number Is rtvalue Number;                                                                                 
+APEX_GETPENDINGPOQUANTITY1      tTotalAccepted Number;                                                                                     
+APEX_GETPENDINGPOQUANTITY1      tTotalMaterialIn Number;                                                                                   
+APEX_GETPENDINGPOQUANTITY1      tTotalOrder Number;                                                                                        
+APEX_GETPENDINGPOQUANTITY1      Select                                                                                                     
+APEX_GETPENDINGPOQUANTITY1                                                                                                                 
+APEX_GETPENDINGPOQUANTITY1       a.itemcode,                                                                                               
+APEX_GETPENDINGPOQUANTITY1       a.ITEMSPECIFICATIONCODE,                                                                                  
+APEX_GETPENDINGPOQUANTITY1       a.DESCRIPTION,                                                                                            
+APEX_GETPENDINGPOQUANTITY1       --GETPENDINGPOQUANTITY1(a.itemcode,a.ITEMSPECIFICATIONCODE,:P155_PURCHASEORDERTNO)-nvl(c.quantity1,0),    
+APEX_GETPENDINGPOQUANTITY1       a.quantity1 - nvl(e.quantity1, 0) - nvl(d.quantity1, 0) -                                                 
+APEX_GETPENDINGPOQUANTITY1       Nvl(c.quantity1, 0)                                                                                       
+APEX_GETPENDINGPOQUANTITY1                                                                                                                 
+APEX_GETPENDINGPOQUANTITY1        From PurchaseOrderDetail a,                                                                              
+APEX_GETPENDINGPOQUANTITY1             (Select BB.PURCHASEORDERTNO,                                                                        
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMCODE,                                                                                
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMSPECIFICATIONCODE,                                                                   
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY1) QUANTITY1,                                                                
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY2) QUANTITY2                                                                 
+APEX_GETPENDINGPOQUANTITY1                From loadingadvice Bb, loadingadvicedetail Cc                                                    
+APEX_GETPENDINGPOQUANTITY1               Where BB.TNO = CC.TNO                                                                             
+APEX_GETPENDINGPOQUANTITY1                 And (Not Exists                                                                                 
+APEX_GETPENDINGPOQUANTITY1                      (Select 1                                                                                  
+APEX_GETPENDINGPOQUANTITY1                         From materialin xx                                                                      
+APEX_GETPENDINGPOQUANTITY1                        Where xx.loadingadvicetno = bb.tno) Or Not Exists                                        
+APEX_GETPENDINGPOQUANTITY1                      (Select 1 From grn xx Where xx.loadingadvicetno = bb.tno))                                 
+APEX_GETPENDINGPOQUANTITY1               Group By BB.PURCHASEORDERTNO,                                                                     
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMCODE,                                                                             
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMSPECIFICATIONCODE) C,                                                             
+APEX_GETPENDINGPOQUANTITY1             (Select BB.PURCHASEORDERTNO,                                                                        
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMCODE,                                                                                
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMSPECIFICATIONCODE,                                                                   
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY1) QUANTITY1,                                                                
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.QUANTITY2) QUANTITY2                                                                 
+APEX_GETPENDINGPOQUANTITY1                From materialin Bb, materialindetail Cc                                                          
+APEX_GETPENDINGPOQUANTITY1               Where BB.TNO = CC.TNO                                                                             
+APEX_GETPENDINGPOQUANTITY1                 And Not Exists                                                                                  
+APEX_GETPENDINGPOQUANTITY1               (Select 1 From grn xx Where xx.materialintno = bb.tno)                                            
+APEX_GETPENDINGPOQUANTITY1               Group By BB.PURCHASEORDERTNO,                                                                     
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMCODE,                                                                             
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMSPECIFICATIONCODE) D,                                                             
+APEX_GETPENDINGPOQUANTITY1             (Select BB.PURCHASEORDERTNO,                                                                        
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMCODE,                                                                                
+APEX_GETPENDINGPOQUANTITY1                     CC.ITEMSPECIFICATIONCODE,                                                                   
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.receivedQUANTITY1) QUANTITY1,                                                        
+APEX_GETPENDINGPOQUANTITY1                     Sum(CC.receivedQUANTITY2) QUANTITY2                                                         
+APEX_GETPENDINGPOQUANTITY1                From grn Bb, grndetail Cc                                                                        
+APEX_GETPENDINGPOQUANTITY1               Where BB.TNO = CC.TNO                                                                             
+APEX_GETPENDINGPOQUANTITY1               Group By BB.PURCHASEORDERTNO,                                                                     
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMCODE,                                                                             
+APEX_GETPENDINGPOQUANTITY1                        CC.ITEMSPECIFICATIONCODE) e                                                              
+APEX_GETPENDINGPOQUANTITY1       Where a.tno = pPurchaseOrderTNo                                                                           
+APEX_GETPENDINGPOQUANTITY1         And a.tno = C.purchaseordertno(+)                                                                       
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = c.itemcode(+)                                                                          
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = c.itemspecificationcode(+)                                                
+APEX_GETPENDINGPOQUANTITY1         And a.tno = D.purchaseordertno(+)                                                                       
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = D.itemcode(+)                                                                          
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = D.itemspecificationcode(+)                                                
+APEX_GETPENDINGPOQUANTITY1            --And a.quantity1 - nvl(c.quantity1, 0) - nvl(d.quantity1, 0) > 0                                    
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode Not In                                                                                   
+APEX_GETPENDINGPOQUANTITY1             (Select itemcode From item Where itemnaturecode = 'SERVICES')                                       
+APEX_GETPENDINGPOQUANTITY1         And a.tno = e.purchaseordertno(+)                                                                       
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = e.itemcode(+)                                                                          
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = e.itemspecificationcode(+)                                                
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = 'TRD063'                                                                               
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = '54889769'                                                                
+APEX_GETPENDINGPOQUANTITY1                                                                                                                 
+APEX_GETPENDINGPOQUANTITY1         And a.tno = C.purchaseordertno(+)                                                                       
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = c.itemcode(+)                                                                          
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = c.itemspecificationcode(+)                                                
+APEX_GETPENDINGPOQUANTITY1         And a.tno = D.purchaseordertno(+)                                                                       
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = D.itemcode(+)                                                                          
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = D.itemspecificationcode(+)                                                
+APEX_GETPENDINGPOQUANTITY1            --And a.quantity1 - nvl(c.quantity1, 0) - nvl(d.quantity1, 0) > 0                                    
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode Not In                                                                                   
+APEX_GETPENDINGPOQUANTITY1             (Select itemcode From item Where itemnaturecode = 'SERVICES')                                       
+APEX_GETPENDINGPOQUANTITY1         And a.tno = e.purchaseordertno(+)                                                                       
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = e.itemcode(+)                                                                          
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = e.itemspecificationcode(+)                                                
+APEX_GETPENDINGPOQUANTITY1         And a.itemcode = pItemCode                                                                              
+APEX_GETPENDINGPOQUANTITY1         And a.itemspecificationcode = pItemSpecificationCode;                                                   
+APEX_GETPENDINGPOQUANTITY1      Return(Nvl(rtvalue, 0));                                                                                   
+APEX_GETPENDINGPOQUANTITY1    End;                                                                                                         
+GETDOCUMENTSTATUSCODE         Function GetDocumentStatusCode(pModuleCode Varchar2,                                                         
+GETDOCUMENTSTATUSCODE                                                          pTNo        Number)                                         
+GETDOCUMENTSTATUSCODE           Return Varchar2 Is                                                                                         
+GETDOCUMENTSTATUSCODE           RtnValue Varchar2(30);                                                                                     
+GETDOCUMENTSTATUSCODE           Cursor cDS Is                                                                                              
+GETDOCUMENTSTATUSCODE             Select a.DocumentStatusCode                                                                              
+GETDOCUMENTSTATUSCODE               From DocumentStatusDetail a                                                                            
+GETDOCUMENTSTATUSCODE              Where a.ModuleCode = pModulecode                                                                        
+GETDOCUMENTSTATUSCODE                And a.ModuleTNo = pTNo;                                                                               
+GETDOCUMENTSTATUSCODE           vDS cDS%Rowtype;                                                                                           
+GETDOCUMENTSTATUSCODE         Begin                                                                                                        
+GETDOCUMENTSTATUSCODE           Open cDS;                                                                                                  
+GETDOCUMENTSTATUSCODE           Fetch cDS                                                                                                  
+GETDOCUMENTSTATUSCODE             Into vDS;                                                                                                
+GETDOCUMENTSTATUSCODE           If cDS%Found Then                                                                                          
+GETDOCUMENTSTATUSCODE             RtnValue := vDS.DocumentStatusCode;                                                                      
+GETDOCUMENTSTATUSCODE           End If;                                                                                                    
+GETDOCUMENTSTATUSCODE           Close cDS;                                                                                                 
+GETDOCUMENTSTATUSCODE           Return RtnValue;                                                                                           
+GETDOCUMENTSTATUSCODE         End;                                                                                                         
+
+165 rows selected. 
+
+
+   PAGE_ID REGION_NAME                           SOURCE_TYPE                       REGION_ID 
+__________ _____________________________________ _____________________ _____________________ 
+        68 Filter                                Static Content           467480078513360013 
+        68 Report(Material In)                   Interactive Report       467480205903360014 
+       107 Filter                                Static Content           467180941447240948 
+       107 Indent Register Report                Interactive Report       477903160125596064 
+       117 Filter                                Static Content           944885759588366790 
+       117 Purchase Order Report                 Interactive Report       944894414656371253 
+       142 Filter                                Static Content           484350946351418340 
+       142 Purchase Bill Register Report         Interactive Report       484351041090418341 
+       145 Filter                                Static Content           467319853444404588 
+       145 GRN Report                            Interactive Report       467319924760404589 
+       151 Filter                                Static Content           504438815063769322 
+       151 Purchase Bill Pass Register Report    Interactive Report       504438909802769323 
+
+12 rows selected. 
+

@@ -1,0 +1,224 @@
+"PAGE_ID","ID","PLUG_NAME","QUERY_TYPE","QUERY_TABLE","QUERY_WHERE","QUERY_ORDER_BY","SOURCE_START"
+20,585394972912631849,"Item Specification List","SQL","","","","/*select a.TNO,
+        b.itemname,
+       a.SNO,
+       a.ITEMCHARACTERISTICSCODE,
+       c.ITEMCHARACTERISTICSNAME,
+       a.MCVALUESNO,
+       d.value
+       --a.VALUE
+  from ITEMSPECIFICATIONDETAIL a , item b , ITEMCHARACTERISTICS c , mcvalue d
+  where a.tno = b.tno
+  and a.ITEMCHARACTERISTICSCODE = c.ITEMCHARACTERISTICSCODE
+  and a.MCVALUESNO = d.sno */
+
+  select 
+   Case
+         When ROW_NUMBER()
+          Over(Partition By a.itemname Order By a.itemname) = 1 Then
+          a.itemname
+         Else
+          Null
+       End itemname,
+    Case
+         When ROW_NUMBER()
+          Over(Partition By a.itemname , b.itemspecificationname Order By a.itemname , b.itemspecificationname) = 1 Then
+          b.itemspecificationname
+         Else
+          Null
+       End itemspecificationname,
+      a.tno , 
+     -- a.itemname , 
+     -- b.itemspecificationname , 
+      b.sno , 
+      b.multiplyingfactor 
+  from item a , itemspecification b
+where a.tno = b.tno"
+134,613073133236816312,"E-Invoice Report","TABLE","EINVOICE","","",""
+224,460787098670416990,"Module Wise TAC List","TABLE","MODULEDOCTYPEWISETAC","","",""
+276,218314976053779949,"Bonus List","TABLE","BONUS","","",""
+319,196082810228355181,"Footer Formula List","TABLE","FOOTERSCHEMEDETAIL","","",""
+341,731685944754701785,"Leave Scheme","TABLE","LEAVESCHEME","","",""
+347,506313811322508472,"Advance Receipt List","TABLE","ADVANCERECEIPT","","",""
+623,471452390089212382,"SALARY SCHEME","TABLE","SALARYSCHEME","","",""
+627,487984740926815070,"LOAN SCHEME","TABLE","LOANSCHEME","","",""
+655,482695226195184534,"EXPENSETYPE","TABLE","EXPENSETYPE","","",""
+661,601787149814751071,"CONVEYANCETYPE","TABLE","CONVEYANCETYPE","","",""
+663,629311064475710113,"PARTYATTRIBUTE","TABLE","PARTYATTRIBUTE","","",""
+707,416786540566841742,"Enquiry Report","SQL","","",""," Select
+      row_number() over(order by A.Tno) SerialNo,
+      a.tno,
+      ei.SNo,
+      l.LocationName,
+      a.EnquiryNo,
+      a.EnquiryDate,
+      (Select
+            Listagg(i.IndentNo||' /  ')
+      From  EnquiryIndentDetail eid, Indent i
+      Where eid.IndentTNo = i.TNo
+        and eid.TNo = a.TNo) as IndentNo,
+      em.EmployeeName||' ( '||em.EmployeeID||' )' as Employee,
+      e.ParentCode||' ~ '||GetitemName(e.ParentCode) as materialGroup,
+      e.ItemCode,
+      e.ItemName,
+      ee.ItemSpecificationName,
+      e.ItemName||' ~ '||ee.ItemSpecificationName as MaterialDetail,
+      e.MeasuringUnitCode1,
+      round(ei.Quantity1,3) as Quantity1,
+      e.MeasuringUnitCode2,
+      round(ei.Quantity2,3) as Quantity2,
+      bue.EmployeeName||' ( '||a.Creator||' )' as Creator,
+      a.CreationTime,
+      nvl(decode(qq.EnquiryTNo,a.TNo,'PREPARED'),'PENDING') as QuotationStatus,
+      (Select
+            Listagg(v.VendorName||' /  ')
+      From  EnquiryPartyDetail epd, Vendor v
+      Where epd.PartyCode = v.VendorCode
+        and epd.TNo = a.TNo) as VendorName,
+      (Select
+            Listagg(q.QuotationNo||' /  ')
+      From Quotation q
+      Where a.TNo = q.EnquiryTNo(+)) as QuotationNo,
+      (Select
+            Listagg(q.QuotationDate||' /  ')
+      From Quotation q
+      Where a.TNo = q.EnquiryTNo(+)) as QuotationDate,
+            '<a href=""'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||9993||':'||:APP_SESSION||'::::'||'P9993_TNO,P9993_REPNAME'||':'||A.TNO||','||'PurchaseEnquiry'||':NO')||'""><span aria-label=""Action""><span class=""fa fa-print""  aria-hidden=""true"" title=""Action""></span</span></a>' AS Print
+
+From  Enquiry a, Location l, Employee em, EnquiryItemDetail ei, Item e, ItemSpecification ee,  BossUser bu, Employee bue, Quotation qq
+Where a.LocationCode = l.LocationCode(+)
+  and a.EmployeeCode = em.EmployeeCode(+)
+  and a.TNo = ei.TNo(+)
+  and ei.ItemCode = e.ItemCode(+)
+  and ei.ItemSpecificationCode = ee.ItemSpecificationCode(+)
+  and a.Creator = bu"
+709,439473576294649698,"Quotation Report","SQL","","","","Select
+        row_number() over(order by xxx.Tno) SerialNo,
+        xxx.TNo,
+        xxx.SNo,
+        xxx.LocationName,
+        xxx.QuotationNo,
+        xxx.QuotationDate,
+        xxx.EnquiryNo,
+        ROUND(xxx.DifferenceDays,0) AS DifferenceDays,
+        ROUND(xxx.ValidDays,0) AS ValidDays,
+        xxx.PartyName,
+        xxx.PartyQuotationNo,
+        xxx.PartyQuotationDate,
+        xxx.ValidityDate,
+        xxx.MaterialGroup,
+        xxx.ItemCode,
+        xxx.MaterialDetail,
+        xxx.UOM,
+        round(xxx.Quantity1,3) as Quantity1,
+        xxx.UOM2,
+        round(xxx.Quantity2,3) as Quantity2,
+        xxx.WithoutDiscountRate,
+        xxx.DiscountPercentage,
+        xxx.DiscountRate,
+        xxx.Rate,
+        xxx.RateUOM,
+        round(xxx.Amount,2) as Amount,
+        CGST,
+        SGST,
+        IGST,
+        TCS,
+        round(xxx.FooterAmount,2) as FooterAmount,
+        round((xxx.FooterAmount - (CGST + SGST + IGST + TCS)),2) as OtherAmount,
+        round(xxx.TotalAmount,2) as TotalAmount,
+        xxx.Creator,
+        xxx.CreationTime
+From (
+Select
+        xx.TNo,
+        xx.SNo,
+        xx.LocationName,
+        xx.QuotationNo,
+        xx.QuotationDate,
+        xx.EnquiryNo,
+        xx.DifferenceDays,
+        xx.ValidDays,
+        xx.PartyName,
+        xx.PartyQuotationNo,
+        xx.PartyQuotationDate,
+        xx.ValidityDate,
+        xx.MaterialGroup,
+        xx.ItemCode,
+        xx.MaterialDetail,
+        xx.UOM,
+        xx.Quantity1,
+        xx.UOM2,
+        xx.Quantity2,
+        xx.WithoutDiscountRate,
+        xx.DiscountPercentage,
+        xx.DiscountRate,
+        xx.Rate,
+        xx.RateUOM,
+        xx.Amount,
+        sum(xx.CGST) CGST,
+        sum(xx.SGST) SGST,
+        sum(xx.IGST) IGST,
+        sum(xx.TCS) TCS,
+        xx.FooterAmount,
+        xx.TotalAmount,
+        xx.Creator,
+        xx.CreationTime
+From (
+    Select
+      a.TNo,
+      b.SNo,
+      l.Locationname,
+      a.QuotationNo,
+      a.QuotationDate,
+      enq.EnquiryNo,
+      (a.Quotati"
+713,238367991065946931,"Rate Contrat List","SQL","","","","select a.TNO,
+       a.COMPANYCODE,
+       a.FINANCIALYEARCODE,
+       a.LOCATIONCODE,
+       getlocationname(a.locationcode) as Location,
+       a.DOCTYPECODE,
+       getdoctypename(a.DocTypeCode) as DocType,
+       a.DEPARTMENTCODE,
+       getdepartmentname(a.DepartmentCode) as Department,
+       a.EMPLOYEECODE,
+     --  d.EmployeeName,
+       a.RATECONTRACTNO,
+       a.RATECONTRACTDATE,
+       a.CURRENCYUNITCODE,
+       a.CURRENCYVALUE,
+       a.WORKORDERTNO,
+       a.PARTYCODE,
+       getpartyname(a.partycode) as partyname,
+      -- c.partyname,
+       a.SUMOFAMOUNT,
+       a.RATECONTRACTAMOUNT,
+       a.SUBJECTTEXT,
+       a.REFERENCETEXT,
+       a.LETTERTEXT,
+       a.TITLETEXT,
+       a.REMARK,
+       a.ITEMWISEFOOTER,
+       a.EXPIRYDATE,
+       a.SUMOFFOOTERAMOUNT,
+       a.CREATOR,
+       a.CREATIONTIME,
+       a.TRANSACTIONTYPECODE,
+       a.NATUREOFSUPPLYCODE
+  from RATECONTRACT a, RateContractDetail b, DocumentStatusDetail dsd, Employee d
+  WHERE a.tno = b.tno
+    and a.tno = dsd.Moduletno(+)
+
+  and a.Employeecode = d.EmployeeCode
+ and a.RateContractDate between :P713_FROMDATE and :P713_TODATE
+ and ( :P713_COMPANY IS NULL OR instr(':'||:P713_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+ and ( :P713_LOCATION is null or instr(':'||:P713_LOCATION||':',':'||a.LocationCode||':') > 0)
+ and ( :P713_DOCTYPE is null or instr(':'||:P713_DOCTYPE||':',':'||a.DocTypeCode||':') > 0)
+  and ( :P713_PARTYNAME IS NULL OR instr(':'||:P713_PARTYNAME||':',':'||a.PartyCode||':') > 0 ) 
+  and ( :P713_ITEM IS NULL OR instr(':'||:P713_ITEM||':',':'||b.ItemCode||':') > 0 ) 
+  and ( :P713_ITEMSPECIFICATION IS NULL OR instr(':'||:P713_ITEMSPECIFICATION||':',':'||b.ItemSpecificationCode||':') > 0 )
+-- added on 20-may-2024 Previleage
+ /*and getlocationprivilege(a.locationcode,getmodulecodeforpageno(:APP_PAGE_ID),A.COMPANYCODE,:GLOBAL_LOGINNAME)='YES' 
+ AND getdoctypeprivilege(a.doctypecode,getmodulecodeforpageno(:APP_PAGE_ID),A.COMPANYCODE,:GLOBAL_LOGINNAME)='YES' 
+ and getcompanypri"
+719,239548576856168817,"Process Escalation List","TABLE","PROCESSESCALATION","","",""

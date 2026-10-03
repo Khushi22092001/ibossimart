@@ -1,0 +1,434 @@
+"COLUMN_NAME"
+"REGION_ID"
+"REGION_NAME"
+"IS_EDITABLE"
+"EDIT_OPERATIONS"
+"EDIT_ROW_OPERATIONS_COLUMN"
+"PROCESS_SEQUENCE"
+"PROCESS_POINT"
+"REGION_ID"
+"PARENT_PROCESS_ID"
+"PROCESS_TYPE"
+"PROCESS_NAME"
+"PROCESS_SQL_CLOB"
+"PROCESS_CLOB_LANGUAGE"
+"PROCESS_ERROR_MESSAGE"
+"PROCESS_WHEN_BUTTON_ID"
+"PROCESS_WHEN"
+"PROCESS_WHEN_TYPE"
+"PROCESS_WHEN2"
+"PROCESS_WHEN_TYPE2"
+"PROCESS_IS_STATEFUL_Y_N"
+"PROCESS_SUCCESS_MESSAGE"
+"PROCESS_COMMENT"
+
+22 rows selected. 
+
+"PAGE_ID","REGION_ID","PROCESS_NAME","PROCESS_TYPE","PROCESS_SQL_CLOB"
+10,781918885732158092,"Item Ledger - Save Interactive Grid Data","NATIVE_IG_DML",""
+10,,"PREPARE_URL","NATIVE_PLSQL","declare
+   result varchar2(2000);
+begin
+   result:=apex_util.prepare_url(apex_application.g_x01);
+   apex_json.open_object;
+   apex_json.write('success', true);
+   apex_json.write('url', result);
+   apex_json.close_object;
+exception
+ when others then
+   apex_json.open_object;
+   apex_json.write('success', false);
+   apex_json.write('message', sqlerrm);
+   apex_json.close_object;
+end;"
+40,902228166283819606,"Code Scheme - Save Interactive Grid Data","NATIVE_IG_DML",""
+40,198604611866540688,"Detail - Save Interactive Grid Data","NATIVE_IG_DML",""
+40,,"reset","NATIVE_PLSQL","IF :P40_RESET = 'YES' then
+  delete from codeschemedetail where tno = :p40_tno ;
+end if;"
+45,918531513221779186,"Module - Save Interactive Grid Data","NATIVE_IG_DML",""
+249,,"New","NATIVE_PLSQL","declare
+pappuser varchar2(100);
+PPARTYCODE VARCHAR2(30);
+BEGIN
+  DELETE FROM TrialbalancerevisedLOCATION;
+  INSERT INTO TrialbalancerevisedLOCATION
+    (TNO, LOCATIONCODE, CREATOR )
+    (select globaltno.nextval,
+           X.locationcode,
+           v('APP_USER')
+     FROM LOCATION X
+     WHERE (:P249_LOCATION Is Null Or
+                        instr(':' || :P249_LOCATION || ':',
+                               ':' || X.LocationCode || ':') > 0))
+                    
+    --values ( globaltno.nextval,:P249_LOCATION,V('APP_USER'))
+    
+    ;
+commit;
+
+   if :P249_LOCATION is not null then
+            FOR vLocation IN (SELECT * FROM TRIALBALANCEREVISEDLOCATION) LOOP
+          /* raise_application_error(
+                  -20000,
+                  :P249_PARTY||'-'||:P249_FROMDATE||'-'||:P249_TODATE||'-'||:GLOBAL_COMPANYCODE||'-'||:P249_LOCATION||'-'||V('APP_USER')
+                );   
+           */ 
+           GenerateAccountLedgerRevised(:P249_PARTY,
+                                         TO_DATE(:P249_FROMDATE,'DD-MM-RRRR'),
+                                         TO_DATE(:P249_TODATE,'DD-MM-RRRR'),
+                                         :GLOBAL_COMPANYCODE,
+                                         vLocation.LocationCode,
+                                         'NO',
+                                         vLocation.Creator);
+            
+
+         END LOOP;
+    else
+        GenerateAccountLedgerRevised(:P249_PARTY,
+                                         TO_DATE(:P249_FROMDATE,'DD-MM-RRRR'),
+                                         TO_DATE(:P249_TODATE,'DD-MM-RRRR'),
+                                         :GLOBAL_COMPANYCODE,
+                                         :P249_LOCATION,
+                                         'NO',
+                                         V('APP_USER'));
+    end if;
+
+COMMIT;
+END;"
+249,,"set tno","NATIVE_PLSQL","SELECT GLOBALTNO.NEXTVAL into :P249_TNO FROM DUAL;"
+249,1004956036463308497,"New - Save Interactive Grid Data","NATIVE_IG_DML",""
+249,,"set party","NATIVE_PLSQL","if :P401_accountcode is not null then
+    :P249_PARTY := :P401_accountcode;
+end if;"
+251,,"Get Document No","NATIVE_PLSQL","declare
+    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+    tmp         number ;
+begin
+     if :P251_Tno is null then
+        Select GlobalTno.NextVal into :P251_Tno From Dual;
+     end if;
+    ----
+    if :P251_RTGSLETTERNO is null then
+            SetDocNoNext(
+					tModuleCode,
+					:global_CompanyCode,
+					:global_FinancialYearCode,
+					:P251_LocationCode,
+					:P251_DocTypeCode,
+					NULL,
+					TO_DATE(:P251_RTGSLETTERDATE, 'DD-MM-RRRR')
+				);
+        :P251_RTGSLETTERNO := GetDocNo(
+                    tModuleCode,
+                    :global_CompanyCode,
+                    :global_FinancialYearCode,
+                    :P251_LocationCode,
+                    :P251_DocTypeCode,
+                    NULL,
+                    TO_DATE(:P251_RTGSLETTERDATE, 'DD-MM-RRRR')
+                    );
+    end if;
+    
+end;"
+251,766996263459303911,"DETAIL - Save Interactive Grid Data","NATIVE_PLSQL","Begin
+    case :APEX$ROW_STATUS
+        when 'C' then
+            if :SNO is null then
+                select globaltno.nextval into :sno from dual;
+            end if;
+            Insert Into RTGSLETTERDETAIL  (                 
+                    TNO,
+                    SNO,
+                    PAYMENTADVICETNO,
+                    AMOUNT,
+                    REMARK
+
+            )
+            Values (
+                :TNO,
+                :SNO,
+                :PAYMENTADVICETNO,
+                :AMOUNT,
+                :REMARK
+
+            );
+        
+        when 'U' then
+            update RTGSLETTERDETAIL  Set
+                 TNO=:TNO,
+                SNO=:SNO,
+                PAYMENTADVICETNO=:PAYMENTADVICETNO,
+                AMOUNT=:AMOUNT,
+                REMARK=:REMARK
+
+            WHERE TNO = :P251_TNO
+              and rowid = :ROWID;
+
+        when 'D' then
+            Delete From RTGSLETTERDETAIL 
+            Where TNo = :P251_TNO
+              and SNO = :SNO
+              ;
+    end case;
+exception when others then
+    raise_application_error(-20010, sqlerrm);
+End;
+
+"
+251,,"Get TNo","NATIVE_PLSQL","--If :P251_TNO is null then
+    :P251_TNO := GlobalTNo.nextval;
+    :P251_FORMSTATUS := 'NEWRECORD';
+--else
+--    :P251_FORMSTATUS := 'EDITRECORD';
+--End if;
+
+DELETE FROM PAYBLEBILLS_TEMP ;"
+251,,"Delete Detail","NATIVE_PLSQL","delete from rtgsletterdetail where tno = :P251_TNO;
+
+"
+252,845825197760250980,"Initialize form Stock Transfer","NATIVE_FORM_INIT",""
+252,,"Get Document No","NATIVE_PLSQL","declare
+    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+    tmp         number ;
+begin
+     if :P252_Tno is null then
+        Select GlobalTno.NextVal into :P252_Tno From Dual;
+     end if;
+    ----
+    if :P252_RTGSLETTERNO is null then
+            SetDocNoNext(
+					tModuleCode,
+					:global_CompanyCode,
+					:global_FinancialYearCode,
+					:P252_LocationCode,
+					:P252_DocTypeCode,
+					NULL,
+					TO_DATE(:P252_RTGSLETTERDATE, 'DD-MM-RRRR')
+				);
+        :P252_RTGSLETTERNO := GetDocNo(
+                    tModuleCode,
+                    :global_CompanyCode,
+                    :global_FinancialYearCode,
+                    :P252_LocationCode,
+                    :P252_DocTypeCode,
+                    NULL,
+                    TO_DATE(:P252_RTGSLETTERDATE, 'DD-MM-RRRR')
+                    );
+    end if;
+    
+end;"
+252,845825197760250980,"Process form RTGS Letter","NATIVE_FORM_DML",""
+252,,"Get TNo","NATIVE_PLSQL","If :P252_TNO is null then
+    :P252_TNO := GlobalTNo.nextval;
+    :P252_FORMSTATUS := 'NEWRECORD';
+else
+    :P252_FORMSTATUS := 'EDITRECORD';
+End if;"
+252,,"Delete Detail","NATIVE_PLSQL","delete from rtgsletterdetail where tno = :P252_TNO;
+
+"
+252,845761369849684949,"DETAIL - Save Interactive Grid Data","NATIVE_IG_DML",""
+267,317477073272167003,"Boss User Employee - Save Interactive Grid Data","NATIVE_IG_DML",""
+281,200106339216295538,"Pending Sales Order followup - Save Interactive Grid Data","NATIVE_PLSQL","Begin
+    case :APEX$ROW_STATUS
+   
+        when 'U' then
+            update SalesOrderDetail a set a.DocumentstatusCode = :Documentstatuscode
+            where tno = :TNO
+              and sno = :SNO
+              ;
+    end case ;
+end ;"
+413,235505455957637719,"Master - Save Interactive Grid Data","NATIVE_PLSQL","UPDATE PARTY A SET A.TRIALBALANCEPOSITION = :TRIALBALANCEPOSITION WHERE TNO = :TNO;"
+413,,"intialize ma_acceptance","NATIVE_PLSQL","DECLARE
+  TMP NUMBER;
+BEGIN
+SELECT COUNT(*) into tmp FROM ma_acceptance A WHERE A.TNO = :p413_tno;
+if nvl(tmp,0) > 0 then
+        select 
+        TNO                 ,
+        MODULECODE,
+        MODULETNO,
+        MODULESNO,
+        ACCEPTANCE,
+        ACCEPTANCEDATE,
+        PERSONACCOUNTABLE,
+        DELIVERYDATE,
+        DESIGNATION,
+        MOBILENO,
+        EXPIRYTIME
+        into 
+        :P413_TNO_1,
+        :P413_MODULECODE,
+        :P413_MODULETNO,
+        :P413_MODULESNO,
+        :P413_ACCEPTANCE,
+        :P413_ACCEPTANCEDATE,
+        :P413_PERSONACCOUNTABLE,
+        :P413_DELIVERYDATE_1,
+        :P413_DESIGNATION,
+        :P413_MOBILENO,
+        :P413_EXPIRYTIME
+        from ma_acceptance
+        WHERE MODULETNO = :P413_TNO
+        ;
+
+    END IF;
+end;"
+413,,"PREPARE_URL","NATIVE_PLSQL","declare
+   result varchar2(2000);
+begin
+   result:=apex_util.prepare_url(apex_application.g_x01);
+   apex_json.open_object;
+   apex_json.write('success', true);
+   apex_json.write('url', result);
+   apex_json.close_object;
+exception
+ when others then
+   apex_json.open_object;
+   apex_json.write('success', false);
+   apex_json.write('message', sqlerrm);
+   apex_json.close_object;
+end;"
+413,,"Get TNo","NATIVE_PLSQL","If :P413_TNO is null then
+    :P413_TNO := GlobalTNo.nextval;
+    :P413_FORMSTATUS := 'NEWRECORD';
+
+  
+else
+    :P413_FORMSTATUS := 'EDITRECORD';
+   
+End if;
+
+:P413_STATUS := nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P413_TNO), 'Status');"
+416,271016761985527265,"Master - Save Interactive Grid Data","NATIVE_PLSQL","UPDATE PARTY A SET A.TRIALBALANCEPOSITION = :TRIALBALANCEPOSITION WHERE TNO = :TNO;"
+416,,"intialize ma_acceptance","NATIVE_PLSQL","DECLARE
+  TMP NUMBER;
+BEGIN
+SELECT COUNT(*) into tmp FROM ma_acceptance A WHERE A.TNO = :p416_tno;
+if nvl(tmp,0) > 0 then
+        select 
+        TNO                 ,
+        MODULECODE,
+        MODULETNO,
+        MODULESNO,
+        ACCEPTANCE,
+        ACCEPTANCEDATE,
+        PERSONACCOUNTABLE,
+        DELIVERYDATE,
+        DESIGNATION,
+        MOBILENO,
+        EXPIRYTIME
+        into 
+        :P416_TNO_1,
+        :P416_MODULECODE,
+        :P416_MODULETNO,
+        :P416_MODULESNO,
+        :P416_ACCEPTANCE,
+        :P416_ACCEPTANCEDATE,
+        :P416_PERSONACCOUNTABLE,
+        :P416_DELIVERYDATE_1,
+        :P416_DESIGNATION,
+        :P416_MOBILENO,
+        :P416_EXPIRYTIME
+        from ma_acceptance
+        WHERE MODULETNO = :P416_TNO
+        ;
+
+    END IF;
+end;"
+416,,"PREPARE_URL","NATIVE_PLSQL","declare
+   result varchar2(2000);
+begin
+   result:=apex_util.prepare_url(apex_application.g_x01);
+   apex_json.open_object;
+   apex_json.write('success', true);
+   apex_json.write('url', result);
+   apex_json.close_object;
+exception
+ when others then
+   apex_json.open_object;
+   apex_json.write('success', false);
+   apex_json.write('message', sqlerrm);
+   apex_json.close_object;
+end;"
+416,,"Get TNo","NATIVE_PLSQL","If :P416_TNO is null then
+    :P416_TNO := GlobalTNo.nextval;
+    :P416_FORMSTATUS := 'NEWRECORD';
+
+  
+else
+    :P416_FORMSTATUS := 'EDITRECORD';
+   
+End if;
+
+:P416_STATUS := nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P416_TNO), 'Status');
+
+--:P416_PREVIOUSDATE := ADD_MONTHS(:P416_ASATDATE, -12);"
+673,,"Get Document No","NATIVE_PLSQL","declare
+    tModuleCode varchar2(30) := getModuleCodeForPageNo(:APP_PAGE_ID);
+    tmp         number ;
+begin
+     if :P673_Tno is null then
+        Select GlobalTno.NextVal into :P673_Tno From Dual;
+     end if;
+    ----
+    if :P673_TOUREXPENSENO is null then
+            SetDocNoNext(
+					tModuleCode,
+					:global_CompanyCode,
+					:global_FinancialYearCode,
+					:P673_LocationCode,
+					:P673_DocTypeCode,
+					NULL,
+					TO_DATE(:P673_TOUREXPENSEDATE, 'DD-MM-RRRR')
+				);
+        :P673_TOUREXPENSENO := GetDocNo(
+                    tModuleCode,
+                    :global_CompanyCode,
+                    :global_FinancialYearCode,
+                    :P673_LocationCode,
+                    :P673_DocTypeCode,
+                    NULL,
+                    TO_DATE(:P673_TOUREXPENSEDATE, 'DD-MM-RRRR')
+                    );
+    end if;
+    
+end;"
+673,471395144107817107,"Reject generated voucher reconciliation edits","NATIVE_PLSQL","begin imart_voucher_edit_guard.assert_detail_origin(:SNO,:TNO);end;"
+673,471395144107817107,"Bank Reconsilation - Save Interactive Grid Data","NATIVE_IG_DML",""
+673,,"Get TNo","NATIVE_PLSQL","If :P673_TNO is null then
+    :P673_TNO := GlobalTNo.nextval;
+    :P673_FORMSTATUS := 'NEWRECORD';
+  
+else
+    :P673_FORMSTATUS := 'EDITRECORD';
+   
+End if;
+
+:P673_STATUS := nvl(GetDocumentStatusCode(getModuleCodeForPageNo(:APP_PAGE_ID), :P673_TNO), 'Status');"
+673,,"GetOnTheTable","NATIVE_PLSQL","declare
+tmp  number;
+tmp1 number;
+begin
+ -------- Checking Module Flow Prepared Or Not 
+   select count(*) into tmp1 from moduleflow where modulecode = getModuleCodeForPageNo(:APP_PAGE_ID) and getdocumentstatuscode('MODULEFLOW',TNO)='ACTIVE';
+   if nvl(tmp1,0) > 0 then
+       :P673_MODULEFLOW := 'YES';
+   else
+       :P673_MODULEFLOW := 'NO';
+   end if;
+  
+  ----- Checking On The Table 
+   select count(*) into tmp from onthetable_apex where moduletno = :P673_TNO and loginname = :GLOBAL_LOGINNAME;
+   if nvl(tmp,0) > 0 then
+      :P673_ONTHETABLE := 'YES' ;
+   else
+       :P673_ONTHETABLE := 'NO';
+   end if;
+end;"
+673,,"Send Pass Fail ","NATIVE_PLSQL","sendpassfailforward(getModuleCodeForPageNo(:APP_PAGE_ID) , :P673_TNO, :P673_PURCHASEORDERNO||' :', :GLOBAL_COMPANYCODE);"
+
+36 rows selected. 
+

@@ -167,6 +167,8 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_display_point=>'REGION_POSITION_04'
 ,p_plug_item_display_point=>'ABOVE'
 ,p_location=>null
+,p_plug_display_when_condition=>':APP_PAGE_ID != 9999'
+,p_plug_display_when_cond2=>'PLSQL_EXPRESSION'
 ,p_plug_source_type=>'NATIVE_SEARCH_REGION'
 ,p_ajax_items_to_submit=>'P0_NEW'
 ,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
@@ -219,6 +221,8 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_display_sequence=>999
 ,p_plug_item_display_point=>'ABOVE'
 ,p_location=>null
+,p_plug_display_when_condition=>':APP_PAGE_ID != 9999'
+,p_plug_display_when_cond2=>'PLSQL_EXPRESSION'
 ,p_plug_source=>'<link rel="stylesheet" href="#APP_FILES#hspl-master-forms.css?cb=20260831o"><script src="#APP_FILES#hspl-master-forms.js?cb=20260831t"></script>'
 ,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
   'expand_shortcuts', 'N',
@@ -309,6 +313,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_bind_type=>'bind'
 ,p_execution_type=>'IMMEDIATE'
 ,p_bind_event_type=>'ready'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(48025691032854935)
@@ -373,6 +379,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_execution_type=>'IMMEDIATE'
 ,p_bind_event_type=>'custom'
 ,p_bind_event_type_custom=>'dialogopen'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(48025867932854937)
@@ -397,6 +405,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_execution_time=>180
 ,p_execution_immediate=>false
 ,p_bind_event_type=>'input'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(910250925000000002)
@@ -514,6 +524,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_bind_type=>'bind'
 ,p_execution_type=>'IMMEDIATE'
 ,p_bind_event_type=>'keypress'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(910250925000000004)
@@ -563,6 +575,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_bind_type=>'bind'
 ,p_execution_type=>'IMMEDIATE'
 ,p_bind_event_type=>'ready'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(303887044403316180)
@@ -610,6 +624,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_bind_type=>'bind'
 ,p_execution_type=>'IMMEDIATE'
 ,p_bind_event_type=>'ready'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(576502832659099926)
@@ -681,6 +697,8 @@ wwv_flow_imp_page.create_page_da_event(
 ,p_bind_type=>'bind'
 ,p_execution_type=>'IMMEDIATE'
 ,p_bind_event_type=>'ready'
+,p_display_when=>':APP_PAGE_ID != 9999'
+,p_display_when_type=>'PLSQL_EXPRESSION'
 );
 wwv_flow_imp_page.create_page_da_action(
  p_id=>wwv_flow_imp.id(606898588248733059)

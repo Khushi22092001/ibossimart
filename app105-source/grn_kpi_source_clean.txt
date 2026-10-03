@@ -1,0 +1,551 @@
+SOURCE
+Select
+    a.TNo,
+    b.SNo,
+    l.LocationName,
+    d.DocTypeName,
+    a.GRNNo,
+    a.GRNDate,
+    p.PartyName,
+    a.RefDocNo as PartyInvoiceNo,
+    a.RefDocDate as PartyInvoiceDate,
+    a.RefDocAmount as PartyInvoiceAmount,
+    mi.MaterialInNo,
+    mi.MaterialInDate,
+    la.LoadingAdviceNo,
+    la.LoadingAdviceDate,
+    'PurchaseOrder' as Reference,
+    po.TNo as ReferenceTNO,
+    po.PurchaseOrderNo as ReferenceNo,
+    po.PurchaseOrderDate as ReferenceDate,
+    w.TNo as WeighmentTNo,
+    w.WeighmentNo,
+    w.WeighmentDate,
+    W.Netweight,
+    ROUND(nvl(b.acceptedquantity1,w.acceptedweight),3) as AcceptedWeight,    
+    t.PartyName as Transporter,
+    a.VehicleNo,
+    a.LRNO,
+    a.LRDATE,
+    e.ItemCode,
+    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+    b.Description,
+    e.MeasuringUnitCode1 as UOM,
+    ROUND(b.ChalanQuantity1,3) AS ChalanQuantity1,
+    ROUND(b.ReceivedQuantity1,3) AS ReceivedQuantity1,
+    e.MeasuringUnitCode2 as UOM2,
+    ROUND(b.ChalanQuantity2,3) AS ChalanQuantity2,
+    ROUND(b.ReceivedQuantity2,3) AS ReceivedQuantity2,
+    ROUND((ReceivedQuantity1- b.ChalanQuantity1),3) as Difference,
+    ROUND((ReceivedQuantity2- b.ChalanQuantity2),3) as Difference2,
+    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+    End As ShortageExcess,
+ 
+    dsd.DocumentStatusCode,
+    b.WarrantyUpTo,
+  --  'Details' as SerialNo,
+    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End as DocStatus,
+      b.Rate,
+      b.Amount,
+      GetDepartmentName(ii.DepartmentCode) as Department,
+      GetEmployeeName(bu.EmployeeCode)||'('||a.Creator||')' as Creator,
+      a.CreationTime,
+      GETDINSPECTIONNO(a.TNO) as DINSPECTIONNO,
+      GETDINSPECTIONDATE(a.TNO) as DINSPECTIONDATE,
+      b.ACCEPTEDQUANTITY1 as PAcceptedQty,
+      b.ACCEPTEDQUANTITY2 as SAcceptedQty,
+      decode(GETDINSPECTIONNO(a.TNO),null,'PENDING' , 'PREPARED') as DStatus,
+      ft.FreighttypeName,
+      nvl(a.FreightRate,0) * nvl(b.ReceivedQuantity1,0) as FreightAmount,
+            '<a href="'||APEX_UTIL.PREPARE_URL('f?p='||:APP_ID||':'||9993||':'||:APP_SESSION||'::::'||'P9993_TNO,P9993_REPNAME'||':'||A.Tno||','||'GRN'||':NO')||'"><span aria-label="Action"><span class="fa fa-print"  aria-hidden="true" title="Action"></span</span></a>' AS Print
+From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, PurchaseOrder po, Party t, DocumentStatusDetail dsd,
+    Item e, ItemSpecification ee,LoadingAdvice la, -- StorageLocation sl, Inspection i, 
+    DInspectionDetail did, indent ii, BossUser bu, Freighttype ft
+Where a.TNo = b.TNo(+)
+  and a.LocationCode = l.LocationCode
+  and a.DocTypeCode = d.DocTypeCode
+  --and a.DocTypeCode = 'PURCHASE'
+  and a.PartyCode = p.PartyCode
+  and a.MaterialINTNo = mi.TNo(+)
+  and a.LoadingAdviceTno = la.tno(+)
+  and a.PurchaseOrderTNo = po.TNo(+)
+  and a.WeighmentTNo = w.TNo(+)
+  and a.TransporterCode = t.PartyCode(+)
+  and a.TNo = dsd.ModuleTNo(+)
+  and e.TNo = ee.TNo(+)
+  and b.ItemCode = e.ItemCode(+)
+  and b.ItemSpecificationCode = ee.ItemSpecificationCode(+)
+  --and b.StorageLocationCode = sl.StorageLocationCode(+)
+  --and a.TNo = i.GRNTNo(+)
+  and b.TNo = did.GRNTNo(+)
+  and b.ItemCode = did.ItemCode(+)
+  and b.ItemSpecificationCode = did.ItemSpecificationCode(+)
+  and did.IndentTNo = ii.TNo(+)
+  and a.Creator = bu.LoginName(+)
+  and a.FreighttypeCode = ft.FreighttypeCode(+)
+  and getlocationprivilege(a.locationcode,getmodulecodeforpageno(:APP_PAGE_ID),A.COMPANYCODE,:GLOBAL_LOGINNAME)='YES' 
+ AND getdoctypeprivilege(a.doctypecode,getmodulecodeforpageno(:APP_PAGE_ID),A.COMPANYCODE,:GLOBAL_LOGINNAME)='YES' 
+ and getcompanyprivilege(A.COMPANYCODE,GETMODULECODEFORPAGENO(:APP_PAGE_ID),:GLOBAL_LOGINNAME)='YES'
+  and a.GRNDate Between :P145_FROMDATE and :P145_TODATE
+  --and instr(':'||:P145_COMPANY||':',':'||a.CompanyCode||':') > 0
+  and ( :P145_COMPANY IS NULL OR instr(':'||:P145_COMPANY||':',':'||a.CompanyCode||':') > 0 )
+  --and instr(':'||:P145_LOCATION||':',':'||a.LocationCode||':') > 0
+  and ( :P145_LOCATION IS NULL OR instr(':'||:P145_LOCATION||':',':'||a.LocationCode||':') > 0 )
+  --and instr(':'||:P145_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+  and ( :P145_DOCTYPE IS NULL OR instr(':'||:P145_DOCTYPE||':',':'||a.DocTypeCode||':') > 0 )
+  --and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P145_INSPECTIONSTATUS,'%')
+  and ( :P145_PARTY IS NULL OR instr(':'||:P145_PARTY||':',':'||a.PartyCode||':') > 0 )
+  and ( :P145_TRANSPORTER IS NULL OR instr(':'||:P145_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+  and ( :P145_ITEM IS NULL OR instr(':'||:P145_ITEM||':',':'||e.ItemCode||':') > 0 )
+  and ( :P145_SPECIFICATION IS NULL OR instr(':'||:P145_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+  and ( :P145_ITEMTYPE IS NULL OR instr(':'||:P145_ITEMTYPE||':',':'||e.itemtype||':') > 0 )
+--   and ( :P145_DINSPECTIONSTATUS IS NULL OR instr(':'||:P145_DINSPECTIONSTATUS||':',':'||decode(GETDINSPECTIONNO(a.TNO),null,'PENDING' , 'PREPARED')||':') > 0 )
+  and a.GRNNo like nvl(:P145_GRNNO,'%')
+-- aDDED ON 28-MAY-2022
+-- and ( :P145_ITEMGROUP IS NULL
+--       or
+--       exists (select 1 from (Select ITEMCODE,
+--                parentcode,
+--                RPAD('.', (Level - 1) * 2, '.') || itemcode As tree,
+--                Level,
+--                CONNECT_BY_ROOT itemcode As root_id,
+--                '-' || LTRIM(SYS_CONNECT_BY_PATH(itemcode, '-'), '-') || '-' As path,
+--                CONNECT_BY_ISLEAF As leaf
+--           From item a
+--          Start With parentcode in ( select itemcode from item xx where
+--                                     instr(':'||:P145_ITEMGROUP||':',':'||xx.ItemCode||':') > 0)
+                                    
+--         Connect By parentcode = Prior itemcode
+--          Order Siblings By itemcode) x where x.itemcode = e.itemcode
+--         )
+--   )
+
+  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End like nvl(:P145_STATUS,'%')
+order by a.GRNNo desc, a.GRNDate desc
+/*Union All
+Select
+    a.TNo,
+    b.SNo,
+    l.LocationName,
+    d.DocTypeName,
+    a.GRNNo,
+    a.GRNDate,
+    p.PartyName,
+    a.RefDocNo as PartyInvoiceNo,
+    a.RefDocDate as PartyInvoiceDate,
+    a.RefDocAmount as PartyInvoiceAmount,
+    mi.MaterialInNo,
+    mi.MaterialInDate,
+    'CCInvoice' as Reference,
+    cc.TNo as ReferenceTNO,
+    cc.CCInvoiceNo as ReferenceNo,
+    cc.CCInvoiceDate as ReferenceDate,
+    w.TNo as WeighmentTNo,
+    w.WeighmentNo,
+    w.WeighmentDate,
+    W.Netweight,
+    nvl(b.acceptedquantity1,w.AcceptedWeight) as AcceptedWeight,
+    t.PartyName as Transporter,
+    a.VehicleNo,
+    a.LRNO,
+    a.LRDATE,
+    e.ItemCode,
+    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+    b.Description,
+    e.MeasuringUnitCode1 as UOM,
+    b.ChalanQuantity1,
+    b.ReceivedQuantity1,
+    ReceivedQuantity1- b.ChalanQuantity1  as Difference,
+    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+    End As ShortageExcess,
+    sl.StorageLocationName,
+    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+    i.InspectionNo,
+    i.InspectionDate,    
+    case When i.InspectionDate is not null Then null
+         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1
+    End as DaysPending,
+    dsd.DocumentStatusCode,
+    b.WarrantyUpTo,
+    'Details' as SerialNo,
+    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End as DocStatus,
+      b.Rate,
+      b.Amount,
+      GetDepartmentName(di.DepartmentCode) as Department
+From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, CCInvoice cc, Party t, DocumentStatusDetail dsd,
+    Item e, ItemSpecification ee, StorageLocation sl, Inspection i, Dinspection di
+Where a.TNo = b.TNo
+  and a.LocationCode = l.LocationCode
+  and a.DocTypeCode = d.DocTypeCode
+  and a.DocTypeCode IN ('INTRAUNITTRANSFER','INTERUNITTRANSFER')
+  and a.PartyCode = p.PartyCode
+  and a.MaterialINTNo = mi.TNo
+  and a.InterUnitTransferCCInvoiceTNo = cc.TNo
+  and a.WeighmentTNo = w.TNo(+)
+  and a.TransporterCode = t.PartyCode(+)
+  and a.TNo = dsd.ModuleTNo(+)
+  and e.TNo = ee.TNo
+  and b.ItemCode = e.ItemCode
+  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+  and b.StorageLocationCode = sl.StorageLocationCode(+)
+  and a.TNo = i.GRNTNo(+)
+  and a.TNo = di.GRNTNo(+)
+  and a.GRNDate Between :P145_FROMDATE and :P145_TODATE
+  and instr(':'||:P145_COMPANY||':',':'||a.CompanyCode||':') > 0
+  and instr(':'||:P145_LOCATION||':',':'||a.LocationCode||':') > 0
+  and instr(':'||:P145_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+  and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P145_INSPECTIONSTATUS,'%')
+  and ( :P145_PARTY IS NULL OR instr(':'||:P145_PARTY||':',':'||a.PartyCode||':') > 0 )
+  and ( :P145_TRANSPORTER IS NULL OR instr(':'||:P145_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+  and ( :P145_ITEM IS NULL OR instr(':'||:P145_ITEM||':',':'||e.ItemCode||':') > 0 )
+  and ( :P145_SPECIFICATION IS NULL OR instr(':'||:P145_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+  and ( :P145_ITEMGROUP IS NULL OR instr(':'||:P145_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )
+  and a.GRNNo like nvl(:P145_GRNNO,'%')
+  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End like nvl(:P145_STATUS,'%')
+Union All
+Select
+    a.TNo,
+    b.SNo,
+    l.LocationName,
+    d.DocTypeName,
+    a.GRNNo,
+    a.GRNDate,
+    p.PartyName,
+    a.RefDocNo as PartyInvoiceNo,
+    a.RefDocDate as PartyInvoiceDate,
+    a.RefDocAmount as PartyInvoiceAmount,
+    mi.MaterialInNo,
+    mi.MaterialInDate,
+    'EquipmentTransfer' as Reference,
+    etn.TNo as ReferenceTNO,
+    etn.EquipmentTransferNoteNo as ReferenceNo,
+    etn.EquipmentTransferNoteDate as ReferenceDate,
+    w.TNo as WeighmentTNo,
+    w.WeighmentNo,
+    w.WeighmentDate,
+    W.Netweight,
+    nvl(b.acceptedquantity1,w.acceptedweight) as AcceptedWeight,
+    t.PartyName as Transporter,
+    a.VehicleNo,
+    a.LRNO,
+    a.LRDATE,
+    e.ItemCode,
+    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+    b.Description,
+    e.MeasuringUnitCode1 as UOM,
+    b.ChalanQuantity1,
+    b.ReceivedQuantity1,
+    ReceivedQuantity1- b.ChalanQuantity1  as Difference,
+    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+    End As ShortageExcess,
+    sl.StorageLocationName,
+    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+    i.InspectionNo,
+    i.InspectionDate,    
+    case When i.InspectionDate is not null Then null
+         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1 
+    End as DaysPending,
+    dsd.DocumentStatusCode,
+    b.WarrantyUpTo,
+    'Details' as SerialNo,
+    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End as DocStatus,
+      b.Rate,
+      b.Amount,
+      GetDepartmentName(di.DepartmentCode) as Department
+From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, EquipmentTransferNote etn, Party t, DocumentStatusDetail dsd,
+    Item e, ItemSpecification ee, StorageLocation sl, Inspection i, DInspection di
+Where a.TNo = b.TNo
+  and a.LocationCode = l.LocationCode
+  and a.DocTypeCode = d.DocTypeCode
+  and a.DocTypeCode = 'EQUIPMENTTRANSFER'
+  and a.PartyCode = p.PartyCode
+  and a.MaterialINTNo = mi.TNo
+  and mi.equipmenttransfernotetno = etn.TNo
+  and a.WeighmentTNo = w.TNo(+)
+  and a.TransporterCode = t.PartyCode(+)
+  and a.TNo = dsd.ModuleTNo(+)
+  and e.TNo = ee.TNo
+  and b.ItemCode = e.ItemCode
+  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+  and b.StorageLocationCode = sl.StorageLocationCode(+)
+  and a.TNo = i.GRNTNo(+)
+  and a.TNo = di.GRNTNo(+)
+  and a.GRNDate Between :P145_FROMDATE and :P145_TODATE
+  and instr(':'||:P145_COMPANY||':',':'||a.CompanyCode||':') > 0
+  and instr(':'||:P145_LOCATION||':',':'||a.LocationCode||':') > 0
+  and instr(':'||:P145_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+  and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P145_INSPECTIONSTATUS,'%')
+  and ( :P145_PARTY IS NULL OR instr(':'||:P145_PARTY||':',':'||a.PartyCode||':') > 0 )
+  and ( :P145_TRANSPORTER IS NULL OR instr(':'||:P145_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+  and ( :P145_ITEM IS NULL OR instr(':'||:P145_ITEM||':',':'||e.ItemCode||':') > 0 )
+  and ( :P145_SPECIFICATION IS NULL OR instr(':'||:P145_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+  and ( :P145_ITEMGROUP IS NULL OR instr(':'||:P145_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )
+  and a.GRNNo like nvl(:P145_GRNNO,'%')
+  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End like nvl(:P145_STATUS,'%')
+Union All
+Select
+    a.TNo,
+    b.SNo,
+    l.LocationName,
+    d.DocTypeName,
+    a.GRNNo,
+    a.GRNDate,
+    p.PartyName,
+    a.RefDocNo as PartyInvoiceNo,
+    a.RefDocDate as PartyInvoiceDate,
+    a.RefDocAmount as PartyInvoiceAmount,
+    mi.MaterialInNo,
+    mi.MaterialInDate,
+    'Gatepass' as Reference,
+    gp.TNo as ReferenceTNO,
+    gp.GatePassNo as ReferenceNo,
+    gp.GatePassDate as ReferenceDate,
+    w.TNo as WeighmentTNo,
+    w.WeighmentNo,
+    w.WeighmentDate,
+    W.Netweight,
+    nvl(b.acceptedquantity1,w.AcceptedWeight) as AcceptedWeight,
+    t.PartyName as Transporter,
+    a.VehicleNo,
+    a.LRNO,
+    a.LRDATE,
+    e.ItemCode,
+    e.ItemName||' ~ '||ee.ItemSpecificationName as Material,
+    b.Description,
+    e.MeasuringUnitCode1 as UOM,
+    b.ChalanQuantity1,
+    b.ReceivedQuantity1,
+    e.MeasuringUnitCode1 as UOM2,
+    b.ChalanQuantity2,
+    b.ReceivedQuantity2,
+    ReceivedQuantity1- b.ChalanQuantity1  as Difference,
+    ReceivedQuantity2- b.ChalanQuantity2  as Difference2,
+    Case When b.ChalanQuantity1 > b.ReceivedQuantity1 Then 'Shortage' 
+         When b.ChalanQuantity1 < b.ReceivedQuantity1 Then 'Excess'
+         When b.ChalanQuantity1 = b.ReceivedQuantity1 Then 'Equal'
+    End As ShortageExcess,
+    sl.StorageLocationName,
+    nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') as InspectionStatus,
+    i.InspectionNo,
+    i.InspectionDate,    
+    case When i.InspectionDate is not null Then null
+         When i.InspectionDate is null Then (Sysdate - a.GrnDate)-1
+    End as DaysPending,
+    dsd.DocumentStatusCode,
+    b.WarrantyUpTo,
+    'Details' as SerialNo,
+    case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End as DocStatus,
+      b.Rate,
+      b.Amount,
+      GetDepartmentName(di.DepartmentCode) as Department,
+      GetEmployeeName(bu.EmployeeCode)||'('||a.Creator||')' as Creator,
+      a.CreationTime
+From GRN a, GRNDetail b, Location l, DocType d, Party p, MaterialIn mi, Weighment w, GatePass gp, Party t, DocumentStatusDetail dsd,
+    Item e, ItemSpecification ee, StorageLocation sl, Inspection i, Dinspection di, Bossuser bu
+Where a.TNo = b.TNo
+  and a.LocationCode = l.LocationCode
+  and a.DocTypeCode = d.DocTypeCode
+  and a.PartyCode = p.PartyCode
+  and a.MaterialINTNo = mi.TNo
+  and a.GatePassTNo = gp.TNo
+  and a.WeighmentTNo = w.TNo(+)
+  and a.TransporterCode = t.PartyCode(+)
+  and a.TNo = dsd.ModuleTNo(+)
+  and e.TNo = ee.TNo
+  and b.ItemCode = e.ItemCode
+  and b.ItemSpecificationCode = ee.ItemSpecificationCode
+  and b.StorageLocationCode = sl.StorageLocationCode(+)
+  and a.TNo = i.GRNTNo(+)
+  and a.TNo = di.GRNTNo(+)
+  and a.Creator = bu.LoginName(+)
+  and a.GRNDate Between :P145_FROMDATE and :P145_TODATE
+  and instr(':'||:P145_COMPANY||':',':'||a.CompanyCode||':') > 0
+  and instr(':'||:P145_LOCATION||':',':'||a.LocationCode||':') > 0
+  and instr(':'||:P145_DOCTYPE||':',':'||a.DocTypeCode||':') > 0
+  and nvl(decode(I.GRNTno,a.TNo,'PREPARED'),'PENDING') like nvl(:P145_INSPECTIONSTATUS,'%')
+  and ( :P145_PARTY IS NULL OR instr(':'||:P145_PARTY||':',':'||a.PartyCode||':') > 0 )
+  and ( :P145_TRANSPORTER IS NULL OR instr(':'||:P145_TRANSPORTER||':',':'||a.TransporterCode||':') > 0 )
+  and ( :P145_ITEM IS NULL OR instr(':'||:P145_ITEM||':',':'||e.ItemCode||':') > 0 )
+  and ( :P145_SPECIFICATION IS NULL OR instr(':'||:P145_SPECIFICATION||':',':'||ee.ItemSpecificationCode||':') > 0 )
+  and ( :P145_ITEMGROUP IS NULL OR instr(':'||:P145_ITEMGROUP||':',':'||e.ParentCode||':') > 0 )
+  and a.GRNNo like nvl(:P145_GRNNO,'%')
+  and case When dsd.DocumentStatusCode = 'ACTIVE' Then 'ACTIVE'
+           When dsd.DocumentStatusCode is null Then 'NONACTIVE'
+           When dsd.DocumentStatusCode = 'PREPARING' Then 'PREPARING'
+           When dsd.DocumentStatusCode = 'PREPARED' Then 'PREPARED'
+           When dsd.DocumentStatusCode = 'AUTHORISED' Then 'AUTHORISED'
+           When dsd.DocumentStatusCode = 'CANCELED' Then 'CANCELED'
+           When dsd.DocumentStatusCode = 'ONHOLD' Then 'ONHOLD'
+           When dsd.DocumentStatusCode = 'SHORTCLOSED' Then 'SHORTCLOSED'
+           When dsd.DocumentStatusCode = 'CLOSED' Then 'CLOSED'
+           When dsd.DocumentStatusCode = 'DEPTAPPROVED' Then 'DEPTAPPROVED'
+           When dsd.DocumentStatusCode = 'STOREAPPROVED' Then 'STOREAPPROVED'
+      End like nvl(:P145_STATUS,'%')*/
+
+CLASSIFIER
+
+select tno,
+ case when getdocumentstatuscode('GRN',tno) in('PREPARING','PREPARED') then 1 else 0 end approval,
+ case when unbilled>0 and billed=0 then 1 else 0 end pending,
+ case when unbilled>0 and billed>0 then 1 else 0 end partial,
+ case when unbilled=0 and billed>0 then 1 else 0 end done,
+ 0 overdue,0 missing_due,
+ case when getdinspectionno(tno) is null then 1 else 0 end review
+from(select d.tno,
+ max(case when b.grntno is null then 1 else 0 end) unbilled,
+ max(case when b.grntno is not null then 1 else 0 end) billed
+ from grndetail d left join (
+ select distinct x.grntno,x.grnsno from purchasebillgrndetail x join purchasebill p on p.tno=x.tno
+ where nvl(getdocumentstatuscode('PURCHASEBILL',p.tno),'NONACTIVE') not in('CANCELED','CANCELLED','CLOSED','SHORTCLOSED')
+ ) b on b.grntno=d.tno and b.grnsno=d.sno
+ where nvl(getdocumentstatuscode('GRN',d.tno),'NONACTIVE') not in('CANCELED','CANCELLED','CLOSED','SHORTCLOSED') group by d.tno)
+
+GETDINSPECTIONNO FUNCTION GetDInspectionNo (pgrntno IN VARCHAR2)
+
+GETDINSPECTIONNO RETURN VARCHAR2
+
+GETDINSPECTIONNO IS
+
+GETDINSPECTIONNO   DNO VARCHAR2(100);
+
+GETDINSPECTIONNO BEGIN
+
+GETDINSPECTIONNO     select DINSPECTIONNO into DNO from Dinspection
+
+GETDINSPECTIONNO     where GRNTNO = pgrntno;
+
+GETDINSPECTIONNO 
+
+GETDINSPECTIONNO   RETURN DNO;
+
+GETDINSPECTIONNO EXCEPTION
+
+GETDINSPECTIONNO   WHEN NO_DATA_FOUND THEN
+
+GETDINSPECTIONNO     RETURN null;
+
+GETDINSPECTIONNO END;
+GETDOCUMENTSTATUSCODE Function GetDocumentStatusCode(pModuleCode Varchar2,
+
+GETDOCUMENTSTATUSCODE                                                  pTNo        Number)
+
+GETDOCUMENTSTATUSCODE   Return Varchar2 Is
+
+GETDOCUMENTSTATUSCODE   RtnValue Varchar2(30);
+
+GETDOCUMENTSTATUSCODE   Cursor cDS Is
+
+GETDOCUMENTSTATUSCODE     Select a.DocumentStatusCode
+
+GETDOCUMENTSTATUSCODE       From DocumentStatusDetail a
+
+GETDOCUMENTSTATUSCODE      Where a.ModuleCode = pModulecode
+
+GETDOCUMENTSTATUSCODE        And a.ModuleTNo = pTNo;
+
+GETDOCUMENTSTATUSCODE   vDS cDS%Rowtype;
+
+GETDOCUMENTSTATUSCODE Begin
+
+GETDOCUMENTSTATUSCODE   Open cDS;
+
+GETDOCUMENTSTATUSCODE   Fetch cDS
+
+GETDOCUMENTSTATUSCODE     Into vDS;
+
+GETDOCUMENTSTATUSCODE   If cDS%Found Then
+
+GETDOCUMENTSTATUSCODE     RtnValue := vDS.DocumentStatusCode;
+
+GETDOCUMENTSTATUSCODE   End If;
+
+GETDOCUMENTSTATUSCODE   Close cDS;
+
+GETDOCUMENTSTATUSCODE   Return RtnValue;
+
+GETDOCUMENTSTATUSCODE End;
+
+

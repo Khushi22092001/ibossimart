@@ -19,6 +19,32 @@ wwv_flow_imp_page.create_page(
 ,p_warn_on_unsaved_changes=>'N'
 ,p_first_item=>'AUTO_FIRST_ITEM'
 ,p_autocomplete_on_off=>'OFF'
+,p_html_page_header=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'<script id="hspl-login-first-paint">',
+'(function(){',
+'  function apply(){',
+'    var body=document.body,card=document.querySelector(''.t-Login-region''),main=document.querySelector(''.t-Login-containerBody''),header=document.querySelector(''.t-Login-containerHeader'');',
+'    if(!body||!card||!main||!header||body.classList.contains(''hspl-login''))return false;',
+'    body.classList.add(''hspl-login'');',
+'    header.innerHTML=''<div class="hspl-login-brand"><img alt="BOSS" width="74" height="74" src="#APP_FILES#hspl-login-boss.png"><span>Business operations,<br><strong>beautifully connected.</strong></span></div><div class="hspl-login-capabilities" aria-label="Business capabilities"><span><i class="fa fa-industry" aria-hidden="true"></i> Manufacturing</span><span><i class="fa fa-truck" aria-hidden="true"></i> Supply Chain</span><span><i class="fa fa-shield" aria-hidden="true"></i> Quality</span><span><i class="fa fa-line-chart" aria-hidden="true"></i> Analytics</span></div>'';',
+'    var layout=document.createElement(''div''),hero=document.createElement(''section''),pane=document.createElement(''section'');',
+'    layout.className=''hspl-login-layout'';hero.className=''hspl-login-hero'';pane.className=''hspl-login-pane'';',
+'    hero.innerHTML=''<h1>Run every operation<br>with <em>clarity.</em></h1><p class="hspl-login-intro">One workspace. Every part of your business.</p><img class="hspl-login-factory" src="#APP_FILES#hspl-login-factory.png" alt="Connected manufacturing, logistics and business operations" width="1448" height="1086"><div class="hspl-login-benefits"><div><i class="fa fa-share-alt" aria-hidden="true"></i><span><strong>Connected</strong><small>Operations in one place.</small></span></div><div><i class="fa fa-line-chart" aria-hidden="true"></i><span><strong>Organized</strong><small>Clarity in every workflow.</small></span></div><div><i class="fa fa-shield" aria-hidden="true"></i><span><strong>Controlled</strong><small>Your workspace. Your access.</small></span></div></div>'';',
+'    main.appendChild(layout);layout.appendChild(hero);layout.appendChild(pane);pane.appendChild(card);',
+'    var title=card.querySelector(''.t-Login-title''),cardHead=card.querySelector(''.t-Login-header'');',
+'    if(title)title.textContent=''Welcome back'';',
+'    if(cardHead){var intro=document.createElement(''p'');intro.className=''hspl-login-subtitle'';intro.textContent=''Sign in to your workspace'';cardHead.appendChild(intro);}',
+'    card.querySelectorAll(''.t-Form-label.u-VisuallyHidden'').forEach(function(label){label.classList.remove(''u-VisuallyHidden'');});',
+'    var note=document.createElement(''p'');note.className=''hspl-login-access-note'';note.innerHTML=''<i class="fa fa-lock" aria-hidden="true"></i> Authorized workspace access'';card.appendChild(note);',
+'    var footer=document.createElement(''p'');footer.className=''hspl-login-powered'';footer.innerHTML=''Powered by <strong>Infomatics Technologies</strong>'';pane.appendChild(footer);',
+'    return true;',
+'  }',
+'  if(apply())return;',
+'  var watch=new MutationObserver(function(){if(apply())watch.disconnect();});',
+'  watch.observe(document.documentElement,{childList:true,subtree:true});',
+'  document.addEventListener(''DOMContentLoaded'',function(){if(apply())watch.disconnect();},{once:true});',
+'}());',
+'</script>'))
 ,p_javascript_file_urls=>'#APP_FILES#hspl-login.js?cb=20260909b'
 ,p_css_file_urls=>'#APP_FILES#hspl-login.css?cb=20260909b'
 ,p_step_template=>2101157952850466385

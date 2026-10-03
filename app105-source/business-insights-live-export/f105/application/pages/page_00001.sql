@@ -35,29 +35,24 @@ wwv_flow_imp_page.create_page(
 '  }',
 '  function renderPopularPages(payload) {',
 '    var pages = payload && payload.pages || [];',
-'    if (!pages.length) return; // The curated operational shortcuts remain useful for a new user.',
-'    var section = document.querySelector(''.imart-home-section'');',
+'    var section = document.querySelector(''.imart-home-shell .imart-home-section'');',
 '    var grid = section && section.querySelector(''.imart-home-grid'');',
-'    if (!section || !grid) return;',
-'    var heading = section.querySelector(''h2'');',
-'    var description = section.querySelector(''.imart-home-section-head p'');',
-'    var link = section.querySelector(''.imart-home-section-link'');',
-'    if (heading) heading.textContent = ''Popular Pages'';',
-'    if (description) description.textContent = ''Your most frequently used pages, based on your own activity.'';',
-unistr('    if (link) { link.textContent = ''View all pages \2192''; link.href = ''f?p='' + $v(''pFlowId'') + '':1:'' + $v(''pInstance'') + ''::::''; }'),
+'    if (!section || !grid || section.dataset.popularState !== ''loading'') return;',
+'    section.dataset.popularState = ''ready'';',
+'    grid.classList.remove(''imart-home-grid--loading'');',
+'    grid.removeAttribute(''aria-busy'');',
 '    grid.id = ''imart-popular-pages'';',
 '    grid.innerHTML = pages.map(function (page, index) {',
-'      var count = Number(page.visitCount) || 0;',
-'      var label = count === 1 ? ''Visited once'' : ''Visited '' + count + '' times'';',
 '      return ''<a class="imart-home-card'' + cardClass(index) + ''" href="'' + pageUrl(page.pageId) + ''">'' +',
 unistr('        ''<span class="imart-home-card-icon">'' + (index % 2 ? ''\2197'' : ''\25A3'') + ''</span>'' +'),
 '        ''<h3>'' + escapeHtml(page.pageName) + ''</h3>'' +',
-unistr('        ''<p>'' + label + ''</p><span class="imart-home-card-arrow">\2192</span></a>'';'),
+unistr('        ''<span class="imart-home-card-arrow">\2192</span></a>'';'),
 '    }).join('''');',
 '  }',
 '  function loadPopularPages() {',
-'    if (!(window.apex && apex.server && document.querySelector(''.imart-home-section''))) return;',
-'    apex.server.process(''GET_POPULAR_PAGES'', {}, { dataType: ''json'', success: renderPopularPages });',
+'    var section = document.querySelector(''.imart-home-shell .imart-home-section'');',
+'    if (!(window.apex && apex.server && section) || section.dataset.popularState) return;',
+'    return; // Static Popular Pages cards are already part of the initial response.',
 '  }',
 '  if (document.readyState === ''loading'') document.addEventListener(''DOMContentLoaded'', loadPopularPages, { once: true });',
 '  else loadPopularPages();',
@@ -211,10 +206,10 @@ unistr('        ''<span class="imart-home-workflow-icon">'' + module[2] + ''</sp
 ||'mart-home-meta{position:absolute;z-index:3;right:31px;bottom:25px;display:flex;gap:9px}.imart-home-meta span{color:#ecf1ff;font-size:12px;font-weight:650;padding:7px 10px;border-radius:8px;background:rgba(10,24,76,.35);backdrop-filter:blur(8px);borde'
 ||'r:1px solid rgba(255,255,255,.16)}.imart-home-section{margin-top:24px;padding:25px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 10px 25px rgba(27,47,96,.055)}.imart-home-section-head{display:flex;align-items:flex-start'
 ||';justify-content:space-between;gap:16px;margin-bottom:20px}.imart-home-section h2{margin:0;font-size:19px;line-height:1.2;letter-spacing:-.025em}.imart-home-section-head p{margin:5px 0 0;color:var(--muted);font-size:13px}.imart-home-section-link{colo'
-||'r:var(--blue);font-size:13px;font-weight:750;text-decoration:none;white-space:nowrap}.imart-home-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.imart-home-card{position:relative;min-height:139px;padding:18px;overflow:hidden'
+||'r:var(--blue);font-size:13px;font-weight:750;text-decoration:none;white-space:nowrap}.imart-home-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.imart-home-card{position:relative;min-height:104px;padding:18px;overflow:hidden'
 ||';display:flex;flex-direction:column;align-items:flex-start;text-decoration:none;color:var(--ink);border:1px solid #e3e8f2;border-radius:15px;background:linear-gradient(180deg,#fff,#fbfcff);transition:transform .18s ease,box-shadow .18s ease,border-co'
 ||'lor .18s ease}.imart-home-card:hover{transform:translateY(-4px);border-color:#b8c7f6;box-shadow:0 14px 25px rgba(47,73,155,.12)}.imart-home-card-icon{width:40px;height:40px;display:grid;place-items:center;color:var(--accent,#2854d9);border-radius:12p'
-||'x;background:var(--wash,#edf2ff);font-size:18px}.imart-home-card h3{margin:17px 0 5px;font-size:14px}.imart-home-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.imart-home-card-arrow{position:absolute;right:16px;bottom:15px;color:'
+||'x;background:var(--wash,#edf2ff);font-size:18px}.imart-home-card h3{margin:12px 0 5px;font-size:14px}.imart-home-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.imart-home-card-arrow{position:absolute;right:16px;bottom:15px;color:'
 ||'var(--accent,#2854d9);font-size:18px}.imart-home-card--teal{--accent:#078e91;--wash:#e8f8f7}.imart-home-card--amber{--accent:#cd7a08;--wash:#fff6e5}.imart-home-card--rose{--accent:#dc476a;--wash:#fff0f3}.imart-home-card--purple{--accent:#6a53e6;--was'
 ||'h:#f0edff}.imart-home-lower{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:24px;margin-top:24px}.imart-home-focus{padding:24px;border-radius:18px;color:#eef3ff;background:linear-gradient(135deg,#172d6d,#273e91);box-shadow:0'
 ||' 12px 28px rgba(24,47,120,.16)}.imart-home-focus .imart-home-kicker{color:#9db9ff;font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}.imart-home-focus h2{margin:9px 0 8px;color:#fff;font-size:22px}.imart-home-focus p{margin:'
@@ -253,6 +248,7 @@ unistr('        ''<span class="imart-home-workflow-icon">'' + module[2] + ''</sp
 '  margin:0!important;',
 '  padding:0 0 24px!important;',
 '}',
+ '',
 ''))
 ,p_step_template=>wwv_flow_imp.id(212831217557091971)
 ,p_page_template_options=>'#DEFAULT#'
@@ -270,18 +266,8 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_item_display_point=>'ABOVE'
 ,p_location=>null
 ,p_plug_source=>'<main class="imart-home-shell" aria-label="InfoMart operations workspace"><section class="imart-home-hero"><div class="imart-home-copy"><div class="imart-home-eyebrow">Operations workspace</div><h1>Make every movement<br>matter.</h1><p>One calm start'
-||unistr('ing point for purchasing, incoming goods and inventory operations\2014built to help you move from plan to action without the clutter.</p><div class="imart-home-hero-actions"><a class="imart-home-primary" href="f?p=&APP_ID.:117:&APP_SESSION.::::">Open pur')
-||unistr('chase orders <span aria-hidden="true">\2192</span></a><a class="imart-home-secondary" href="f?p=&APP_ID.:145:&APP_SESSION.::::">View GRN register <span aria-hidden="true">\2197</span></a></div></div><div class="imart-home-hero-art"><img src="#APP_FILES#imart')
-||unistr('-home-operations-hero.png" alt=""></div><div class="imart-home-meta"><span>IMART workspace</span><span>FY 26\201327</span></div></section><section class="imart-home-section"><div class="imart-home-section-head"><div><h2>Start where the work is</h2><p>Dir')
-||unistr('ect access to the operational registers your team uses every day.</p></div><a class="imart-home-section-link" href="f?p=&APP_ID.:117:&APP_SESSION.::::">Browse purchasing \2192</a></div><div class="imart-home-grid"><a class="imart-home-card" href="f?p=&AP')
-||unistr('P_ID.:117:&APP_SESSION.::::"><span class="imart-home-card-icon">\25A3</span><h3>Purchase orders</h3><p>Create, review and track supplier commitments.</p><span class="imart-home-card-arrow">\2192</span></a><a class="imart-home-card imart-home-card--teal" href')
-||unistr('="f?p=&APP_ID.:145:&APP_SESSION.::::"><span class="imart-home-card-icon">\21E3</span><h3>Goods receipt notes</h3><p>Receive materials and keep the inbound flow moving.</p><span class="imart-home-card-arrow">\2192</span></a><a class="imart-home-card imart-hom')
-||unistr('e-card--amber" href="f?p=&APP_ID.:142:&APP_SESSION.::::"><span class="imart-home-card-icon">\25EB</span><h3>Purchase bills</h3><p>Review bills with the right purchasing context.</p><span class="imart-home-card-arrow">\2192</span></a><a class="imart-home-card')
-||unistr(' imart-home-card--purple" href="f?p=&APP_ID.:407:&APP_SESSION.::::"><span class="imart-home-card-icon">\25C8</span><h3>Stock statement</h3><p>See inventory positions when you need them.</p><span class="imart-home-card-arrow">\2192</span></a><a class="imart-h')
-||unistr('ome-card imart-home-card--rose" href="f?p=&APP_ID.:68:&APP_SESSION.::::"><span class="imart-home-card-icon">\21E2</span><h3>Material in</h3><p>Follow every inbound material movement.</p><span class="imart-home-card-arrow">\2192</span></a><a class="imart-home')
-||unistr('-card imart-home-card--teal" href="f?p=&APP_ID.:129:&APP_SESSION.::::"><span class="imart-home-card-icon">\2713</span><h3>Requisitions</h3><p>Move approved requirements into procurement.</p><span class="imart-home-card-arrow">\2192</span></a><a class="imart-')
-||unistr('home-card imart-home-card--amber" href="f?p=&APP_ID.:107:&APP_SESSION.::::"><span class="imart-home-card-icon">\2301</span><h3>Indent register</h3><p>Keep demand intake visible and accountable.</p><span class="imart-home-card-arrow">\2192</span></a><a class=')
-||unistr('"imart-home-card imart-home-card--purple" href="f?p=&APP_ID.:151:&APP_SESSION.::::"><span class="imart-home-card-icon">\25A4</span><h3>Bill pass</h3><p>Route purchase bill passes with confidence.</p><span class="imart-home-card-arrow">\2192</span></a></div><')
+||unistr('ing point for purchasing, incoming goods and inventory operations\2014built to help you move from plan to action without the clutter.</p></div><div class="imart-home-hero-art"><img src="#APP_FILES#imart')
+||unistr('-home-operations-hero.png" alt=""></div><div class="imart-home-meta"><span>IMART workspace</span><span>FY 26\201327</span></div></section><section class="imart-home-section"><div class="imart-home-section-head"><div><h2>Popular Pages</h2><p>Your most frequently used pages, based on your own activity.</p></div><a class="imart-home-section-link" href="f?p=&APP_ID.:1:&APP_SESSION.::::">View all pages \2192</a></div><div class="imart-home-grid" id="imart-popular-pages">&P1_POPULAR_HTML!RAW.</div><')
 ||'/section><div class="imart-home-lower"><section class="imart-home-focus"><div class="imart-home-kicker">Workflow launcher</div><h2>Keep the inbound cycle moving</h2><p>Use the flow that matches the next decision your team needs to make.</p><div class'
 ||unistr('="imart-home-focus-links"><a href="f?p=&APP_ID.:118:&APP_SESSION.::::">New PO <span>\2192</span></a><a href="f?p=&APP_ID.:146:&APP_SESSION.::::">New GRN <span>\2192</span></a><a href="f?p=&APP_ID.:143:&APP_SESSION.::::">New bill <span>\2192</span></a></div></sec')
 ||unistr('tion><aside class="imart-home-day"><h2>Your workspace, ready</h2><p>Choose a register above to continue a workflow or create a new document from the launcher.</p><ul class="imart-home-day-list"><li><i>\2713</i>Shortcuts lead to the live IMART pages</li><')
@@ -289,6 +275,161 @@ wwv_flow_imp_page.create_page_plug(
 ,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
   'expand_shortcuts', 'N',
   'output_as', 'HTML')).to_clob
+);
+wwv_flow_imp_page.create_page_item(
+ p_id=>wwv_flow_imp.id(900000000000145)
+,p_name=>'P1_POPULAR_HTML'
+,p_item_sequence=>10
+,p_item_plug_id=>wwv_flow_imp.id(574067901870959885)
+,p_item_source_plug_id=>wwv_flow_imp.id(574067901870959885)
+,p_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'with activity as (',
+'  select nvl((select max(m.pageno)',
+'                from module m',
+'               where m.entrypageno = a.page_id), a.page_id) as page_id,',
+'         a.page_name,',
+'         a.view_timestamp',
+'    from apex_260100.apex_workspace_activity_log a',
+'   where a.workspace_id = 4744311978888504',
+'     and a.application_id = 105',
+'     and upper(a.apex_user) = upper(v(''APP_USER''))',
+'     and a.page_id not in (0, 1)',
+'     and a.page_name is not null',
+'), popular as (',
+'  select page_id,',
+'         max(page_name) keep (dense_rank last order by view_timestamp) as page_name,',
+'         count(*) as visit_count,',
+'         max(view_timestamp) as last_visit',
+'    from activity',
+'   group by page_id',
+'), ranked as (',
+'  select page_id, page_name, visit_count,',
+'         row_number() over (order by visit_count desc, last_visit desc) as card_no',
+'    from popular',
+'   order by visit_count desc, last_visit desc',
+'   fetch first 8 rows only',
+')',
+'select listagg(',
+'         ''<a class="imart-home-card'' ||',
+'           case mod(card_no - 1, 5)',
+'             when 1 then '' imart-home-card--teal''',
+'             when 2 then '' imart-home-card--amber''',
+'             when 3 then '' imart-home-card--purple''',
+'             when 4 then '' imart-home-card--rose''',
+'             else ''''',
+'           end ||',
+'           ''" href="f?p='' || v(''APP_ID'') || '':'' || page_id || '':'' || v(''APP_SESSION'') || ''::::">'' ||',
+'           ''<span class="imart-home-card-icon">'' ||',
+'             case when mod(card_no - 1, 2) = 1 then ''&#x2197;'' else ''&#x25A3;'' end ||',
+'           ''</span><h3>'' || apex_escape.html(page_name) ||',
+'           ''</h3><span class="imart-home-card-arrow">&#x2192;</span></a>'',',
+'         '''') within group (order by card_no)',
+'  from ranked'))
+,p_source_type=>'ALWAYS_NULL'
+,p_display_as=>'NATIVE_HIDDEN'
+,p_is_persistent=>'N'
+,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
+  'value_protected', 'N')).to_clob
+);
+wwv_flow_imp_page.create_page_process(
+ p_id=>wwv_flow_imp.id(900000000000147)
+,p_process_sequence=>10
+,p_process_point=>'BEFORE_HEADER'
+,p_process_type=>'NATIVE_PLSQL'
+,p_process_name=>'Prepare Popular Pages'
+,p_static_id=>'prepare-popular-pages'
+,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'declare',
+'  l_html varchar2(32767);',
+'begin',
+'  with activity as (',
+'    select nvl((select max(m.pageno)',
+'                  from module m',
+'                 where m.entrypageno = a.page_id), a.page_id) as page_id,',
+'           a.page_name,',
+'           a.view_timestamp',
+'      from apex_260100.apex_workspace_activity_log a',
+'     where a.workspace_id = 4744311978888504',
+'       and a.application_id = 105',
+'       and upper(a.apex_user) = upper(v(''APP_USER''))',
+'       and a.page_id not in (0, 1)',
+'       and a.page_name is not null',
+'  ), popular as (',
+'    select page_id,',
+'           max(page_name) keep (dense_rank last order by view_timestamp) as page_name,',
+'           count(*) as visit_count,',
+'           max(view_timestamp) as last_visit',
+'      from activity',
+'     group by page_id',
+'  ), ranked as (',
+'    select page_id, page_name, visit_count,',
+'           row_number() over (order by visit_count desc, last_visit desc) as card_no',
+'      from popular',
+'     order by visit_count desc, last_visit desc',
+'     fetch first 8 rows only',
+'  )',
+'  select listagg(',
+'           ''<a class="imart-home-card'' ||',
+'             case mod(card_no - 1, 5)',
+'               when 1 then '' imart-home-card--teal''',
+'               when 2 then '' imart-home-card--amber''',
+'               when 3 then '' imart-home-card--purple''',
+'               when 4 then '' imart-home-card--rose''',
+'               else ''''',
+'             end ||',
+'             ''" href="f?p='' || v(''APP_ID'') || '':'' || page_id || '':'' || v(''APP_SESSION'') || ''::::">'' ||',
+'             ''<span class="imart-home-card-icon">'' ||',
+'               case when mod(card_no - 1, 2) = 1 then ''&#x2197;'' else ''&#x25A3;'' end ||',
+'             ''</span><h3>'' || apex_escape.html(page_name) ||',
+'             ''</h3><span class="imart-home-card-arrow">&#x2192;</span></a>'',',
+'           '''') within group (order by card_no)',
+'    into l_html',
+'    from ranked;',
+'',
+'  :P1_POPULAR_HTML := l_html;',
+'exception',
+'  when others then',
+'    :P1_POPULAR_HTML := null;',
+'end;'))
+,p_process_clob_language=>'PLSQL'
+,p_process_when=>'1 = 0'
+,p_process_when_type=>'EXPRESSION'
+);
+wwv_flow_imp_page.create_page_process(
+ p_id=>wwv_flow_imp.id(900000000000148)
+,p_process_sequence=>20
+,p_process_point=>'BEFORE_HEADER'
+,p_process_type=>'NATIVE_PLSQL'
+,p_process_name=>'Render Cached Popular Pages'
+,p_static_id=>'render-cached-popular-pages'
+,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
+'declare',
+'  l_html varchar2(32767) := '''';',
+'begin',
+'  for r in (',
+'    select page_id, page_name, visit_count, display_order',
+'      from imart_home_popular_cache',
+'     where app_user = upper(v(''APP_USER''))',
+'     order by display_order',
+'  ) loop',
+'    l_html := l_html ||',
+'      ''<a class="imart-home-card'' ||',
+'        case mod(r.display_order - 1, 5)',
+'          when 1 then '' imart-home-card--teal''',
+'          when 2 then '' imart-home-card--amber''',
+'          when 3 then '' imart-home-card--purple''',
+'          when 4 then '' imart-home-card--rose''',
+'          else ''''',
+'        end ||',
+'        ''" href="f?p='' || v(''APP_ID'') || '':'' || r.page_id || '':'' || v(''APP_SESSION'') || ''::::">'' ||',
+'        ''<span class="imart-home-card-icon">'' ||',
+'          case when mod(r.display_order - 1, 2) = 1 then ''&#x2197;'' else ''&#x25A3;'' end ||',
+'        ''</span><h3>'' || apex_escape.html(r.page_name) ||',
+'        ''</h3><span class="imart-home-card-arrow">&#x2192;</span></a>'';',
+'  end loop;',
+'  :P1_POPULAR_HTML := l_html;',
+'end;'))
+,p_process_clob_language=>'PLSQL'
 );
 wwv_flow_imp_page.create_page_da_event(
  p_id=>wwv_flow_imp.id(445637768519231833)
