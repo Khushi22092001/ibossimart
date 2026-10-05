@@ -282,6 +282,17 @@ body:not(.t-PageBody--login) .hspl-hero-add-new{
   border-radius:10px!important;background:#5d55d9!important;border-color:#5d55d9!important;color:#fff!important
 }
 body:not(.t-PageBody--login) .hspl-hero-card .hspl-filter-trigger{order:2!important;margin-left:auto!important}
+/* IMART_REGISTER_GAP_3PX_V1: vertical gaps stay page-scoped */
+body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card{
+  margin-top:2px!important;margin-bottom:0!important;padding-top:8px!important;padding-bottom:8px!important
+}
+body:not(.t-PageBody--login) #t_Body_content .t-Body-contentInner{padding-top:2px!important}
+body:not(.t-PageBody--login) .coverage-register-kpis,
+body:not(.t-PageBody--login) .tx-register-kpis{margin-bottom:2px!important}
+body:not(.t-PageBody--login) .t-Body-contentInner .row:has(.imart-register-data){
+  margin-top:0!important;padding-top:0!important
+}
+body:not(.t-PageBody--login) #t_Body_content .t-Body-contentInner div.t-IRR-region.imart-register-data{margin-top:0!important}
 @media(max-width:700px){
  body:not(.t-PageBody--login) .t-Body-title.hspl-hero-card{margin-inline:4px!important;padding:8px 10px!important;flex-wrap:wrap!important}
  body:not(.t-PageBody--login) .coverage-register-kpis .mr-kpi-grid,

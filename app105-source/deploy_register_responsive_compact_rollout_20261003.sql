@@ -1,0 +1,75 @@
+whenever sqlerror exit sql.sqlcode rollback
+set define off
+set sqlblanklines on
+set serveroutput on size unlimited
+set pagesize 100
+set linesize 240
+connect -name IMART
+
+prompt === Validate the pre-change backup made by the pilot ===
+declare
+  l_exists number;
+  l_rows number;
+begin
+  select count(*) into l_exists from user_tables where table_name='IMART_REG_RESP_BAK_20261003';
+  if l_exists<>1 then raise_application_error(-20001,'Responsive compact backup table is missing'); end if;
+  select count(*) into l_rows from imart_reg_resp_bak_20261003;
+  if l_rows=0 then raise_application_error(-20002,'Responsive compact backup table is empty'); end if;
+end;
+/
+
+prompt === Roll the verified page-scoped rules out to the remaining compact register pages ===
+declare
+  l_css clob:=q'~
+/* IMART_REGISTER_RESPONSIVE_COMPACT_V2: page-scoped responsive register sizing */
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card{box-sizing:border-box!important;height:70px!important;min-height:70px!important;margin:2px 8px 0!important;padding:6px 12px 6px 14px!important;gap:9px!important;border-radius:0 0 10px 10px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card .hspl-hero-icon{width:38px!important;height:38px!important;flex:0 0 38px!important;border-radius:9px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card .hspl-hero-icon svg{width:19px!important;height:19px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card .hspl-page-title{font-size:20px!important;line-height:1.1!important;letter-spacing:-.3px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card .hspl-page-desc{margin-top:1px!important;font-size:11px!important;line-height:1.2!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card :is(.hspl-filter-trigger,.hspl-hero-add-new){min-height:34px!important;height:34px!important;padding-block:0!important;padding-inline:12px!important;border-radius:8px!important;font-size:12px!important;line-height:1!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis){margin:0 0 2px!important;padding:6px 8px!important;border-radius:10px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),clamp(190px,18vw,252px)))!important;justify-content:start!important;gap:6px!important;min-height:0!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-inline-kpi{min-height:0!important;padding:5px 8px 4px!important;border-radius:9px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-card-body{min-height:0!important;gap:6px!important;padding:0!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-card-icon{width:24px!important;height:24px!important;border-radius:8px!important;font-size:14px!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-status{margin:0!important;font-size:10px!important;line-height:1.2!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-inline-kpi strong{margin:0!important;font-size:20px!important;line-height:1!important;letter-spacing:-.3px!important}
+/* IMART_REGISTER_RESPONSIVE_COMPACT_V2_STABLE: keep helper text to one compact line */
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-share{margin:1px 0!important;font-size:9.5px!important;line-height:1.2!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-card-bottom{padding-top:3px!important;gap:5px!important;font-size:9.5px!important;line-height:1.2!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-wave{width:40px!important;height:15px!important;bottom:4px!important;opacity:.24!important}
+html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-method{margin-top:3px!important;font-size:10px!important;line-height:1.15!important}
+@media(max-width:700px){html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_title.t-Body-title.hspl-hero-card{height:auto!important;min-height:64px!important;margin-inline:4px!important;padding:6px 8px!important;flex-wrap:wrap!important}html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:420px){html.hspl-compact-form body:not(.t-PageBody--login) #t_Body_content :is(.coverage-register-kpis,.tx-register-kpis) .mr-kpi-grid{grid-template-columns:1fr!important}}
+~';
+  l_rows number;
+begin
+  update apex_260100.wwv_flow_steps
+     set inline_css=inline_css||chr(10)||l_css
+   where flow_id=105
+     and dbms_lob.instr(inline_css,'IMART_REGISTER_COMPACT_V1')>0
+     and dbms_lob.instr(inline_css,'IMART_REGISTER_RESPONSIVE_COMPACT_V2')=0;
+  l_rows:=sql%rowcount;
+  dbms_output.put_line('RESPONSIVE_COMPACT_PAGES_UPDATED='||l_rows);
+end;
+/
+
+commit;
+
+prompt === Rollout verification ===
+select count(*) compact_v1_pages
+  from apex_260100.wwv_flow_steps
+ where flow_id=105 and dbms_lob.instr(inline_css,'IMART_REGISTER_COMPACT_V1')>0;
+
+select count(*) responsive_compact_v2_pages
+  from apex_260100.wwv_flow_steps
+ where flow_id=105 and dbms_lob.instr(inline_css,'IMART_REGISTER_RESPONSIVE_COMPACT_V2')>0;
+
+select count(*) missing_v2_pages
+  from apex_260100.wwv_flow_steps
+ where flow_id=105
+   and dbms_lob.instr(inline_css,'IMART_REGISTER_COMPACT_V1')>0
+   and dbms_lob.instr(inline_css,'IMART_REGISTER_RESPONSIVE_COMPACT_V2')=0;
+
+exit
