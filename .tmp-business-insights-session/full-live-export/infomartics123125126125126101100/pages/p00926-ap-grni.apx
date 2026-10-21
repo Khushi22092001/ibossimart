@@ -1,0 +1,1396 @@
+page 926 (
+    name: Unbilled Liability (GRNI)
+    alias: AP-GRNI
+    title: Unbilled Liability (GRNI)
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: #APP_FILES#hspl-jet-l10n-fallback.js?version=#APP_VERSION#&cb=20260924a
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: Goods received with no supplier bill passed yet. THIS LIABILITY IS NOT PART OF VENDOR AP anywhere in this dashboard, and that is an accounting fact rather than a presentation choice: a GRN credits GRIRACCOUNT ("GR/IR ACCOUNT COST"), which sits under CURRENTLIABILITIESANDPROVISION, not under SUNDRYCREDITORS. So GRNI has its own page, its own GL account and its own tie-out. The source is the available GR/IR source, whose Status is BILLED or PENDING; PENDING is the GRNI position. The GRIR clearing balance and the pending-GRN total differ slightly - partial billing and timing - and the page shows the difference rather than smoothing it. Company and location from the underlying GRN define the Ironmart business scope. Value comes from the GRN accounting voucher, not from GrnDetail: GrnDetail.Rate and .Amount are null on virtually every row in this ERP, so a GRN carries quantity only.
+    }
+
+    region command-header (
+        name: Unbilled Liability (GRNI)
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-ap-head">'
+                    || '<div class="ds-ap-eyebrow">Payables &middot; Unbilled Liability</div>'
+                    || '<h1 class="ds-ap-title">Unbilled Liability (GRNI)</h1>'
+                    || '<div class="ds-ap-sub">Goods received and credited to the GR/IR clearing account with no supplier bill passed yet - a liability that sits outside vendor AP by accounting design</div>'
+                    || '<div class="ds-ap-context">'
+                    || '<span class="ds-ap-chip"><span class="fa fa-crosshairs"></span>Pending as at <b>' || :P926_TODATE || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-random"></span>GL account <b>GRIRACCOUNT</b> &mdash; outside SUNDRYCREDITORS</span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P926_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P926_LOCATION),'All locations')) || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ap-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p714Filters
+        }
+    )
+
+    region grni-trend (
+        name: GRNI Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Receipts by the month they were RECEIVED, split by whether they have
+                   since been billed. Billed state is current, not as-at the month end -
+                   the question this answers is "which months are still unbilled", which
+                   is a current-state question, and the axis title says so. */
+                Select to_char(trunc(o.GRNDate,'MM'),'Mon-RR') As LABEL,
+                       Round(Sum(Case When o.Status = 'PENDING' Then nvl(o.Amount,0) Else 0 End)/10000000,2) As PENDING_CR,
+                       Round(Sum(Case When o.Status = 'BILLED'  Then nvl(o.Amount,0) Else 0 End)/10000000,2) As BILLED_CR
+                  From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                  Join GRN gr On gr.Tno = o.GRNTno
+                 Where o.GRNDate >= to_date(:P926_FROMDATE,'DD-MM-RRRR')
+                   And o.GRNDate <  to_date(:P926_TODATE,'DD-MM-RRRR') + 1
+                   And (cast(null as varchar2(100)) Is Null
+                        Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                   And (null    Is Null Or cast(null as varchar2(100))       = null)
+                   And (:P926_COMPANY  Is Null Or o.CompanyCode  = :P926_COMPANY)
+                   And (:P926_LOCATION Is Null Or o.LocationCode = :P926_LOCATION)
+                 Group By trunc(o.GRNDate,'MM')
+                 Order By trunc(o.GRNDate,'MM')
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 32
+            slot: body
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 340
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No goods receipt in this window for the selected scope.
+        }
+
+        series billed (
+            name: Since billed (₹ Cr)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: BILLED_CR
+            }
+        )
+
+        series pending (
+            name: Still unbilled (₹ Cr)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: PENDING_CR
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Receipt value by month received (₹ Cr)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region kpi-strip (
+        name: GRNI KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Every card is a band of the same PENDING population, so the age bands
+                   add up to the total and no receipt is counted twice. Age is measured
+                   from the GRN date to the As-of Date. */
+                With P As (
+                       Select o.GRNTno, o.GRNNo, o.GRNDate, nvl(o.Amount,0) Amt,
+                              gr.PartyCode Pty,
+                              to_date(:P926_TODATE,'DD-MM-RRRR') - o.GRNDate Age
+                         From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                         Join GRN gr On gr.Tno = o.GRNTno
+                        Where o.Status = 'PENDING'
+                          And o.GRNDate <= to_date(:P926_TODATE,'DD-MM-RRRR')
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))       = null)
+                          And (:P926_COMPANY  Is Null Or o.CompanyCode  = :P926_COMPANY)
+                          And (:P926_LOCATION Is Null Or o.LocationCode = :P926_LOCATION)),
+                     T As (
+                       Select nvl(Sum(Amt),0) Tot, Count(*) N,
+                              Count(Distinct Pty) Vnd,
+                              nvl(Sum(Case When Age > 7  Then Amt Else 0 End),0) A7,
+                              Count(Case When Age > 7  Then 1 End) N7,
+                              nvl(Sum(Case When Age > 30 Then Amt Else 0 End),0) A30,
+                              Count(Case When Age > 30 Then 1 End) N30,
+                              nvl(Sum(Case When Age > 90 Then Amt Else 0 End),0) A90,
+                              Count(Case When Age > 90 Then 1 End) N90,
+                              Max(Age) MaxAge,
+                              nvl(Sum(Case When Amt >= 500000 Then Amt Else 0 End),0) HiVal,
+                              Count(Case When Amt >= 500000 Then 1 End) HiN
+                         From P)
+                Select '<a class="ds-kpi ds-kpi--struct" href="#p714register" title="Every goods receipt credited to GR/IR with no supplier bill passed as at the As-of Date. This is the GRNI position, and it is not part of vendor AP.">'
+                    || '<span class="ds-kpi-ic fa fa-truck"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Total Unbilled Liability</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.Tot >= 10000000 Then to_char(Round(t.Tot/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Tot/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">' || to_char(t.N,'FM999G990') || ' receipts &middot; '
+                    || to_char(t.Vnd,'FM999G990') || ' vendors</div></div></a>' As K1,
+                       '<div class="ds-kpi ds-kpi--gold" title="Receipts awaiting a supplier bill for more than seven days.">'
+                    || '<span class="ds-kpi-ic fa fa-hourglass-start"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Unbilled Over 7 Days</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.A7 >= 10000000 Then to_char(Round(t.A7/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.A7/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">' || to_char(t.N7,'FM999G990') || ' receipts</div></div></div>' As K2,
+                       '<a class="ds-kpi ds-kpi--amber" href="'
+                    || apex_page.get_url(p_page => 927, p_clear_cache => '927',
+                         p_items => 'P927_FROMDATE,P927_TODATE,P927_COMPANY,P927_LOCATION,P927_CONTROL',
+                         p_values => :P926_FROMDATE ||','|| :P926_TODATE ||','|| :P926_COMPANY ||','|| :P926_LOCATION ||',AP-G01')
+                    || '" title="Receipts awaiting a supplier bill for more than thirty days - control AP-G01. Beyond a month the goods are consumed and the liability is real but unrecorded as vendor AP.">'
+                    || '<span class="ds-kpi-ic fa fa-hourglass-half"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Unbilled Over 30 Days</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.A30 >= 10000000 Then to_char(Round(t.A30/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.A30/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">' || to_char(t.N30,'FM999G990')
+                    || ' receipts &middot; control AP-G01</div></div></a>' As K3,
+                       '<div class="ds-kpi ds-kpi--risk" title="Receipts awaiting a supplier bill for more than ninety days. At this age the supplier bill may never arrive, and the accrual needs a decision rather than a reminder.">'
+                    || '<span class="ds-kpi-ic fa fa-hourglass-end"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Unbilled Over 90 Days</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.A90 >= 10000000 Then to_char(Round(t.A90/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.A90/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">' || to_char(t.N90,'FM999G990') || ' receipts &middot; oldest '
+                    || to_char(t.MaxAge,'FM999G990') || ' days</div></div></div>' As K4,
+                       '<div class="ds-kpi ds-kpi--violet" title="Individual receipts of five lakh or more awaiting a bill. Value, not age - a large recent accrual matters as much as a small old one.">'
+                    || '<span class="ds-kpi-ic fa fa-inr"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">High-Value Unbilled</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.HiVal >= 10000000 Then to_char(Round(t.HiVal/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.HiVal/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">' || to_char(t.HiN,'FM999G990')
+                    || ' receipts of &#8377;5 Lac or more</div></div></div>' As K5,
+                       '<div class="ds-apexcl"><div class="ds-apexcl-h">What a GRN cannot tell you</div>'
+                    || '<div class="ds-apexcl-b"><code>GrnDetail.Rate</code> and <code>GrnDetail.Amount</code> are null on '
+                    || 'virtually every row in this ERP, so a goods receipt carries <b>quantity only</b>. Every rupee figure on this page '
+                    || 'therefore comes from the GRN <b>accounting voucher</b> through the available GR/IR source, never from the '
+                    || 'receipt lines. Quantity is not summed across receipts either: this ERP books in Quintal, MT, KG and NOS on the '
+                    || 'same item, and a total across units of measure would be meaningless.</div></div>' As K6
+                  From T t
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column K1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: K1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: K2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: K3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: K4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: K5
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column K6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: K6
+            }
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region quick-links (
+        name: Go to
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Pg As (
+                  Select 920 Id, 'AP Command Centre'          Nm, 'Payable, due and overdue, payments, advances and the exceptions behind every number' Sub, 'fa-dashboard'              Ic From dual Union All
+                  Select 921,    'Vendor-wise Payable',           'One row per vendor, with ageing and the netting position',             'fa-users'                  From dual Union All
+                  Select 922,    'Bill-wise Payable',             'Every open item at line level, with its source document',              'fa-list-alt'               From dual Union All
+                  Select 923,    'Creditor 360',                  'One vendor from every angle - bills, payments, advances, statement',   'fa-user'                   From dual Union All
+                  Select 924,    'Payments and Settlement',       'Cash actually paid, which bank paid it, how much is applied',          'fa-upload'                 From dual Union All
+                  Select 925,    'Advances and Unapplied Payments','Money already with vendors, and the payable it could clear',          'fa-hand-o-up'              From dual Union All
+                  Select 927,    'Exceptions and Controls',       'Every control, what it tests, and the records that fail it',           'fa-exclamation-triangle'   From dual Union All
+                  Select 928,    'Reconciliation and Data Health','The open-item register against the general-ledger control account',    'fa-balance-scale'          From dual Union All
+                  Select 930,    'Trends and Cash Forecast',      'How the position moved, and the cash the due dates demand',            'fa-line-chart'             From dual Union All
+                  Select 931,    'Daily Payment MIS',             'One day: position, movement, dues and what remains unexplained',       'fa-calendar-o'             From dual Union All
+                  Select 932,    'Weekly AP Review',              'Opening against closing, and the controls that failed in the week',    'fa-calendar'               From dual Union All
+                  Select 933,    'Monthly Management MIS',        'The management pack, reconciled to the GL at the foot',                'fa-file-text-o'            From dual)
+                Select '<a class="ds-kpi ds-kpi--link ds-kpi--teal" href="'
+                    || apex_page.get_url(
+                         p_page        => Pg.Id,
+                         p_clear_cache => to_char(Pg.Id),
+                         p_items  => Case When Pg.Id = 931
+                                          Then 'P931_DAY,P931_COMPANY,P931_LOCATION'
+                                          Else 'P'||Pg.Id||'_FROMDATE,P'||Pg.Id||'_TODATE,P'
+                                               ||Pg.Id||'_COMPANY,P'||Pg.Id||'_LOCATION' End,
+                         p_values => Case When Pg.Id = 931
+                                          Then :P926_TODATE ||','|| :P926_COMPANY ||','|| :P926_LOCATION
+                                          Else :P926_FROMDATE ||','|| :P926_TODATE ||','|| :P926_COMPANY ||','|| :P926_LOCATION End)
+                    || '"><span class="ds-kpi-ic fa ' || Pg.Ic || '"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">' || Pg.Nm || '</div>'
+                    || '<div class="ds-kpi-sub">' || Pg.Sub || '</div></div></a>' As CARD
+                  From Pg
+                 Order By Pg.Id
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 900
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-apnavwrap
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: CARD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region register (
+        name: Pending GRN Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* One row per pending goods receipt. Ageing is from the GRN date to the
+                   As-of Date. The purchase voucher columns come from the view itself,
+                   which already resolves the accounting document behind each receipt. */
+                Select o.GRNNo                                          As GRN_NO,
+                       o.GRNDate                                        As GRN_DATE,
+                       nvl(p.PartyName, gr.PartyCode)  As VENDOR,
+                       gr.PartyCode                                     As PARTY_CODE,
+                       Round(nvl(o.Amount,0),2)                         As UNBILLED_VALUE,
+                       to_date(:P926_TODATE,'DD-MM-RRRR') - o.GRNDate   As DAYS_UNBILLED,
+                       Case When to_date(:P926_TODATE,'DD-MM-RRRR') - o.GRNDate > 90
+                                 Then '<span class="ds-apchip ds-apchip--fail">Over 90 days</span>'
+                            When to_date(:P926_TODATE,'DD-MM-RRRR') - o.GRNDate > 30
+                                 Then '<span class="ds-apchip ds-apchip--warn">Over 30 days</span>'
+                            When to_date(:P926_TODATE,'DD-MM-RRRR') - o.GRNDate > 7
+                                 Then '<span class="ds-apchip ds-apchip--info">Over 7 days</span>'
+                            Else '<span class="ds-apchip ds-apchip--pass">Recent</span>' End As AGE_BAND,
+                       o.VoucherNo                                      As GRN_VOUCHER,
+                       o.VOCUHERTNO                                     As VOUCHER_TNO,
+                       o.VehicleNo                                      As VEHICLE,
+                       o.TransporterName               As TRANSPORTER,
+                       o.PartyBillNo                   As SUPPLIER_BILL_NO,
+                       nvl(c.CompanyName, o.CompanyCode)  As COMPANY,
+                       nvl(l.LocationName, o.LocationCode) As LOCATION,
+                       cast(null as varchar2(100))                                         As PANEL
+                  From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                  Join GRN gr On gr.Tno = o.GRNTno
+                  Left Join Party p On p.PartyCode = gr.PartyCode
+                  Left Join Company c On c.CompanyCode = o.CompanyCode
+                  Left Join Location l On l.LocationCode = o.LocationCode
+                 Where o.Status = 'PENDING'
+                   And o.GRNDate <= to_date(:P926_TODATE,'DD-MM-RRRR')
+                   And (cast(null as varchar2(100)) Is Null
+                        Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                   And (null    Is Null Or cast(null as varchar2(100))       = null)
+                   And (:P926_COMPANY  Is Null Or o.CompanyCode  = :P926_COMPANY)
+                   And (:P926_LOCATION Is Null Or o.LocationCode = :P926_LOCATION)
+                 Order By o.GRNDate, o.GRNNo
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        advanced {
+            htmlDomId: p714register
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: Every goods receipt in this scope has a supplier bill against it.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 68354388779868915
+        }
+
+        column AGE_BAND (
+            type: plainText
+            heading {
+                heading: Age Band
+                alignment: center
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 130
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column DAYS_UNBILLED (
+            type: plainText
+            heading {
+                heading: Days Unbilled
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column GRN_DATE (
+            type: plainText
+            heading {
+                heading: GRN Date
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column GRN_NO (
+            type: plainText
+            heading {
+                heading: GRN No
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column GRN_VOUCHER (
+            type: link
+            heading {
+                heading: GRN Voucher
+            }
+            layout {
+                sequence: 80
+            }
+            link {
+                target: {
+                    page: 678
+                    items: {
+                        P678_TNO: #VOUCHER_TNO#
+                    }
+                    clearCache: 678
+                }
+                linkText: #GRN_VOUCHER#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column PANEL (
+            type: hidden
+            heading {
+                heading: Legacy Scope
+            }
+            layout {
+                sequence: 150
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column PARTY_CODE (
+            type: hidden
+            heading {
+                heading: Party Code
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column SUPPLIER_BILL_NO (
+            type: plainText
+            heading {
+                heading: Supplier Bill No
+            }
+            layout {
+                sequence: 120
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column TRANSPORTER (
+            type: plainText
+            heading {
+                heading: Transporter
+            }
+            layout {
+                sequence: 110
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column UNBILLED_VALUE (
+            type: plainText
+            heading {
+                heading: Unbilled Value (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: L
+            }
+        )
+
+        column VEHICLE (
+            type: plainText
+            heading {
+                heading: Vehicle
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+        )
+
+        column VENDOR (
+            type: link
+            heading {
+                heading: Vendor
+            }
+            layout {
+                sequence: 30
+            }
+            link {
+                target: {
+                    page: 923
+                    items: {
+                        P923_PARTY: #PARTY_CODE#
+                        P923_FROMDATE: &P926_FROMDATE.
+                        P923_TODATE: &P926_TODATE.
+                        P923_COMPANY: &P926_COMPANY.
+                        P923_LOCATION: &P926_LOCATION.
+                    }
+                    clearCache: 923
+                }
+                linkText: #VENDOR#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column VOUCHER_TNO (
+            type: hidden
+            heading {
+                heading: Voucher Tno
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AGE_BAND (
+                sequence: 7
+            )
+
+            displayColumn COMPANY (
+                sequence: 13
+            )
+
+            displayColumn DAYS_UNBILLED (
+                sequence: 6
+            )
+
+            displayColumn GRN_DATE (
+                sequence: 2
+            )
+
+            displayColumn GRN_NO (
+                sequence: 1
+            )
+
+            displayColumn GRN_VOUCHER (
+                sequence: 8
+            )
+
+            displayColumn LOCATION (
+                sequence: 14
+            )
+
+            displayColumn PANEL (
+                sequence: 15
+            )
+
+            displayColumn PARTY_CODE (
+                sequence: 4
+            )
+
+            displayColumn SUPPLIER_BILL_NO (
+                sequence: 12
+            )
+
+            displayColumn TRANSPORTER (
+                sequence: 11
+            )
+
+            displayColumn UNBILLED_VALUE (
+                sequence: 5
+            )
+
+            displayColumn VEHICLE (
+                sequence: 10
+            )
+
+            displayColumn VENDOR (
+                sequence: 3
+            )
+
+            displayColumn VOUCHER_TNO (
+                sequence: 9
+            )
+
+        )
+
+    )
+
+    region rule-analysis (
+        name: Where the Unbilled Liability Sits
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Where the Unbilled Liability Sits</h2>
+                  <p>By vendor and by location, and how the position has moved month by month</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 28
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region rule-register (
+        name: Pending Receipts
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Every Receipt Awaiting a Supplier Bill</h2>
+                  <p>Oldest first, with the vendor, the vehicle and the purchase voucher that recorded it</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 38
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region separate-note (
+        name: Why GRNI is not in vendor AP
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* A REPORT, not static text: the tie-out figures are measured live, so
+                   the note can never quote a stale difference. */
+                With G As (
+                       Select nvl(Sum(nvl(o.Amount,0)),0) Pend, Count(*) N
+                         From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                         Join GRN gr On gr.Tno = o.GRNTno
+                        Where o.Status = 'PENDING'
+                          And o.GRNDate <= to_date(:P926_TODATE,'DD-MM-RRRR')
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))       = null)
+                          And (:P926_COMPANY  Is Null Or o.CompanyCode  = :P926_COMPANY)
+                          And (:P926_LOCATION Is Null Or o.LocationCode = :P926_LOCATION)),
+                     Gl As (
+                       /* The GR/IR clearing account straight off the ledger. A credit is
+                          positive here, exactly as on the payables pages. */
+                       Select nvl(Sum(d.Amount),0) Bal
+                         From VoucherDetail d
+                        Where d.AccountCode = 'GRIRACCOUNT'
+                          And d.VoucherDate <= to_date(:P926_TODATE,'DD-MM-RRRR')
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P926_COMPANY  Is Null Or d.CompanyCode  = :P926_COMPANY)
+                          And (:P926_LOCATION Is Null Or d.LocationCode = :P926_LOCATION)),
+                     Fp As (
+                       Select nvl(Sum(d.Amount),0) Bal
+                         From VoucherDetail d
+                        Where d.AccountCode = 'FREIGHTPAYABLE'
+                          And d.VoucherDate <= to_date(:P926_TODATE,'DD-MM-RRRR')
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P926_COMPANY  Is Null Or d.CompanyCode  = :P926_COMPANY)
+                          And (:P926_LOCATION Is Null Or d.LocationCode = :P926_LOCATION))
+                Select '<div class="ds-apnote"><span class="fa fa-random"></span><div>'
+                    || '<b>This liability is deliberately absent from every payable figure on the other AP pages.</b> '
+                    || 'A goods receipt credits <code>GRIRACCOUNT</code>, which sits under CURRENTLIABILITIESANDPROVISION in this '
+                    || 'chart of accounts &mdash; <b>not</b> under SUNDRYCREDITORS. It becomes vendor AP only when a supplier bill is '
+                    || 'passed, at which point the clearing account is relieved. Adding the two together would double-count the same goods.'
+                    || '</div></div>'
+                    || '<div class="ds-apnote"><span class="fa fa-balance-scale"></span><div>'
+                    || '<b>Tie-out.</b> Pending GRNs in this scope: <b>&#8377;'
+                    || to_char(Round(g.Pend,2),'FM999G99G99G990D00') || '</b> across ' || to_char(g.N,'FM999G990')
+                    || ' receipts. GR/IR clearing balance on the ledger: <b>&#8377;'
+                    || to_char(Round(gl.Bal,2),'FM999G99G99G990D00') || '</b>. Difference: <b>&#8377;'
+                    || to_char(Round(gl.Bal - g.Pend,2),'FM999G99G99G990D00') || '</b> &mdash; '
+                    || Case When Abs(gl.Bal - g.Pend) < 1
+                            Then 'the view and the account agree.'
+                            Else 'partial billing and timing, where a receipt has been billed in part or billed after the As-of Date. '
+                                 || 'It is shown rather than smoothed: the two measures answer slightly different questions, and the gap is the finding.' End
+                    || ' Freight clearing (<code>FREIGHTPAYABLE</code>) carries a further <b>&#8377;'
+                    || to_char(Round(fp.Bal,2),'FM999G99G99G990D00') || '</b>, which is the transporter twin of this position.'
+                    || '</div></div>' As NOTE
+                  From G g Cross Join Gl gl Cross Join Fp fp
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 15
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column NOTE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: NOTE
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region top-vendors (
+        name: Top Vendors by Unbilled Liability
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With P As (
+                       Select gr.PartyCode Pty, nvl(o.Amount,0) Amt,
+                              to_date(:P926_TODATE,'DD-MM-RRRR') - o.GRNDate Age
+                         From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                         Join GRN gr On gr.Tno = o.GRNTno
+                        Where o.Status = 'PENDING'
+                          And o.GRNDate <= to_date(:P926_TODATE,'DD-MM-RRRR')
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))       = null)
+                          And (:P926_COMPANY  Is Null Or o.CompanyCode  = :P926_COMPANY)
+                          And (:P926_LOCATION Is Null Or o.LocationCode = :P926_LOCATION))
+                Select * From (
+                  Select nvl(pa.PartyName, p.Pty)                                  As LABEL,
+                         Round(Sum(p.Amt)/100000,2)                                As UNBILLED_LAC,
+                         Round(Sum(Case When p.Age > 30 Then p.Amt Else 0 End)/100000,2) As OVER30_LAC,
+                         p.Pty                                                     As PARTY_CODE
+                    From P p Left Join Party pa On pa.PartyCode = p.Pty
+                   Group By p.Pty, pa.PartyName
+                   Having Sum(p.Amt) > 0
+                   Order By Sum(p.Amt) Desc)
+                 Where rownum <= 12
+                 /* Outer Order By is required: the inner one only picks the twelve
+                    rows, it does not survive to the result set. */
+                 Order By UNBILLED_LAC Desc
+                ```
+            pageItemsToSubmit: [
+                P926_FROMDATE
+                P926_TODATE
+                P926_COMPANY
+                P926_LOCATION
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 340
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No vendor carries an unbilled receipt in this scope.
+        }
+
+        series over30 (
+            name: Of which over 30 days (₹ Lac)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: OVER30_LAC
+            }
+        )
+
+        series unbilled (
+            name: Unbilled (₹ Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: UNBILLED_LAC
+            }
+            link {
+                type: redirectThisApp
+                target: {
+                    page: 923
+                    items: {
+                        P923_PARTY: &PARTY_CODE.
+                        P923_FROMDATE: &P926_FROMDATE.
+                        P923_TODATE: &P926_TODATE.
+                        P923_COMPANY: &P926_COMPANY.
+                        P923_LOCATION: &P926_LOCATION.
+                    }
+                }
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Unbilled Liability (₹ Lac)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    pageItem P926_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                                Where o.CompanyCode = c.CompanyCode)
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P926_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Start of the FLOW window, which bounds the GRNI Trend chart only. The pending position, its ageing and the register are point-in-time measures taken at the To Date and are not affected by this item.
+        }
+    )
+
+    pageItem P926_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From (Select cast(null as number) Amount, cast(null as varchar2(100)) CompanyCode, cast(null as date) GRNDate, cast(null as varchar2(100)) GRNNo, cast(null as number) GRNTno, cast(null as varchar2(100)) LocationCode, cast(null as varchar2(100)) PartyBillNo, cast(null as varchar2(20)) Status, cast(null as varchar2(200)) TransporterName, cast(null as varchar2(100)) VehicleNo, cast(null as number) VOCUHERTNO, cast(null as varchar2(100)) VoucherNo From dual Where 1=0) o
+                                Where o.LocationCode = l.LocationCode
+                                  And (:P926_COMPANY Is Null Or o.CompanyCode = :P926_COMPANY))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P926_COMPANY
+            itemsToSubmit: P926_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: "Location" is the business term throughout this dashboard; the underlying column is LocationCode and is never renamed, only relabelled. The list shows only locations that actually carry a goods receipt, narrowed by the selected Company.
+        }
+    )
+
+    pageItem P926_TODATE (
+        type: datePicker
+        label {
+            label: To Date / As-of
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: End of the flow window AND the As-of Date for the pending position. Receipts dated after this date are excluded, and ageing is measured from the GRN date to this date.
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+)
+

@@ -1,0 +1,3517 @@
+page 903 (
+    name: Trial Balance Analytics
+    alias: TRIAL-BALANCE-ANALYTICS
+    title: Trial Balance Analytics
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: #APP_FILES#hspl-jet-l10n-fallback.js?version=#APP_VERSION#&cb=20260924a
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: Trial Balance Analytics. Detailed analytics for the Trial Balance selection — KPI pulse, monthly movement, doctype breakdown, account-group and account-nature distribution, integrity checks, dormant/abnormal/suspense registers, top movers and the full voucher register. All figures reconcile to the Trial Balance on page 675. Sign convention: VoucherDetail.Amount is a signed column — negative is debit, positive is credit. Opening balances come from the Opening table at financial-year begin plus VoucherDetail movement up to the day before From Date; the OPENING carry-forward vouchers are excluded from period movement. Amounts are base currency (INR) only — no multi-currency or exchange-rate columns in the voucher chain.
+    }
+
+    region abnormal (
+        name: Balances on the Wrong Side
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The rule is Party.BasicNature - the ERP's own declaration of which
+                   side an account belongs on - and NOT an assumption drawn from the
+                   group it sits under. 4,647 of 7,235 accounts have no declared
+                   nature; those are listed as "not declared" and never judged, because
+                   calling a balance abnormal against a rule that was never set is how
+                   an exception report becomes noise nobody reads. */
+                With Fy As (
+                       /* Always exactly one row. A From Date outside every defined
+                          financial year would otherwise empty this CTE and, with it,
+                          every aggregate downstream. Falling back to the From Date
+                          itself makes the opening nil and leaves movement intact; the
+                          header chip already says the date is outside any known year. */
+                       Select nvl((Select f.FinancialYearBegin From FinancialYear f
+                                    Where to_date(:P903_FROMDATE,'DD-MM-RRRR') Between f.FinancialYearBegin And f.FinancialYearEnd),
+                                  to_date(:P903_FROMDATE,'DD-MM-RRRR')) Fb From dual),
+                     Carry As (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING'),
+                     Op As (Select o.AccountCode Acct, Sum(nvl(o.OpeningAmount,0)) Amt From Opening o, Fy
+                             Where o.OpeningDate = Fy.Fb
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or o.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or o.LocationCode = :P903_LOCATION)
+                             Group By o.AccountCode),
+                     Mv As (Select d.AccountCode Acct, Sum(nvl(d.Amount,0)) Amt,
+                                   Max(d.VoucherDate) LastMove,
+                                   Sum(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') Then 1 Else 0 End) PeriodLines
+                              From VoucherDetail d, Fy
+                             Where d.VoucherDate >= Fy.Fb And d.VoucherDate < to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                               And d.Tno Not In (Select Tno From Carry)
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                             Group By d.AccountCode),
+                     Bal As (Select nvl(o.Acct,m.Acct) Acct, nvl(o.Amt,0)+nvl(m.Amt,0) Cl,
+                                    m.LastMove, nvl(m.PeriodLines,0) PeriodLines
+                               From Op o Full Outer Join Mv m On m.Acct = o.Acct)
+                Select '<a href="' || apex_page.get_url(p_page => 677, p_clear_cache => '677',
+                                p_items => 'P677_ACCOUNT,P677_FROMDATE,P677_TODATE,P677_COMPANY,P677_LOCATION',
+                                p_values => b.Acct || ',' || :P903_FROMDATE || ',' || :P903_TODATE || ','
+                                            || :P903_COMPANY || ',' || :P903_LOCATION)
+                       || '">' || apex_escape.html(p.PartyName) || '</a>'     As ACCOUNT,
+                       b.Acct                                                 As ACCOUNT_CODE,
+                       apex_escape.html(nvl(g.PartyName,'&mdash;'))           As ACCOUNT_GROUP,
+                       Case p.BasicNature When 'DR' Then 'Debit' Else 'Credit' End As EXPECTED_SIDE,
+                       Case When b.Cl < 0 Then 'Debit' Else 'Credit' End      As ACTUAL_SIDE,
+                       Round(Abs(b.Cl),2)                                     As CLOSING_BALANCE,
+                       Case When Abs(b.Cl) >= 10000000
+                                 Then '<span class="ds-finchip ds-finchip--bad">Critical</span>'
+                            When Abs(b.Cl) >= 500000
+                                 Then '<span class="ds-finchip ds-finchip--watch">High</span>'
+                            Else      '<span class="ds-finchip ds-finchip--flat">Low</span>' End As SEVERITY,
+                       Case When b.PeriodLines = 0
+                                 Then 'Carried in from opening - no movement in this period'
+                            When p.BasicNature = 'DR'
+                                 Then 'A debit-nature account closing on the credit side: typically an over-receipt, an advance taken, or a payment posted against the wrong party'
+                            Else 'A credit-nature account closing on the debit side: typically an advance paid, an over-payment, or a receipt posted against the wrong party'
+                       End                                                    As LIKELY_CAUSE,
+                       b.LastMove                                             As LAST_POSTING
+                  From Bal b
+                  Join Party p On p.PartyCode = b.Acct
+                  Left Join Party g On g.PartyCode = p.ParentCode
+                 Where (p.BasicNature = 'DR' And b.Cl >  0.5)
+                    Or (p.BasicNature = 'CR' And b.Cl < -0.5)
+                 Order By Abs(b.Cl) Desc
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 64
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Every account with a declared nature closes on the side the ERP expects.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 43522080850737358
+        }
+
+        column ACCOUNT (
+            type: plainText
+            heading {
+                heading: Account
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACCOUNT_CODE (
+            type: plainText
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ACCOUNT_GROUP (
+            type: plainText
+            heading {
+                heading: Group
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACTUAL_SIDE (
+            type: plainText
+            heading {
+                heading: Actual Side
+            }
+            layout {
+                sequence: 50
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column CLOSING_BALANCE (
+            type: plainText
+            heading {
+                heading: Closing Balance (₹)
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column EXPECTED_SIDE (
+            type: plainText
+            heading {
+                heading: Expected Side
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column LAST_POSTING (
+            type: plainText
+            heading {
+                heading: Last Posting
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column LIKELY_CAUSE (
+            type: plainText
+            heading {
+                heading: Likely Cause
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SEVERITY (
+            type: plainText
+            heading {
+                heading: Severity
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 1 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 25
+            }
+
+            displayColumn ACCOUNT (
+                sequence: 1
+            )
+
+            displayColumn ACCOUNT_GROUP (
+                sequence: 2
+            )
+
+            displayColumn ACTUAL_SIDE (
+                sequence: 4
+            )
+
+            displayColumn CLOSING_BALANCE (
+                sequence: 5
+            )
+
+            displayColumn EXPECTED_SIDE (
+                sequence: 3
+            )
+
+            displayColumn LAST_POSTING (
+                sequence: 7
+            )
+
+            displayColumn LIKELY_CAUSE (
+                sequence: 8
+            )
+
+            displayColumn SEVERITY (
+                sequence: 6
+            )
+
+        )
+
+    )
+
+    region command-header (
+        name: Trial Balance Analytics
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-fin-head">'
+                    /* Back CTA, pinned to the top-right of the header band the same way
+                       page 703's Purchase Analytics link is. Round-trips all six filter
+                       values so the reader lands back on the same Trial Balance scope. */
+                    || '<a class="ds-head-cta" href="'
+                       || apex_page.get_url(
+                            p_page   => 902,
+                            p_clear_cache => '902',
+                            p_items  => 'P902_FROMDATE,P902_TODATE,P902_COMPANY,P902_LOCATION,P902_ACCOUNTGROUP',
+                            p_values => :P903_FROMDATE||','||:P903_TODATE||','||:P903_COMPANY||','||:P903_LOCATION
+                ||','||:P903_ACCOUNTGROUP)
+                       || '"><span class="fa fa-arrow-left"></span>Trial Balance <b>&larr;</b></a>'
+                    || '<div class="ds-fin-eyebrow">Finance &middot; General Ledger &middot; Analytics</div>'
+                    || '<h1 class="ds-fin-title">Trial Balance Analytics</h1>'
+                    || '<div class="ds-fin-sub">Ledger pulse, monthly movement, doctype breakdown, group/nature distribution, integrity, dormant, abnormal, suspense, top movers and the voucher register &mdash; on the Trial Balance selection above</div>'
+                    || '<div class="ds-fin-context">'
+                    || '<span class="ds-fin-chip"><span class="fa fa-calendar"></span>Period <b>'
+                       || :P903_FROMDATE || ' &rarr; ' || :P903_TODATE || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-calendar-check-o"></span>Financial Year <b>'
+                       || nvl((Select f.FinancialYearCode From FinancialYear f
+                                Where to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                                      Between f.FinancialYearBegin And f.FinancialYearEnd),'outside any defined year')
+                       || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P903_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-fin-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P903_LOCATION),'All locations')) || '</b></span>'
+                    || Case When :P903_ACCOUNTGROUP Is Not Null Then
+                            '<span class="ds-fin-chip"><span class="fa fa-sitemap"></span>Group <b>'
+                            || apex_escape.html(nvl((Select p.PartyName From Party p Where p.PartyCode = :P903_ACCOUNTGROUP),:P903_ACCOUNTGROUP))
+                            || '</b></span>' End
+                    || '<span class="ds-fin-chip"><span class="fa fa-money"></span>Currency <b>INR (base, single-currency ledger)</b></span>'
+                    || '<span class="ds-fin-chip ds-fin-chip--live"><span class="fa fa-clock-o"></span>Last posting <b>'
+                       || nvl((Select to_char(Max(d.VoucherDate),'DD-MM-RRRR')
+                                 From VoucherDetail d
+                                Where (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                                  And (null    Is Null Or cast(null as varchar2(100))        = null)
+                                  And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                                  And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)),'no postings') || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+                P903_ACCOUNTGROUP
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region doctype-bar (
+        name: Movement by Voucher Type
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select * From (
+                  Select v.DocTypeCode As LABEL,
+                         Round(Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End)/100000,2) As DEBIT_LAC
+                    From VoucherDetail d
+                    Join Voucher v On v.Tno = d.Tno
+                   Where d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                     And d.VoucherDate <  to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                     And v.VoucherNo <> 'OPENING'
+                     And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                     And (null    Is Null Or cast(null as varchar2(100))        = null)
+                     And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                     And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                   Group By v.DocTypeCode
+                   Order By 2 Desc)
+                 Where rownum <= 10
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 54
+            slot: body
+            startNewRow: false
+            columnSpan: 5
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartAppearance {
+            orientation: horizontal
+        }
+        chartLayout {
+            height: 340
+        }
+        legend {
+            show: false
+        }
+        messages {
+            whenNoDataFound: No voucher activity in this period.
+        }
+
+        series doctype (
+            name: Debit Movement (₹ Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: DEBIT_LAC
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Debit Movement (₹ Lac)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region dormant (
+        name: Dormant Balances
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Fy As (
+                       /* Always exactly one row. A From Date outside every defined
+                          financial year would otherwise empty this CTE and, with it,
+                          every aggregate downstream. Falling back to the From Date
+                          itself makes the opening nil and leaves movement intact; the
+                          header chip already says the date is outside any known year. */
+                       Select nvl((Select f.FinancialYearBegin From FinancialYear f
+                                    Where to_date(:P903_FROMDATE,'DD-MM-RRRR') Between f.FinancialYearBegin And f.FinancialYearEnd),
+                                  to_date(:P903_FROMDATE,'DD-MM-RRRR')) Fb From dual),
+                     Carry As (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING'),
+                     Op As (Select o.AccountCode Acct, Sum(nvl(o.OpeningAmount,0)) Amt From Opening o, Fy
+                             Where o.OpeningDate = Fy.Fb
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or o.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or o.LocationCode = :P903_LOCATION)
+                             Group By o.AccountCode),
+                     Mv As (Select d.AccountCode Acct,
+                                   Sum(Case When d.VoucherDate < to_date(:P903_FROMDATE,'DD-MM-RRRR') Then nvl(d.Amount,0) Else 0 End) Pre,
+                                   Sum(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') Then 1 Else 0 End) PeriodLines,
+                                   Max(d.VoucherDate) LastMove
+                              From VoucherDetail d, Fy
+                             Where d.VoucherDate >= Fy.Fb And d.VoucherDate < to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                               And d.Tno Not In (Select Tno From Carry)
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                             Group By d.AccountCode),
+                     Bal As (Select nvl(o.Acct,m.Acct) Acct, nvl(o.Amt,0)+nvl(m.Pre,0) Cl,
+                                    nvl(m.PeriodLines,0) PeriodLines, m.LastMove
+                               From Op o Full Outer Join Mv m On m.Acct = o.Acct)
+                Select '<a href="' || apex_page.get_url(p_page => 677, p_clear_cache => '677',
+                                p_items => 'P677_ACCOUNT,P677_FROMDATE,P677_TODATE,P677_COMPANY,P677_LOCATION',
+                                p_values => b.Acct || ',' || :P903_FROMDATE || ',' || :P903_TODATE || ','
+                                            || :P903_COMPANY || ',' || :P903_LOCATION)
+                       || '">' || apex_escape.html(nvl(p.PartyName,b.Acct)) || '</a>' As ACCOUNT,
+                       b.Acct                                       As ACCOUNT_CODE,
+                       apex_escape.html(nvl(g.PartyName,'&mdash;')) As ACCOUNT_GROUP,
+                       Round(Greatest(-b.Cl,0),2)                   As BALANCE_DEBIT,
+                       Round(Greatest( b.Cl,0),2)                   As BALANCE_CREDIT,
+                       b.LastMove                                   As LAST_POSTING_IN_YEAR,
+                       Case When b.LastMove Is Null
+                                 Then '<span class="ds-finchip ds-finchip--watch">No posting this year</span>'
+                            Else      '<span class="ds-finchip ds-finchip--flat">No posting in period</span>' End As STATUS
+                  From Bal b
+                  Left Join Party p On p.PartyCode = b.Acct
+                  Left Join Party g On g.PartyCode = p.ParentCode
+                 Where b.PeriodLines = 0 And Abs(b.Cl) > 0.5
+                 Order By Abs(b.Cl) Desc
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 68
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: Every account carrying a balance also moved in this period.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 43524713636737361
+        }
+
+        column ACCOUNT (
+            type: plainText
+            heading {
+                heading: Account
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACCOUNT_CODE (
+            type: plainText
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ACCOUNT_GROUP (
+            type: plainText
+            heading {
+                heading: Group
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column BALANCE_CREDIT (
+            type: plainText
+            heading {
+                heading: Balance Cr (₹)
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column BALANCE_DEBIT (
+            type: plainText
+            heading {
+                heading: Balance Dr (₹)
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column LAST_POSTING_IN_YEAR (
+            type: plainText
+            heading {
+                heading: Last Posting This Year
+            }
+            layout {
+                sequence: 60
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 1 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 25
+            }
+
+            displayColumn ACCOUNT (
+                sequence: 1
+            )
+
+            displayColumn ACCOUNT_GROUP (
+                sequence: 2
+            )
+
+            displayColumn BALANCE_CREDIT (
+                sequence: 4
+            )
+
+            displayColumn BALANCE_DEBIT (
+                sequence: 3
+            )
+
+            displayColumn LAST_POSTING_IN_YEAR (
+                sequence: 5
+            )
+
+            displayColumn STATUS (
+                sequence: 6
+            )
+
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p675Filters
+        }
+    )
+
+    region filter-drawer (
+        name: Advanced Filters
+        type: staticContent
+        layout {
+            sequence: 12
+            slot: body
+        }
+        appearance {
+            template: 1662449473392619772
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: [
+                ds-filterdrawer
+                js-dialog-class-t-Drawer--pullOutEnd
+            ]
+        }
+        advanced {
+            htmlDomId: p675Drawer
+        }
+    )
+
+    region group-bar (
+        name: Top Account Groups by Closing Balance
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Fy As (
+                       /* Always exactly one row. A From Date outside every defined
+                          financial year would otherwise empty this CTE and, with it,
+                          every aggregate downstream. Falling back to the From Date
+                          itself makes the opening nil and leaves movement intact; the
+                          header chip already says the date is outside any known year. */
+                       Select nvl((Select f.FinancialYearBegin From FinancialYear f
+                                    Where to_date(:P903_FROMDATE,'DD-MM-RRRR') Between f.FinancialYearBegin And f.FinancialYearEnd),
+                                  to_date(:P903_FROMDATE,'DD-MM-RRRR')) Fb From dual),
+                     Carry As (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING'),
+                     /* Level-3 node of the GRAFTED chart - the same hierarchy page 675
+                        draws. A group's statement comes from its nature, not from a
+                        parent an end user happened to pick, so BALANCE SHEET and PROFIT
+                        AND LOSS are synthetic here too. Walking down from those two
+                        names instead would miss the 42 major groups that were never put
+                        inside either, which is most of the chart by count. */
+                     Grp As (
+                       Select w.Leaf,
+                              regexp_substr(
+                                Case When w.Root In ('BALANCESHEET','PROFITANDLOSS') Then w.Path
+                                     Else '/' || Case When w.RootNat In ('ASSETS','LIABILITIES') Then 'BALANCESHEET'
+                                                      When w.RootNat In ('INCOME','EXPENSES')    Then 'PROFITANDLOSS'
+                                                      Else 'NOSTATEMENT' End || w.Path End,
+                                '[^/]+',1,3) Node
+                         From (Select o.PartyCode Leaf,
+                                      Connect_By_Root o.PartyCode           Root,
+                                      Connect_By_Root o.NatureOfAccountCode RootNat,
+                                      Sys_Connect_By_Path(o.PartyCode,'/')  Path
+                                 From Party o
+                                Start With o.ParentCode Is Null
+                              Connect By Prior o.PartyCode = o.ParentCode) w),
+                     Op As (Select o.AccountCode Acct, Sum(nvl(o.OpeningAmount,0)) Amt From Opening o, Fy
+                             Where o.OpeningDate = Fy.Fb
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or o.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or o.LocationCode = :P903_LOCATION)
+                             Group By o.AccountCode),
+                     Mv As (Select d.AccountCode Acct, Sum(nvl(d.Amount,0)) Amt From VoucherDetail d, Fy
+                             Where d.VoucherDate >= Fy.Fb And d.VoucherDate < to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                               And d.Tno Not In (Select Tno From Carry)
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                             Group By d.AccountCode),
+                     Bal As (Select nvl(o.Acct,m.Acct) Acct,
+                                    Greatest(-(nvl(o.Amt,0)+nvl(m.Amt,0)),0) ClDr,
+                                    Greatest( (nvl(o.Amt,0)+nvl(m.Amt,0)),0) ClCr
+                               From Op o Full Outer Join Mv m On m.Acct = o.Acct)
+                Select * From (
+                  Select apex_escape.html(nvl(p.PartyName, g.Node)) As LABEL,
+                         Round(Sum(b.ClDr)/100000,2) As DEBIT_LAC,
+                         Round(Sum(b.ClCr)/100000,2) As CREDIT_LAC
+                    From Bal b Join Grp g On g.Leaf = b.Acct
+                    Left Join Party p On p.PartyCode = g.Node
+                   Where g.Node Is Not Null
+                   Group By g.Node, p.PartyName
+                  Having Sum(b.ClDr) + Sum(b.ClCr) > 0.005
+                   Order By Sum(b.ClDr) + Sum(b.ClCr) Desc)
+                 Where rownum <= 12
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 42
+            slot: body
+            columnSpan: 8
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 360
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No account group carries a closing balance in this scope.
+        }
+
+        series closing-credit (
+            name: Closing Credit (₹ Lac)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: CREDIT_LAC
+            }
+        )
+
+        series closing-debit (
+            name: Closing Debit (₹ Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: DEBIT_LAC
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Closing Balance (₹ Lac)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region integrity (
+        name: Posting Integrity
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Every count here is a real control this ERP can actually answer.
+                   There is deliberately NO "unposted vouchers" card: the Voucher table
+                   carries no approval, posting or draft status column at all, so every
+                   row in it is posted by construction. Inventing a status would be the
+                   easiest possible way to make this page lie. */
+                With B As (
+                       Select to_date(:P903_FROMDATE,'DD-MM-RRRR') Fd, to_date(:P903_TODATE,'DD-MM-RRRR') Td From dual),
+                     Unbal As (
+                       Select Count(*) N, nvl(Sum(Abs(s)),0) V From (
+                         Select d.Tno, Sum(nvl(d.Amount,0)) s
+                           From VoucherDetail d, B
+                          Where d.VoucherDate >= B.Fd And d.VoucherDate < B.Td + 1
+                            And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                            And (null Is Null Or cast(null as varchar2(100)) = null)
+                            And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                            And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                          Group By d.Tno Having Abs(Sum(nvl(d.Amount,0))) > 0.005)),
+                     Empty As (
+                       Select Count(*) N From Voucher v, B
+                        Where v.VoucherDate >= B.Fd And v.VoucherDate < B.Td + 1
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null Is Null Or cast(null as varchar2(100)) = null)
+                          And (:P903_COMPANY Is Null Or v.CompanyCode = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or v.LocationCode = :P903_LOCATION)
+                          And Not Exists (Select 1 From VoucherDetail d Where d.Tno = v.Tno)),
+                     Nil As (
+                       Select Count(Case When d.Amount Is Null Then 1 End) NullAmt,
+                              Count(Case When d.Amount = 0 Then 1 End) ZeroAmt
+                         From VoucherDetail d, B
+                        Where d.VoucherDate >= B.Fd And d.VoucherDate < B.Td + 1
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null Is Null Or cast(null as varchar2(100)) = null)
+                          And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)),
+                     Fut As (
+                       Select Count(Distinct d.Tno) N, nvl(Sum(Abs(nvl(d.Amount,0))),0) V
+                         From VoucherDetail d
+                        Where d.VoucherDate > trunc(sysdate)
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null Is Null Or cast(null as varchar2(100)) = null)
+                          And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)),
+                     /* VoucherDLog is the ERP's own deletion audit: a voucher that once
+                        existed and no longer does. It is the closest thing this ledger
+                        has to a cancellation, and it is a real control signal.
+                        SCOPE LIMIT: the table carries CompanyCode but NO Panel and NO
+                        LocationCode, and the voucher it refers to is gone, so there is
+                        nothing left to join to for the other two. This count is company-
+                        scoped only, and the card says so rather than implying otherwise. */
+                     Del As (
+                       Select Count(*) N From VoucherDLog dl, B
+                        Where dl.VoucherDate >= B.Fd And dl.VoucherDate < B.Td + 1
+                          And (:P903_COMPANY Is Null Or dl.CompanyCode = :P903_COMPANY)),
+                     Back As (
+                       Select Count(*) N From Voucher v, B
+                        Where v.VoucherDate >= B.Fd And v.VoucherDate < B.Td + 1
+                          And v.CreationTime Is Not Null And v.CreationTime - v.VoucherDate > 30
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null Is Null Or cast(null as varchar2(100)) = null)
+                          And (:P903_COMPANY Is Null Or v.CompanyCode = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or v.LocationCode = :P903_LOCATION)),
+                     Off As (
+                       Select Count(*) N, Count(Distinct d.AccountCode) A
+                         From VoucherDetail d, B
+                        Where d.VoucherDate >= B.Fd And d.VoucherDate < B.Td + 1
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null Is Null Or cast(null as varchar2(100)) = null)
+                          And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                          /* Every account reaches a root now that the walk starts at
+                             ParentCode Is Null, so "hangs off no root" would read zero
+                             for ever and the control would be dead. What still needs
+                             watching is an account that cannot be placed in EITHER
+                             statement because nothing on its branch carries a nature -
+                             the same rows page 675 collects under "Nature not set in
+                             the ERP". Fixing one is a master-data edit, not a code
+                             change, and this is what says how much money is waiting on
+                             it. */
+                          And d.AccountCode In (
+                                Select w.Leaf
+                                  From (Select o.PartyCode Leaf,
+                                               Connect_By_Root o.NatureOfAccountCode RootNat,
+                                               regexp_substr(Sys_Connect_By_Path(o.PartyCode,'/'),'[^/]+',1,2) L2
+                                          From Party o
+                                         Start With o.ParentCode Is Null
+                                       Connect By Prior o.PartyCode = o.ParentCode) w
+                                 Where w.RootNat Is Null
+                                   And nvl(w.L2,'-') Not In ('ASSET','LIABILITY','INCOME','EXPENDITURES')))
+                Select '<div class="ds-kpi ds-kpi--' || Case When u.N = 0 Then 'ok' Else 'risk' End
+                    || '" title="Vouchers whose own lines do not net to zero. Source: sum of VoucherDetail.Amount per Tno, tolerance half a paisa.">'
+                    || '<span class="ds-kpi-ic fa fa-unlink"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Out-of-Balance Vouchers</div><div class="ds-kpi-n">'
+                    || to_char(u.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">'
+                       || Case When u.N = 0 Then 'Every voucher in the period nets to zero'
+                               Else '&#8377;' || to_char(u.V,'FM99G99G99G990D00') || ' unmatched' End
+                    || '</div></div></div>' As C1,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When e.N = 0 Then 'ok' Else 'exc' End
+                    || '" title="Voucher headers with no VoucherDetail line at all. They contribute nothing to the ledger but are incomplete documents.">'
+                    || '<span class="ds-kpi-ic fa fa-file-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Vouchers With No Lines</div><div class="ds-kpi-n">'
+                    || to_char(e.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">Headers carrying no posting at all</div>'
+                    || '</div></div>' As C2,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When n.NullAmt + n.ZeroAmt = 0 Then 'ok' Else 'exc' End
+                    || '" title="Voucher lines with a null or zero amount. Neither moves the ledger; a null amount is a data-quality fault, a zero is usually a cancelled line left in place.">'
+                    || '<span class="ds-kpi-ic fa fa-ban"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Empty Voucher Lines</div><div class="ds-kpi-n">'
+                    || to_char(n.NullAmt + n.ZeroAmt,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">' || to_char(n.NullAmt,'FM999G990') || ' null &middot; '
+                       || to_char(n.ZeroAmt,'FM999G990') || ' zero</div>'
+                    || '</div></div>' As C3,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When f.N = 0 Then 'ok' Else 'exc' End
+                    || '" title="Postings dated after today. Legitimate for a forward-dated payment, but they sit in the ledger now.">'
+                    || '<span class="ds-kpi-ic fa fa-calendar-plus-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Future-Dated Postings</div><div class="ds-kpi-n">'
+                    || to_char(f.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">'
+                       || Case When f.N = 0 Then 'Nothing is dated beyond today'
+                               Else '&#8377;' || to_char(f.V,'FM99G99G99G990D00') || ' beyond today' End
+                    || '</div></div></div>' As C4,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When d.N = 0 Then 'ok' Else 'exc' End
+                    || '" title="Vouchers deleted from this period, from the ERP''s own VoucherDLog audit table. This ledger has no reversal or cancellation flag - deletion is the mechanism. VoucherDLog carries no panel or location column and the voucher itself is gone, so this count honours the Company filter only.">'
+                    || '<span class="ds-kpi-ic fa fa-trash-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Deleted Vouchers</div><div class="ds-kpi-n">'
+                    || to_char(d.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">Audited in VoucherDLog &middot; company scope only</div>'
+                    || '</div></div>' As C5,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When b.N = 0 Then 'ok' Else 'exc' End
+                    || '" title="Vouchers entered more than 30 days after their own voucher date. Source: Voucher.CreationTime minus Voucher.VoucherDate.">'
+                    || '<span class="ds-kpi-ic fa fa-history"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Backdated Over 30 Days</div><div class="ds-kpi-n">'
+                    || to_char(b.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">Posted long after the date they claim</div>'
+                    || '</div></div>' As C6,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When o.N = 0 Then 'ok' Else 'risk' End
+                    || '" title="Lines posted to accounts that fall in neither statement because nothing on their branch carries a nature. Real money the Balance Sheet and Profit and Loss both miss. Set NatureOfAccountCode on the major group in the ERP and they place themselves.">'
+                    || '<span class="ds-kpi-ic fa fa-unlink"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Postings With No Nature</div><div class="ds-kpi-n">'
+                    || to_char(o.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">' || to_char(o.A,'FM999G990') || ' account(s) with no nature set</div>'
+                    || '</div></div>' As C7,
+                
+                       '<div class="ds-kpi ds-kpi--slate" title="Not a metric - a statement of scope. The Voucher table has no approval, posting or draft column, so no unposted-voucher control can honestly be built on this ERP.">'
+                    || '<span class="ds-kpi-ic fa fa-info"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Posting Status</div><div class="ds-kpi-n">Not held</div>'
+                    || '<div class="ds-kpi-sub">This ERP stores no draft or approval state &mdash; every voucher is posted</div>'
+                    || '</div></div>' As C8
+                  From Unbal u Cross Join Empty e Cross Join Nil n Cross Join Fut f
+                  Cross Join Del d Cross Join Back b Cross Join Off o
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 62
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        performance {
+            lazyLoading: true
+        }
+
+        column C1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: C1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: C2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: C3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: C4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: C5
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: C6
+            }
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C7 (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: C7
+            }
+            layout {
+                sequence: 70
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column C8 (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: C8
+            }
+            layout {
+                sequence: 80
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region kpi-strip (
+        name: Ledger Pulse KPIs
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Fy As (
+                       /* Always exactly one row. A From Date outside every defined
+                          financial year would otherwise empty this CTE and, with it,
+                          every aggregate downstream. Falling back to the From Date
+                          itself makes the opening nil and leaves movement intact; the
+                          header chip already says the date is outside any known year. */
+                       Select nvl((Select f.FinancialYearBegin From FinancialYear f
+                                    Where to_date(:P903_FROMDATE,'DD-MM-RRRR') Between f.FinancialYearBegin And f.FinancialYearEnd),
+                                  to_date(:P903_FROMDATE,'DD-MM-RRRR')) Fb From dual),
+                     Carry As (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING'),
+                     Op As (
+                       Select o.AccountCode Acct, Sum(nvl(o.OpeningAmount,0)) Amt
+                         From Opening o, Fy
+                        Where o.OpeningDate = Fy.Fb
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P903_COMPANY  Is Null Or o.CompanyCode  = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or o.LocationCode = :P903_LOCATION)
+                        Group By o.AccountCode),
+                     Mv As (
+                       Select d.AccountCode Acct,
+                              Sum(Case When d.VoucherDate <  to_date(:P903_FROMDATE,'DD-MM-RRRR') Then nvl(d.Amount,0) Else 0 End) Pre,
+                              Sum(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') And nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End) Dr,
+                              Sum(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') And nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End) Cr,
+                              Count(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') Then 1 End) Lines
+                         From VoucherDetail d, Fy
+                        Where d.VoucherDate >= Fy.Fb
+                          And d.VoucherDate <  to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                          And d.Tno Not In (Select Tno From Carry)
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                        Group By d.AccountCode),
+                     Bal As (
+                       Select nvl(o.Acct,m.Acct) Acct, nvl(o.Amt,0) + nvl(m.Pre,0) Opn,
+                              nvl(m.Dr,0) Dr, nvl(m.Cr,0) Cr, nvl(m.Lines,0) Lines
+                         From Op o Full Outer Join Mv m On m.Acct = o.Acct),
+                     T As (
+                       Select Sum(Greatest(-Opn,0)) OpDr, Sum(Greatest(Opn,0)) OpCr,
+                              Sum(Dr) PDr, Sum(Cr) PCr,
+                              Sum(Greatest(-(Opn-Dr+Cr),0)) ClDr, Sum(Greatest((Opn-Dr+Cr),0)) ClCr,
+                              Count(*) Accts,
+                              Count(Case When Lines > 0 Then 1 End) Moved,
+                              Count(Case When Abs(Opn-Dr+Cr) < 0.005 Then 1 End) ZeroBal,
+                              Sum(Lines) Lines
+                         From Bal),
+                     /* Prior window of equal length, immediately preceding, clamped to
+                        the year begin so a comparison can never reach back across the
+                        year-end close and pick the carry-forward up as movement. */
+                     Prv As (
+                       Select nvl(Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End),0) Dr,
+                              nvl(Sum(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End),0) Cr
+                         From VoucherDetail d, Fy
+                        Where d.VoucherDate >= Greatest(Fy.Fb, to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                                                  - (to_date(:P903_TODATE,'DD-MM-RRRR') - to_date(:P903_FROMDATE,'DD-MM-RRRR') + 1))
+                          And d.VoucherDate <  to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                          And d.Tno Not In (Select Tno From Carry)
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)),
+                     /* Abnormal = the closing side contradicts Party.BasicNature, the
+                        ERP's own declaration of which side an account should sit on.
+                        Accounts where the ERP has not declared a nature are NOT judged. */
+                     Abn As (
+                       Select Count(*) N, nvl(Sum(Abs(b.Opn-b.Dr+b.Cr)),0) V
+                         From Bal b Join Party p On p.PartyCode = b.Acct
+                        Where (p.BasicNature = 'DR' And (b.Opn-b.Dr+b.Cr) > 0.5)
+                           Or (p.BasicNature = 'CR' And (b.Opn-b.Dr+b.Cr) < -0.5)),
+                     Vch As (
+                       Select Count(Distinct d.Tno) N, Max(d.VoucherDate) Last
+                         From VoucherDetail d
+                        Where d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                          And d.VoucherDate <  to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                          And d.Tno Not In (Select Tno From Carry)
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION))
+                Select '<div class="ds-kpi ds-kpi--dr" title="Sum of the closing debit side, decided per posting account then totalled. Source: Opening + VoucherDetail.">'
+                    || '<span class="ds-kpi-ic fa fa-arrow-circle-o-left"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Closing Debit</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.ClDr >= 10000000 Then to_char(t.ClDr/10000000,'FM9G99G990D00')||'<i>Cr</i>'
+                            When t.ClDr >= 100000   Then to_char(t.ClDr/100000,'FM99G990D00')||'<i>L</i>'
+                            Else to_char(t.ClDr,'FM99G99G990D00') End || '</div>'
+                    || '<div class="ds-kpi-sub">' || to_char(t.Accts,'FM999G990') || ' accounts in scope as at ' || :P903_TODATE || '</div>'
+                    || '</div></div>' As KPI1,
+                
+                       '<div class="ds-kpi ds-kpi--cr" title="Sum of the closing credit side, decided per posting account then totalled.">'
+                    || '<span class="ds-kpi-ic fa fa-arrow-circle-o-right"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Closing Credit</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.ClCr >= 10000000 Then to_char(t.ClCr/10000000,'FM9G99G990D00')||'<i>Cr</i>'
+                            When t.ClCr >= 100000   Then to_char(t.ClCr/100000,'FM99G990D00')||'<i>L</i>'
+                            Else to_char(t.ClCr,'FM99G99G990D00') End || '</div>'
+                    || '<div class="ds-kpi-sub">' || to_char(t.ZeroBal,'FM999G990') || ' of them close at zero</div>'
+                    || '</div></div>' As KPI2,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When Abs(t.ClDr-t.ClCr) < 0.005 Then 'ok' Else 'risk' End
+                    || '" title="Closing debit less closing credit, compared at full precision. Anything other than zero means the ledger does not balance for this scope.">'
+                    || '<span class="ds-kpi-ic fa fa-balance-scale"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Balance Difference</div><div class="ds-kpi-n">&#8377;'
+                    || to_char(Abs(t.ClDr-t.ClCr),'FM99G99G99G990D00') || '</div>'
+                    || Case When Abs(t.ClDr-t.ClCr) < 0.005
+                            Then '<div class="ds-kpi-sub">Debits equal credits &mdash; the books balance</div>'
+                            Else '<div class="ds-kpi-sub">Carried from an opening difference of &#8377;'
+                                 || to_char(Abs(t.OpDr-t.OpCr),'FM99G99G99G990D00') || '</div>' End
+                    || '</div></div>' As KPI3,
+                
+                       '<div class="ds-kpi ds-kpi--move" title="Debit movement posted between From Date and To Date, excluding the OPENING carry-forward vouchers.">'
+                    || '<span class="ds-kpi-ic fa fa-sign-in"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Period Debit</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.PDr >= 10000000 Then to_char(t.PDr/10000000,'FM9G99G990D00')||'<i>Cr</i>'
+                            When t.PDr >= 100000   Then to_char(t.PDr/100000,'FM99G990D00')||'<i>L</i>'
+                            Else to_char(t.PDr,'FM99G99G990D00') End || '</div>'
+                    || Case When nvl(v.Dr,0) = 0
+                            Then '<span class="ds-delta ds-delta--flat"><span class="fa fa-minus"></span>No prior window</span>'
+                            Else '<span class="ds-delta ds-delta--'||Case When t.PDr >= v.Dr Then 'up' Else 'down' End||'">'
+                                 ||'<span class="fa fa-arrow-'||Case When t.PDr >= v.Dr Then 'up' Else 'down' End||'"></span>'
+                                 ||to_char(Abs(t.PDr-v.Dr)/v.Dr*100,'FM990D0')||'%<small>vs prev period</small></span>' End
+                    || '<div class="ds-kpi-sub">' || to_char(t.Lines,'FM999G99G990') || ' voucher lines posted</div>'
+                    || '</div></div>' As KPI4,
+                
+                       '<div class="ds-kpi ds-kpi--move" title="Credit movement posted between From Date and To Date. Always equal to period debit: every voucher in this ERP nets to zero.">'
+                    || '<span class="ds-kpi-ic fa fa-sign-out"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Period Credit</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.PCr >= 10000000 Then to_char(t.PCr/10000000,'FM9G99G990D00')||'<i>Cr</i>'
+                            When t.PCr >= 100000   Then to_char(t.PCr/100000,'FM99G990D00')||'<i>L</i>'
+                            Else to_char(t.PCr,'FM99G99G990D00') End || '</div>'
+                    || Case When nvl(v.Cr,0) = 0
+                            Then '<span class="ds-delta ds-delta--flat"><span class="fa fa-minus"></span>No prior window</span>'
+                            Else '<span class="ds-delta ds-delta--'||Case When t.PCr >= v.Cr Then 'up' Else 'down' End||'">'
+                                 ||'<span class="fa fa-arrow-'||Case When t.PCr >= v.Cr Then 'up' Else 'down' End||'"></span>'
+                                 ||to_char(Abs(t.PCr-v.Cr)/v.Cr*100,'FM990D0')||'%<small>vs prev period</small></span>' End
+                    || '<div class="ds-kpi-sub">' || to_char(c.N,'FM999G99G990') || ' vouchers touched the ledger</div>'
+                    || '</div></div>' As KPI5,
+                
+                       '<div class="ds-kpi ds-kpi--struct" title="Posting accounts carrying an opening balance or a movement in this scope. Group accounts are never posted to in this ERP.">'
+                    || '<span class="ds-kpi-ic fa fa-sitemap"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Active Ledger Accounts</div><div class="ds-kpi-n">'
+                    || to_char(t.Accts,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">' || to_char(t.Moved,'FM999G990') || ' moved in period &middot; '
+                       || to_char(t.Accts - t.Moved,'FM999G990') || ' dormant</div>'
+                    || '</div></div>' As KPI6,
+                
+                       '<div class="ds-kpi ds-kpi--' || Case When a.N = 0 Then 'ok' Else 'exc' End
+                    || '" title="Accounts whose closing side contradicts Party.BasicNature - the side the ERP itself says the account belongs on. Accounts with no declared nature are not judged.">'
+                    || '<span class="ds-kpi-ic fa fa-exclamation-triangle"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Abnormal Balances</div><div class="ds-kpi-n">'
+                    || to_char(a.N,'FM999G99G990') || '</div>'
+                    || '<div class="ds-kpi-sub">'
+                       || Case When a.N = 0 Then 'Every declared account sits on its expected side'
+                               Else '&#8377;' || Case When a.V >= 10000000 Then to_char(a.V/10000000,'FM9G99G990D00')||' Cr'
+                                                     Else to_char(a.V/100000,'FM99G990D00')||' L' End || ' on the wrong side' End
+                    || '</div></div></div>' As KPI7,
+                
+                       '<div class="ds-kpi ds-kpi--slate" title="Newest voucher date inside the selected period and scope. This is a posting date, not a system timestamp.">'
+                    || '<span class="ds-kpi-ic fa fa-clock-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Last Posting in Period</div><div class="ds-kpi-n">'
+                    || nvl(to_char(c.Last,'DD-MM-RRRR'),'&mdash;') || '</div>'
+                    || '<div class="ds-kpi-sub">'
+                       || Case When c.Last Is Null Then 'Nothing posted in this window'
+                               Else to_char(trunc(sysdate) - c.Last,'FM999G990') || ' day(s) before today' End
+                    || '</div></div></div>' As KPI8
+                  From T t Cross Join Prv v Cross Join Abn a Cross Join Vch c
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 22
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column KPI1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: KPI1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: KPI2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: KPI3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: KPI4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: KPI5
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: KPI6
+            }
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI7 (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: KPI7
+            }
+            layout {
+                sequence: 70
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column KPI8 (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: KPI8
+            }
+            layout {
+                sequence: 80
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region movement-trend (
+        name: Monthly Debit and Credit Movement
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select to_char(trunc(d.VoucherDate,'MM'),'Mon RRRR') As LABEL,
+                       Round(Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End)/100000,2) As DEBIT_LAC,
+                       Round(Sum(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End)/100000,2) As CREDIT_LAC
+                  From VoucherDetail d
+                 Where d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                   And d.VoucherDate <  to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                   And d.Tno Not In (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING')
+                   And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                   And (null    Is Null Or cast(null as varchar2(100))        = null)
+                   And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                   And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                 Group By trunc(d.VoucherDate,'MM')
+                 Order By trunc(d.VoucherDate,'MM')
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 52
+            slot: body
+            columnSpan: 7
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 340
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: Nothing was posted in this period for the selected scope.
+        }
+
+        series credit (
+            name: Credit (₹ Lac)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: CREDIT_LAC
+            }
+        )
+
+        series debit (
+            name: Debit (₹ Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: DEBIT_LAC
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Movement (₹ Lac)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region nature-donut (
+        name: Closing Balance by Account Nature
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* A donut is legitimate here and only here: the four natures are
+                   mutually exclusive and together account for every classified
+                   balance, so the slices really are parts of one whole. Debit and
+                   credit are NOT drawn as a pie anywhere on this page - they are two
+                   sides of one entry, not two parts of one total. */
+                With Fy As (
+                       /* Always exactly one row. A From Date outside every defined
+                          financial year would otherwise empty this CTE and, with it,
+                          every aggregate downstream. Falling back to the From Date
+                          itself makes the opening nil and leaves movement intact; the
+                          header chip already says the date is outside any known year. */
+                       Select nvl((Select f.FinancialYearBegin From FinancialYear f
+                                    Where to_date(:P903_FROMDATE,'DD-MM-RRRR') Between f.FinancialYearBegin And f.FinancialYearEnd),
+                                  to_date(:P903_FROMDATE,'DD-MM-RRRR')) Fb From dual),
+                     Carry As (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING'),
+                     /* Nature is derived, not read off four hardcoded nodes. 42 major
+                        groups sit outside ASSET / LIABILITY / INCOME / EXPENDITURES and
+                        carry NatureOfAccountCode themselves; those four containers carry
+                        none, so inside them the level-2 node's identity supplies it.
+                        Nine accounts have no nature by either route and fall out below
+                        rather than being silently counted as Expenses. */
+                     Nat As (
+                       Select w.Leaf,
+                              Case When w.RootNat Is Not Null Then w.RootNat
+                                   When w.L2 = 'ASSET'        Then 'ASSETS'
+                                   When w.L2 = 'LIABILITY'    Then 'LIABILITIES'
+                                   When w.L2 = 'INCOME'       Then 'INCOME'
+                                   When w.L2 = 'EXPENDITURES' Then 'EXPENSES' End Root
+                         From (Select o.PartyCode Leaf,
+                                      Connect_By_Root o.NatureOfAccountCode RootNat,
+                                      regexp_substr(Sys_Connect_By_Path(o.PartyCode,'/'),'[^/]+',1,2) L2
+                                 From Party o
+                                Start With o.ParentCode Is Null
+                              Connect By Prior o.PartyCode = o.ParentCode) w),
+                     Op As (Select o.AccountCode Acct, Sum(nvl(o.OpeningAmount,0)) Amt From Opening o, Fy
+                             Where o.OpeningDate = Fy.Fb
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or o.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or o.LocationCode = :P903_LOCATION)
+                             Group By o.AccountCode),
+                     Mv As (Select d.AccountCode Acct, Sum(nvl(d.Amount,0)) Amt From VoucherDetail d, Fy
+                             Where d.VoucherDate >= Fy.Fb And d.VoucherDate < to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                               And d.Tno Not In (Select Tno From Carry)
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                             Group By d.AccountCode),
+                     Bal As (Select nvl(o.Acct,m.Acct) Acct, Abs(nvl(o.Amt,0)+nvl(m.Amt,0)) Cl
+                               From Op o Full Outer Join Mv m On m.Acct = o.Acct)
+                Select Case n.Root When 'ASSETS' Then 'Assets' When 'LIABILITIES' Then 'Liabilities'
+                                   When 'INCOME' Then 'Income' Else 'Expenses' End As LABEL,
+                       Round(Sum(b.Cl)/100000,2) As VALUE_LAC
+                  From Bal b Join Nat n On n.Leaf = b.Acct
+                 Where n.Root Is Not Null
+                 Group By n.Root
+                Having Sum(b.Cl) > 0.005
+                 Order By 2 Desc
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 44
+            slot: body
+            startNewRow: false
+            columnSpan: 4
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: donut
+        }
+        chartLayout {
+            height: 360
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No classified balance in this scope.
+        }
+
+        series nature (
+            name: Closing Balance (₹ Lac)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: VALUE_LAC
+            }
+        )
+
+    )
+
+    region rule-control (
+        name: Control and Exceptions
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>What Needs Investigating</h2>
+                  <p>Posting integrity, balances on the wrong side, unresolved clearing accounts and dormant money</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 60
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region rule-groups (
+        name: Account Group Analysis
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>Where the Balance Sits</h2>
+                  <p>Closing position by account group and the split across the four natures of the chart of accounts</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region rule-movement (
+        name: Period Movement
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>What Moved</h2>
+                  <p>Posting activity month by month, the voucher types behind it, and the accounts that moved most</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 50
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region rule-pulse (
+        name: Ledger Pulse
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>Ledger Pulse</h2>
+                  <p>Headline position for the selected scope, with period movement compared against the immediately preceding window of equal length</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region rule-register (
+        name: Voucher Register
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-fin-section">
+                  <h2>Every Number Back to a Voucher</h2>
+                  <p>The vouchers behind the movement above. Open one to see its lines and the source module that raised it</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 70
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region suspense (
+        name: Suspense, Clearing and Difference Accounts
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The roster is taken from the chart of accounts by code and by name,
+                   not from a guess about what a clearing account is called elsewhere.
+                   Every code below was confirmed to exist in Party before it was
+                   listed, and the balances are computed the same way as the trial
+                   balance itself, so a figure here can be tied straight back to it. */
+                With Fy As (
+                       /* Always exactly one row. A From Date outside every defined
+                          financial year would otherwise empty this CTE and, with it,
+                          every aggregate downstream. Falling back to the From Date
+                          itself makes the opening nil and leaves movement intact; the
+                          header chip already says the date is outside any known year. */
+                       Select nvl((Select f.FinancialYearBegin From FinancialYear f
+                                    Where to_date(:P903_FROMDATE,'DD-MM-RRRR') Between f.FinancialYearBegin And f.FinancialYearEnd),
+                                  to_date(:P903_FROMDATE,'DD-MM-RRRR')) Fb From dual),
+                     Carry As (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING'),
+                     Roster As (
+                       Select p.PartyCode, p.PartyName, p.ParentCode,
+                              Case When p.PartyCode = 'OPENINGDIFFERENCE' Then 'Opening difference'
+                                   When p.PartyCode = 'GRIRACCOUNT'       Then 'Goods received, not invoiced'
+                                   When p.PartyCode Like 'UNBILLED%'      Then 'Unbilled / accrual'
+                                   When upper(p.PartyName) Like '%SUSPENS%' Then 'Suspense'
+                                   Else 'Clearing / difference' End Kind
+                         From Party p
+                        Where p.PartyCode In ('OPENINGDIFFERENCE','GRIRACCOUNT','PRICEDIFFERENCEACCOUNT',
+                                              'SHORTAGEDEDUCTIONACCOUNT','UNBILLEDFUELPAYABLE','UNBILLEDTPAYABLE',
+                                              'UNBILLEDFUELCHARGEABLE','UNBILLEDRECEIVABLE','UNBILLEDREVENUE',
+                                              'UNBILLEDTEXPENSES')
+                           Or upper(p.PartyName) Like '%SUSPENS%'
+                           Or upper(p.PartyName) Like '%CLEARING%'),
+                     Op As (Select o.AccountCode Acct, Sum(nvl(o.OpeningAmount,0)) Amt From Opening o, Fy
+                             Where o.OpeningDate = Fy.Fb
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or o.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or o.LocationCode = :P903_LOCATION)
+                             Group By o.AccountCode),
+                     Mv As (Select d.AccountCode Acct,
+                                   Sum(Case When d.VoucherDate < to_date(:P903_FROMDATE,'DD-MM-RRRR') Then nvl(d.Amount,0) Else 0 End) Pre,
+                                   Sum(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') And nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End) Dr,
+                                   Sum(Case When d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR') And nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End) Cr,
+                                   Max(d.VoucherDate) LastMove,
+                                   Min(Case When Abs(nvl(d.Amount,0)) > 0.005 Then d.VoucherDate End) OldestItem
+                              From VoucherDetail d, Fy
+                             Where d.VoucherDate >= Fy.Fb And d.VoucherDate < to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                               And d.Tno Not In (Select Tno From Carry)
+                               And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                               And (null Is Null Or cast(null as varchar2(100)) = null)
+                               And (:P903_COMPANY Is Null Or d.CompanyCode = :P903_COMPANY)
+                               And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                             Group By d.AccountCode)
+                Select '<a href="' || apex_page.get_url(p_page => 677, p_clear_cache => '677',
+                                p_items => 'P677_ACCOUNT,P677_FROMDATE,P677_TODATE,P677_COMPANY,P677_LOCATION',
+                                p_values => r.PartyCode || ',' || :P903_FROMDATE || ',' || :P903_TODATE || ','
+                                            || :P903_COMPANY || ',' || :P903_LOCATION)
+                       || '">' || apex_escape.html(r.PartyName) || '</a>'   As ACCOUNT,
+                       r.PartyCode                                          As ACCOUNT_CODE,
+                       r.Kind                                               As KIND,
+                       Round(nvl(o.Amt,0) + nvl(m.Pre,0),2) * -1            As OPENING_NET_DEBIT,
+                       Round(nvl(m.Dr,0),2)                                 As PERIOD_DEBIT,
+                       Round(nvl(m.Cr,0),2)                                 As PERIOD_CREDIT,
+                       Round((nvl(o.Amt,0)+nvl(m.Pre,0)-nvl(m.Dr,0)+nvl(m.Cr,0)),2) * -1 As CLOSING_NET_DEBIT,
+                       Case When Abs(nvl(o.Amt,0)+nvl(m.Pre,0)-nvl(m.Dr,0)+nvl(m.Cr,0)) < 0.005
+                                 Then '<span class="ds-finchip ds-finchip--ok">Cleared</span>'
+                            When Abs(nvl(o.Amt,0)+nvl(m.Pre,0)-nvl(m.Dr,0)+nvl(m.Cr,0)) >= 10000000
+                                 Then '<span class="ds-finchip ds-finchip--bad">Unresolved</span>'
+                            Else      '<span class="ds-finchip ds-finchip--watch">Open</span>' End As STATUS,
+                       m.OldestItem                                         As OLDEST_ITEM_IN_YEAR,
+                       m.LastMove                                           As LAST_POSTING,
+                       Case When m.OldestItem Is Not Null
+                            Then to_date(:P903_TODATE,'DD-MM-RRRR') - m.OldestItem End As AGEING_DAYS
+                  From Roster r
+                  Left Join Op o On o.Acct = r.PartyCode
+                  Left Join Mv m On m.Acct = r.PartyCode
+                 Order By Abs(nvl(o.Amt,0)+nvl(m.Pre,0)-nvl(m.Dr,0)+nvl(m.Cr,0)) Desc
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 66
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No suspense, clearing or difference account exists in this chart of accounts.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 43523262621737359
+        }
+
+        column ACCOUNT (
+            type: plainText
+            heading {
+                heading: Account
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACCOUNT_CODE (
+            type: plainText
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column AGEING_DAYS (
+            type: plainText
+            heading {
+                heading: Ageing (days)
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column CLOSING_NET_DEBIT (
+            type: plainText
+            heading {
+                heading: Closing Net Dr (₹)
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column KIND (
+            type: plainText
+            heading {
+                heading: Kind
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column LAST_POSTING (
+            type: plainText
+            heading {
+                heading: Last Posting
+            }
+            layout {
+                sequence: 110
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column OLDEST_ITEM_IN_YEAR (
+            type: plainText
+            heading {
+                heading: Oldest Item This Year
+            }
+            layout {
+                sequence: 90
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column OPENING_NET_DEBIT (
+            type: plainText
+            heading {
+                heading: Opening Net Dr (₹)
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column PERIOD_CREDIT (
+            type: plainText
+            heading {
+                heading: Period Cr (₹)
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PERIOD_DEBIT (
+            type: plainText
+            heading {
+                heading: Period Dr (₹)
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 1 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 25
+            }
+
+            displayColumn ACCOUNT (
+                sequence: 1
+            )
+
+            displayColumn AGEING_DAYS (
+                sequence: 8
+            )
+
+            displayColumn CLOSING_NET_DEBIT (
+                sequence: 6
+            )
+
+            displayColumn KIND (
+                sequence: 2
+            )
+
+            displayColumn LAST_POSTING (
+                sequence: 9
+            )
+
+            displayColumn OPENING_NET_DEBIT (
+                sequence: 3
+            )
+
+            displayColumn PERIOD_CREDIT (
+                sequence: 5
+            )
+
+            displayColumn PERIOD_DEBIT (
+                sequence: 4
+            )
+
+            displayColumn STATUS (
+                sequence: 7
+            )
+
+        )
+
+    )
+
+    region suspense-note (
+        name: Suspense Basis
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-finnote">
+                  <span class="fa fa-info-circle"></span>
+                  <b>Net debit convention.</b> The two balance columns above are shown as a single signed
+                  <em>net debit</em> because a clearing account is read as one running position, not as two sides:
+                  positive is a debit balance, negative a credit balance. <b>Ageing</b> is measured from the oldest
+                  posting inside the current financial year, so an item carried in from a prior year ages from the
+                  year begin, not from the day it was first booked &mdash; the ledger holds no open-item date to age
+                  from. <code>OPENINGDIFFERENCE</code> is the ERP's own balancing account for the year-opening entry
+                  and is expected to carry a balance; the others are not.
+                </div>
+                ```
+        }
+        layout {
+            sequence: 67
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-fin-sectionregion
+        }
+    )
+
+    region top-movers (
+        name: Accounts That Moved Most
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Mv As (
+                       Select d.AccountCode Acct,
+                              Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End) Dr,
+                              Sum(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End) Cr,
+                              Count(*) Lines, Count(Distinct d.Tno) Vch, Max(d.VoucherDate) LastMove
+                         From VoucherDetail d
+                        Where d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                          And d.VoucherDate <  to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                          And d.Tno Not In (Select v.Tno From Voucher v Where v.VoucherNo = 'OPENING')
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                        Group By d.AccountCode)
+                Select * From (
+                  Select '<a href="' || apex_page.get_url(p_page => 677, p_clear_cache => '677',
+                                  p_items => 'P677_ACCOUNT,P677_FROMDATE,P677_TODATE,P677_COMPANY,P677_LOCATION',
+                                  p_values => m.Acct || ',' || :P903_FROMDATE || ',' || :P903_TODATE || ','
+                                              || :P903_COMPANY || ',' || :P903_LOCATION)
+                         || '">' || apex_escape.html(nvl(p.PartyName, m.Acct)) || '</a>' As ACCOUNT,
+                         m.Acct                            As ACCOUNT_CODE,
+                         apex_escape.html(nvl(g.PartyName,'&mdash;')) As ACCOUNT_GROUP,
+                         Round(m.Dr,2)                     As PERIOD_DEBIT,
+                         Round(m.Cr,2)                     As PERIOD_CREDIT,
+                         Round(Abs(m.Dr - m.Cr),2)         As NET_MOVEMENT,
+                         Case When m.Dr >= m.Cr
+                              Then '<span class="ds-finchip ds-finchip--dr">Net debit</span>'
+                              Else '<span class="ds-finchip ds-finchip--cr">Net credit</span>' End As DIRECTION,
+                         m.Vch                             As VOUCHERS,
+                         m.Lines                           As LINES,
+                         m.LastMove                        As LAST_POSTING
+                    From Mv m
+                    Left Join Party p On p.PartyCode = m.Acct
+                    Left Join Party g On g.PartyCode = p.ParentCode
+                   Order By m.Dr + m.Cr Desc)
+                 Where rownum <= 100
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 56
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No account moved in this period for the selected scope.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 43519747756737329
+        }
+
+        column ACCOUNT (
+            type: plainText
+            heading {
+                heading: Account
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACCOUNT_CODE (
+            type: plainText
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column ACCOUNT_GROUP (
+            type: plainText
+            heading {
+                heading: Group
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column DIRECTION (
+            type: plainText
+            heading {
+                heading: Direction
+            }
+            layout {
+                sequence: 70
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column LAST_POSTING (
+            type: plainText
+            heading {
+                heading: Last Posting
+            }
+            layout {
+                sequence: 100
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column LINES (
+            type: plainText
+            heading {
+                heading: Lines
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column NET_MOVEMENT (
+            type: plainText
+            heading {
+                heading: Net Movement (₹)
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column PERIOD_CREDIT (
+            type: plainText
+            heading {
+                heading: Period Cr (₹)
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column PERIOD_DEBIT (
+            type: plainText
+            heading {
+                heading: Period Dr (₹)
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column VOUCHERS (
+            type: plainText
+            heading {
+                heading: Vouchers
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 1 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 25
+            }
+
+            displayColumn ACCOUNT (
+                sequence: 1
+            )
+
+            displayColumn ACCOUNT_GROUP (
+                sequence: 2
+            )
+
+            displayColumn DIRECTION (
+                sequence: 6
+            )
+
+            displayColumn LAST_POSTING (
+                sequence: 8
+            )
+
+            displayColumn NET_MOVEMENT (
+                sequence: 5
+            )
+
+            displayColumn PERIOD_CREDIT (
+                sequence: 4
+            )
+
+            displayColumn PERIOD_DEBIT (
+                sequence: 3
+            )
+
+            displayColumn VOUCHERS (
+                sequence: 7
+            )
+
+        )
+
+    )
+
+    region voucher-register (
+        name: Voucher Register
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Lines are aggregated to the voucher BEFORE the header is joined, so
+                   a voucher can never be counted once per line. Source-document tables
+                   are deliberately not joined in: ModuleCode/ModuleTno point at
+                   thirty-odd different modules and joining them here would multiply
+                   the grain and wreck the totals. The module and its document number
+                   are carried as traceability text instead. */
+                With L As (
+                       Select d.Tno,
+                              Sum(Case When nvl(d.Amount,0) < 0 Then -d.Amount Else 0 End) Dr,
+                              Sum(Case When nvl(d.Amount,0) > 0 Then  d.Amount Else 0 End) Cr,
+                              Sum(nvl(d.Amount,0)) Net, Count(*) Lines,
+                              Min(d.CompanyCode) Co, Min(d.LocationCode) Loc
+                         From VoucherDetail d
+                        Where d.VoucherDate >= to_date(:P903_FROMDATE,'DD-MM-RRRR')
+                          And d.VoucherDate <  to_date(:P903_TODATE,'DD-MM-RRRR') + 1
+                          And (cast(null as varchar2(100)) Is Null Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P903_COMPANY  Is Null Or d.CompanyCode  = :P903_COMPANY)
+                          And (:P903_LOCATION Is Null Or d.LocationCode = :P903_LOCATION)
+                        Group By d.Tno)
+                Select '<a href="' || apex_page.get_url(p_page => 678, p_clear_cache => '678',
+                                p_items => 'P678_TNO', p_values => to_char(v.Tno))
+                       || '">' || apex_escape.html(v.VoucherNo) || '</a>'  As VOUCHER_NO,
+                       v.Tno                                               As TNO,
+                       v.DocTypeCode                                       As VOUCHER_TYPE,
+                       v.VoucherDate                                       As VOUCHER_DATE,
+                       apex_escape.html(nvl(c.CompanyName, l.Co))          As COMPANY,
+                       apex_escape.html(nvl(lo.LocationName, l.Loc))       As LOCATION,
+                       nvl(v.ModuleCode,'Direct entry')                    As SOURCE_MODULE,
+                       v.ModuleTno                                         As SOURCE_DOCUMENT_ID,
+                       Round(l.Dr,2)                                       As DEBIT,
+                       Round(l.Cr,2)                                       As CREDIT,
+                       l.Lines                                             As LINES,
+                       Case When Abs(l.Net) < 0.005
+                                 Then '<span class="ds-finchip ds-finchip--ok">Balanced</span>'
+                            Else      '<span class="ds-finchip ds-finchip--bad">Out by &#8377;'
+                                      || to_char(Abs(l.Net),'FM999G99G990D00') || '</span>' End As INTEGRITY,
+                       v.Creator                                           As CREATED_BY,
+                       v.CreationTime                                      As CREATED_ON,
+                       Case When v.CreationTime Is Not Null And v.CreationTime - v.VoucherDate > 30
+                                 Then '<span class="ds-finchip ds-finchip--watch">Backdated</span>'
+                            When v.VoucherDate > trunc(sysdate)
+                                 Then '<span class="ds-finchip ds-finchip--watch">Future dated</span>'
+                            Else      '<span class="ds-finchip ds-finchip--flat">In period</span>' End As TIMING,
+                       substr(v.Narration,1,140)                           As NARRATION
+                  From L l
+                  Join Voucher v On v.Tno = l.Tno
+                  Left Join Company c  On c.CompanyCode  = l.Co
+                  Left Join Location lo On lo.LocationCode = l.Loc
+                 Where v.VoucherNo <> 'OPENING'
+                 Order By v.VoucherDate Desc, v.Tno Desc
+                ```
+            pageItemsToSubmit: [
+                P903_FROMDATE
+                P903_TODATE
+                P903_COMPANY
+                P903_LOCATION
+            ]
+        }
+        layout {
+            sequence: 72
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToY
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No voucher touched the ledger in this period for the selected scope.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 43525802522737362
+        }
+
+        column COMPANY (
+            type: plainText
+            heading {
+                heading: Company
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column CREATED_BY (
+            type: plainText
+            heading {
+                heading: Created By
+            }
+            layout {
+                sequence: 140
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: N
+            }
+        )
+
+        column CREATED_ON (
+            type: plainText
+            heading {
+                heading: Created On
+            }
+            layout {
+                sequence: 150
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR HH24:MI
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: O
+            }
+        )
+
+        column CREDIT (
+            type: plainText
+            heading {
+                heading: Credit (₹)
+            }
+            layout {
+                sequence: 100
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column DEBIT (
+            type: plainText
+            heading {
+                heading: Debit (₹)
+            }
+            layout {
+                sequence: 90
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column INTEGRITY (
+            type: plainText
+            heading {
+                heading: Integrity
+            }
+            layout {
+                sequence: 120
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: L
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column LINES (
+            type: plainText
+            heading {
+                heading: Lines
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G990
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column NARRATION (
+            type: plainText
+            heading {
+                heading: Narration
+            }
+            layout {
+                sequence: 160
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: P
+            }
+        )
+
+        column SOURCE_DOCUMENT_ID (
+            type: plainText
+            heading {
+                heading: Source Doc Id
+            }
+            layout {
+                sequence: 80
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column SOURCE_MODULE (
+            type: plainText
+            heading {
+                heading: Source Module
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column TIMING (
+            type: plainText
+            heading {
+                heading: Timing
+            }
+            layout {
+                sequence: 130
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: M
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column TNO (
+            type: plainText
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column VOUCHER_DATE (
+            type: plainText
+            heading {
+                heading: Voucher Date
+            }
+            layout {
+                sequence: 40
+                columnAlignment: center
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column VOUCHER_NO (
+            type: plainText
+            heading {
+                heading: Voucher No
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column VOUCHER_TYPE (
+            type: plainText
+            heading {
+                heading: Type
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 1 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 25
+            }
+
+            displayColumn COMPANY (
+                sequence: 4
+            )
+
+            displayColumn CREDIT (
+                sequence: 8
+            )
+
+            displayColumn DEBIT (
+                sequence: 7
+            )
+
+            displayColumn INTEGRITY (
+                sequence: 9
+            )
+
+            displayColumn LOCATION (
+                sequence: 5
+            )
+
+            displayColumn NARRATION (
+                sequence: 11
+            )
+
+            displayColumn SOURCE_MODULE (
+                sequence: 6
+            )
+
+            displayColumn TIMING (
+                sequence: 10
+            )
+
+            displayColumn VOUCHER_DATE (
+                sequence: 1
+            )
+
+            displayColumn VOUCHER_NO (
+                sequence: 2
+            )
+
+            displayColumn VOUCHER_TYPE (
+                sequence: 3
+            )
+
+        )
+
+    )
+
+    pageItem P903_ACCOUNTGROUP (
+        type: selectList
+        label {
+            label: Account Group
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select p.PartyName d, p.PartyCode r
+                  From (select p.* from PARTY p where exists(select 1 from PARTYCOMPANY c where c.TNO=p.TNO and c.COMPANYCODE=:GLOBAL_COMPANYCODE)) p
+                 Where Exists (Select 1 From (select p.* from PARTY p where exists(select 1 from PARTYCOMPANY c where c.TNO=p.TNO and c.COMPANYCODE=:GLOBAL_COMPANYCODE)) c Where c.ParentCode = p.PartyCode)
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: Whole chart of accounts
+        }
+        layout {
+            sequence: 20
+            region: @filter-drawer
+            slot: regionBody
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: Restrict the trial balance to one group and everything beneath it. Only accounts that actually have children are listed.
+        }
+    )
+
+    pageItem P903_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.CompanyCode = c.CompanyCode
+                                  And (cast(null as varchar2(100)) Is Null
+                                       Or cast(null as varchar2(100)) = cast(null as varchar2(100))))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P903_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: The first day of the movement window. Everything before it becomes the opening balance.
+        }
+    )
+
+    pageItem P903_LEVEL (
+        type: selectList
+        label {
+            label: Hierarchy Depth
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:1 - Nature only;1,2 - Nature and group;2,3 - Down to subgroup;3,4 - Four levels;4,5 - Five levels;5,6 - Six levels;6,7 - Seven levels;7,8 - Every level, ledger accounts included;8
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 10
+            region: @filter-drawer
+            slot: regionBody
+            columnSpan: 12
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: static
+            staticValue: 3
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: How deep the trial balance is drawn. The chart of accounts is eight levels deep; level 8 lists every posting account, which is thousands of rows. Start shallow and click a group to go deeper.
+        }
+    )
+
+    pageItem P903_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.LocationCode = l.LocationCode
+                                  And (:P903_COMPANY Is Null Or v.CompanyCode = :P903_COMPANY)
+                                  And (cast(null as varchar2(100)) Is Null
+                                       Or cast(null as varchar2(100)) = cast(null as varchar2(100))))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P903_COMPANY
+            itemsToSubmit: P903_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P903_NOMOVE (
+        type: selectList
+        label {
+            label: Accounts With No Movement
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Include them - a carried balance is still a balance;Y,Only accounts that moved in the period;N
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 40
+            region: @filter-drawer
+            slot: regionBody
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        default {
+            type: static
+            staticValue: Y
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: A dormant account still holds money and still belongs in a trial balance, so it is included by default.
+        }
+    )
+
+    pageItem P903_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: expression
+            plsqlExpression: to_char(trunc(sysdate),'DD-MM-RRRR')
+        }
+        security {
+            encryptSessionState: false
+        }
+        help {
+            helpText: The last day of the movement window, and the as-on date of the closing balance.
+        }
+    )
+
+    pageItem P903_ZERO (
+        type: selectList
+        label {
+            label: Zero-Balance Accounts
+        }
+        lov {
+            type: staticValues
+            staticValues: STATIC:Hide accounts that close at zero;N,Show every account;Y
+            displayExtraValues: false
+            displayNullValue: false
+        }
+        layout {
+            sequence: 30
+            region: @filter-drawer
+            slot: regionBody
+            columnSpan: 6
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        default {
+            type: static
+            staticValue: N
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+    button open-filters (
+        buttonName: OPENFILTERS
+        label: Advanced Filters
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            cssClasses: ds-filter-trigger
+            icon: fa-sliders
+        }
+        behavior {
+            action: redirectUrl
+            targetUrl: javascript:apex.theme.openRegion('p675Drawer');
+            executeValidations: false
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button reset-filters (
+        buttonName: RESETFILTERS
+        label: Reset All Filters
+        layout {
+            sequence: 100
+            region: @filter-drawer
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-times
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 903
+                clearCache: 704
+            }
+        }
+    )
+
+)
+

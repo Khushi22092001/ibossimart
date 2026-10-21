@@ -1,0 +1,97 @@
+page 822 (
+    name: Finance & Accounts
+    alias: FINANCE-AND-ACCOUNTS
+    title: Finance & Accounts
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region hspl-directory-content (
+        name: Finance & Accounts pages
+        type: plSqlDynamicContent
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                  l_count pls_integer := 0;
+                  l_url   varchar2(4000);
+                  l_icon  varchar2(4000);
+                begin
+                  htp.p('<section class="hspl-directory-grid" aria-label="Finance&#x20;&#x26;&#x20;Accounts shortcuts">');
+                  for r in (
+                    select myboxlabel,
+                           pageno,
+                           iconname,
+                           serialno
+                      from myboxtree_apexmenu
+                     where bossusercode = :GLOBAL_BOSSUSERCODE
+                       and companycode = :GLOBAL_COMPANYCODE
+                       and parentkey = 'BU:' || :GLOBAL_BOSSUSERCODE || '.C:' || :GLOBAL_COMPANYCODE || '.MG:142'
+                       and pageno is not null
+                     order by serialno, upper(myboxlabel)
+                  ) loop
+                    l_count := l_count + 1;
+                    l_url := apex_page.get_url(
+                      p_page        => r.pageno,
+                      p_session     => v('APP_SESSION'),
+                      p_clear_cache => to_char(r.pageno));
+                    l_icon := case
+                      when instr(lower(nvl(r.iconname,'')), 'fa-') > 0 then r.iconname
+                      else 'fa-file-text-o'
+                    end;
+                    htp.p('<a class="hspl-directory-card hspl-directory-tone-' || mod(l_count - 1, 8) ||
+                          '" href="' || apex_escape.html_attribute(l_url) || '">');
+                    htp.p('<span class="hspl-directory-icon"><span class="fa ' ||
+                          apex_escape.html_attribute(l_icon) || '" aria-hidden="true"></span></span>');
+                    htp.p('<span class="hspl-directory-title">' ||
+                          apex_escape.html(r.myboxlabel) || '</span>');
+                    htp.p('<span class="hspl-directory-arrow fa fa-arrow-right-alt" aria-hidden="true"></span>');
+                    htp.p('</a>');
+                  end loop;
+                  if l_count = 0 then
+                    htp.p('<div class="hspl-directory-empty"><span class="fa fa-folder-open-o" aria-hidden="true"></span><b>No pages available</b><p>Your current role has no authorized pages in this section.</p></div>');
+                  end if;
+                  htp.p('</section>');
+                end;
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes-no-grid
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noUI
+            ]
+        }
+    )
+
+)
+

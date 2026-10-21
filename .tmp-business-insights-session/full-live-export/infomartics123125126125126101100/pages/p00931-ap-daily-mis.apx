@@ -1,0 +1,1217 @@
+page 931 (
+    name: Daily Payment MIS
+    alias: AP-DAILY-MIS
+    title: Daily Payment MIS
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: #APP_FILES#hspl-jet-l10n-fallback.js?version=#APP_VERSION#&cb=20260924a
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: One day, closed off. Opening AP is the position at the start of the day, Closing AP the position at the end, and Bookings plus Receipts less Payments less Debit Notes less Contra Sales explains the difference between them - the residual line proves it rather than asserting it. Every figure comes from the same canonical open-item layer as the command centre, so this MIS and that dashboard cannot disagree. Due Today and Due Next 7 Days are available only where a due date exists - about a third of open payable value; the coverage is stated on the page rather than left for a reader to assume.
+    }
+
+    region collections (
+        name: Payments Today
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Bank As (
+                       Select Tno, AccountCode Bnk From (
+                         Select o.Tno, o.AccountCode,
+                                Row_Number() Over (Partition By o.Tno Order By o.Amount Desc) Rn
+                           From VoucherDetail o
+                           Join Voucher bv On bv.Tno = o.Tno
+                          Where o.Amount > 0
+                            And bv.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')
+                            And o.AccountCode Not In (Select PartyCode From Sd))
+                        Where Rn = 1)
+                Select v.VoucherNo                                    As RECEIPT_NO,
+                       d.Tno                                          As VOUCHER_TNO,
+                       nvl(p.PartyName, d.AccountCode) As CUSTOMER,
+                       d.AccountCode                                  As PARTY_CODE,
+                       Round(-d.Amount,2)                             As AMOUNT,
+                       nvl(bp.PartyName, b.Bnk)     As BANK_OR_CASH,
+                       v.MoneyTransferReferenceNo   As BANK_REFERENCE,
+                       nvl(l.LocationName, d.LocationCode) As LOCATION,
+                       substr(d.Narration,1,250)    As NARRATION
+                  From VoucherDetail d
+                  Join Voucher v On v.Tno = d.Tno
+                  Left Join Bank b On b.Tno = d.Tno
+                  Left Join Party bp On bp.PartyCode = b.Bnk
+                  Left Join Party p On p.PartyCode = d.AccountCode
+                  Left Join Location l On l.LocationCode = d.LocationCode
+                 Where d.AccountCode In (Select PartyCode From Sd)
+                   And v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')
+                   And d.Amount < 0
+                   And d.VoucherDate = to_date(:P931_DAY,'DD-MM-RRRR')
+                   And (cast(null as varchar2(100)) Is Null
+                        Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                   And (null    Is Null Or cast(null as varchar2(100))        = null)
+                   And (:P931_COMPANY  Is Null Or d.CompanyCode  = :P931_COMPANY)
+                   And (:P931_LOCATION Is Null Or d.LocationCode = :P931_LOCATION)
+                ```
+            pageItemsToSubmit: [
+                P931_DAY
+                P931_COMPANY
+                P931_LOCATION
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: No payment was made on this day for the selected scope.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 70000000000000700
+        }
+
+        column AMOUNT (
+            type: plainText
+            heading {
+                heading: Amount (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column BANK_OR_CASH (
+            type: plainText
+            heading {
+                heading: Bank / Cash
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column BANK_REFERENCE (
+            type: plainText
+            heading {
+                heading: Bank Reference
+            }
+            layout {
+                sequence: 70
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column CUSTOMER (
+            type: link
+            heading {
+                heading: Vendor
+            }
+            layout {
+                sequence: 30
+            }
+            link {
+                target: {
+                    page: 923
+                    items: {
+                        P923_PARTY: #PARTY_CODE#
+                        P923_TODATE: &P931_DAY.
+                    }
+                    clearCache: 923
+                }
+                linkText: #CUSTOMER#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column LOCATION (
+            type: plainText
+            heading {
+                heading: Location
+            }
+            layout {
+                sequence: 80
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column NARRATION (
+            type: plainText
+            heading {
+                heading: Narration
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column PARTY_CODE (
+            type: hidden
+            heading {
+                heading: Party Code
+            }
+            layout {
+                sequence: 40
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column RECEIPT_NO (
+            type: link
+            heading {
+                heading: Payment Voucher
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 678
+                    items: {
+                        P678_TNO: #VOUCHER_TNO#
+                    }
+                    clearCache: 678
+                }
+                linkText: #RECEIPT_NO#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column VOUCHER_TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 70001 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn AMOUNT (
+                sequence: 3
+            )
+
+            displayColumn BANK_OR_CASH (
+                sequence: 4
+            )
+
+            displayColumn BANK_REFERENCE (
+                sequence: 5
+            )
+
+            displayColumn CUSTOMER (
+                sequence: 2
+            )
+
+            displayColumn LOCATION (
+                sequence: 6
+            )
+
+            displayColumn RECEIPT_NO (
+                sequence: 1
+            )
+
+            aggregate (
+                column: AMOUNT
+            )
+
+        )
+
+    )
+
+    region command-header (
+        name: Daily Payment MIS
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-ap-head">'
+                    || '<div class="ds-ap-eyebrow">Payables &middot; Daily MIS</div>'
+                    || '<h1 class="ds-ap-title">Daily Payment MIS</h1>'
+                    || '<div class="ds-ap-sub">Opening, movement and closing payables for a single day, with the dues profile and the payment detail behind it</div>'
+                    || '<div class="ds-ap-context">'
+                    || '<span class="ds-ap-chip"><span class="fa fa-calendar-o"></span>Report day <b>' || :P931_DAY || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P931_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P931_LOCATION),'All locations')) || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P931_DAY
+                P931_COMPANY
+                P931_LOCATION
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ap-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region due-profile (
+        name: What Falls Due Next
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     D As (Select to_date(:P931_DAY,'DD-MM-RRRR') Dy From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, D dd
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= dd.Dy And cv.VoucherDate <= dd.Dy
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, D dd
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= dd.Dy And cv.VoucherDate <= dd.Dy
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select (d.Amount - nvl(al.Amt,0)) Pay,
+                              coalesce(pt.DueDt, jt.DueDt, ao.BillDueDate) DueDate
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join (Select pp.Tno Tno,
+                                           coalesce(Max(pb.PartyBillDate), Max(pb.PurchaseBillDate)) DocDt,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           coalesce(Max(jb.PartyBillDate), Max(jb.JobBillDate)) DocDt,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                         Cross Join D dd
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= dd.Dy
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P931_COMPANY  Is Null Or d.CompanyCode  = :P931_COMPANY)
+                          And (:P931_LOCATION Is Null Or d.LocationCode = :P931_LOCATION))
+                Select Ord, Bucket, Amt, Note From (
+                  Select 10 Ord, 'Overdue as at the report day' Bucket,
+                         Round(nvl(Sum(Case When Pay > 0 And DueDate < (Select Dy From D) Then Pay Else 0 End),0),2) Amt,
+                         'due date already passed' Note From Oi
+                  Union All
+                  Select 20, 'Due today',
+                         Round(nvl(Sum(Case When Pay > 0 And DueDate = (Select Dy From D) Then Pay Else 0 End),0),2),
+                         'falls due on the report day' From Oi
+                  Union All
+                  Select 30, 'Due in the next 7 days',
+                         Round(nvl(Sum(Case When Pay > 0 And DueDate > (Select Dy From D)
+                                             And DueDate <= (Select Dy From D) + 7 Then Pay Else 0 End),0),2),
+                         'collectable this week' From Oi
+                  Union All
+                  Select 40, 'Due in the next 30 days',
+                         Round(nvl(Sum(Case When Pay > 0 And DueDate > (Select Dy From D)
+                                             And DueDate <= (Select Dy From D) + 30 Then Pay Else 0 End),0),2),
+                         'collectable this month' From Oi
+                  Union All
+                  Select 50, 'Cannot be scheduled - no due date',
+                         Round(nvl(Sum(Case When Pay > 0 And DueDate Is Null Then Pay Else 0 End),0),2),
+                         'no due date on the source document, so it appears in none of the lines above' From Oi
+                  Union All
+                  Select 60, 'Unapplied vendor cash',
+                         Round(nvl(Sum(Case When Pay < 0 Then -Pay Else 0 End),0),2),
+                         'money already held that could reduce the above by allocation alone' From Oi
+                ) Order By Ord
+                ```
+            pageItemsToSubmit: [
+                P931_DAY
+                P931_COMPANY
+                P931_LOCATION
+            ]
+        }
+        layout {
+            sequence: 22
+            slot: body
+            startNewRow: false
+            columnSpan: 5
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No open payable as at this day.
+        }
+
+        column AMT (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Amount (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+        )
+
+        column BUCKET (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Bucket
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column NOTE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Meaning
+            }
+            layout {
+                sequence: 40
+            }
+        )
+
+        column ORD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Ord
+            }
+            layout {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p719Filters
+        }
+    )
+
+    region mis-summary (
+        name: Daily Position
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Opening and closing are POSITIONS re-derived at two dates; bookings,
+                   payments and debit notes are FLOWS inside the day. The movement
+                   line then reconciles the two positions against the flows, and the
+                   residual is shown rather than suppressed - anything landing there
+                   is a posting type this MIS does not name. A CREDIT is positive in
+                   this ledger, so net payable is +Sum(Amount). */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     D As (Select to_date(:P931_DAY,'DD-MM-RRRR') Dy From dual),
+                     Pos As (
+                       /* Both positions in one pass: the previous day close and the
+                          report-day close, so they see one snapshot of the ledger. */
+                       Select Sum(Case When d.VoucherDate <  dd.Dy Then d.Amount Else 0 End) OpenNet,
+                              Sum(Case When d.VoucherDate <= dd.Dy Then d.Amount Else 0 End) CloseNet
+                         From VoucherDetail d Cross Join D dd
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= dd.Dy
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P931_COMPANY  Is Null Or d.CompanyCode  = :P931_COMPANY)
+                          And (:P931_LOCATION Is Null Or d.LocationCode = :P931_LOCATION)),
+                     Flow As (
+                       Select nvl(Sum(Case When d.Amount > 0
+                                            And (v.ModuleCode In ('PBPASS','JBPASS','FREIGHTADVICE','CASHPURCHASE',
+                                                                  'NECESSITYCOMPLETION','NECESSITYSLIP','EXTERNALSERVICESENTRY')
+                                                 Or v.DocTypeCode = 'SERVICEBILL')
+                                           Then d.Amount Else 0 End),0) Billing,
+                              nvl(Sum(Case When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT') And d.Amount < 0
+                                           Then -d.Amount Else 0 End),0) Collection,
+                              nvl(Count(Distinct Case When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')
+                                                       And d.Amount < 0 Then d.Tno End),0) RcptCount,
+                              nvl(Sum(Case When v.DocTypeCode = 'DEBITNOTE' And d.Amount < 0
+                                           Then -d.Amount Else 0 End),0) CreditNotes,
+                              nvl(Sum(Case When v.DocTypeCode = 'RECEIPT' And d.Amount > 0
+                                           Then d.Amount Else 0 End),0) PaidOut,
+                              nvl(Sum(Case When v.DocTypeCode = 'SALE' And d.Amount < 0
+                                           Then -d.Amount Else 0 End),0) ContraS,
+                              nvl(Sum(Case When v.DocTypeCode = 'JOURNAL' Then d.Amount Else 0 End),0) Journals
+                         From VoucherDetail d Join Voucher v On v.Tno = d.Tno Cross Join D dd
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate = dd.Dy
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P931_COMPANY  Is Null Or d.CompanyCode  = :P931_COMPANY)
+                          And (:P931_LOCATION Is Null Or d.LocationCode = :P931_LOCATION))
+                Select Ord, Line, Amt, Note From (
+                  Select 10 Ord, 'Opening AP (net) at start of day' Line, Round(p.OpenNet,2) Amt,
+                         'position carried in from the previous day' Note From Pos p
+                  Union All
+                  Select 20, 'Add: Bills booked today', Round(f.Billing,2),
+                         'bill-class credits: purchase, job, freight, cash purchase, necessity, service' From Flow f
+                  Union All
+                  Select 25, 'Add: Receipts credited today', Round(f.PaidOut,2),
+                         'RECEIPT credits into vendor accounts - refunds and other money in' From Flow f
+                  Union All
+                  Select 30, 'Less: Payments made today', Round(-f.Collection,2),
+                         to_char(f.RcptCount,'FM999G990') || ' payment vouchers, all channels - actual transactions, not a fall in balance' From Flow f
+                  Union All
+                  Select 40, 'Less: Debit notes issued today', Round(-f.CreditNotes,2),
+                         'DEBITNOTE debits' From Flow f
+                  Union All
+                  Select 45, 'Less: Contra sales billed today', Round(-f.ContraS,2),
+                         'SALE debits to parties who are also vendors' From Flow f
+                  Union All
+                  Select 60, 'Net journal and other movement', Round(f.Journals,2),
+                         'JOURNAL postings to the control account, net' From Flow f
+                  Union All
+                  Select 70, 'Closing AP (net) at end of day', Round(p.CloseNet,2),
+                         'position as at the report day' From Pos p
+                  Union All
+                  Select 80, 'Unexplained residual',
+                         Round(p.CloseNet - p.OpenNet - f.Billing - f.PaidOut + f.Collection + f.CreditNotes + f.ContraS - f.Journals,2),
+                         'closing less opening less the movements above - anything here is a posting type this MIS does not name'
+                    From Pos p Cross Join Flow f
+                ) Order By Ord
+                ```
+            pageItemsToSubmit: [
+                P931_DAY
+                P931_COMPANY
+                P931_LOCATION
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+            columnSpan: 7
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No ledger activity on this day for the selected scope.
+        }
+
+        column AMT (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Amount (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+        )
+
+        column LINE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Line
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column NOTE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Basis
+            }
+            layout {
+                sequence: 40
+            }
+        )
+
+        column ORD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Ord
+            }
+            layout {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    region quick-links (
+        name: Go to
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The quick-links strip: one card per sibling page in this section.
+                   One report ROW per card, so the report's own tbody becomes the
+                   grid (see `.ds-kpiwrap` in design-system.css) and the number of
+                   cards can vary with the reader's privileges without the layout
+                   caring.
+                
+                   AUTHORISATION. The menu gates each entry on
+                   GetApexReportPrivilege, but that function returns a PL/SQL
+                   BOOLEAN and therefore cannot be called from SQL. Its logic is
+                   reproduced below against the same three tables, INCLUDING the
+                   hard-coded 'BOSS' bypass it carries, so a card appears only
+                   where the menu entry would. A reader never sees a card for a
+                   page they cannot open. If that function's rule changes, this
+                   predicate has to change with it - that duplication is the price
+                   of the boolean return type.
+                
+                   Page 698 (Bill Detail) is deliberately absent: it is keyed on a
+                   specific (Tno, Sno) and is meaningless without one, so it is
+                   reached by clicking a bill, never from a menu. */
+                With Pg As (
+                  Select 920 Id, 'AP Command Centre'          Nm, 'Payable, due and overdue, payments, advances and the exceptions behind every number' Sub, 'fa-dashboard'              Ic From dual Union All
+                  Select 921,    'Vendor-wise Payable',           'One row per vendor, with ageing and the netting position',             'fa-users'                  From dual Union All
+                  Select 922,    'Bill-wise Payable',             'Every open item at line level, with its source document',              'fa-list-alt'               From dual Union All
+                  Select 923,    'Creditor 360',                  'One vendor from every angle - bills, payments, advances, statement',   'fa-user'                   From dual Union All
+                  Select 924,    'Payments and Settlement',       'Cash actually paid, which bank paid it, how much is applied',          'fa-upload'                 From dual Union All
+                  Select 925,    'Advances and Unapplied Payments','Money already with vendors, and the payable it could clear',          'fa-hand-o-up'              From dual Union All
+                  Select 926,    'Unbilled Liability (GRNI)',     'Goods received, no supplier bill yet - tied to the GR/IR account',     'fa-truck'                  From dual Union All
+                  Select 927,    'Exceptions and Controls',       'Every control, what it tests, and the records that fail it',           'fa-exclamation-triangle'   From dual Union All
+                  Select 928,    'Reconciliation and Data Health','The open-item register against the general-ledger control account',    'fa-balance-scale'          From dual Union All
+                  Select 930,    'Trends and Cash Forecast',      'How the position moved, and the cash the due dates demand',            'fa-line-chart'             From dual Union All
+                  Select 931,    'Daily Payment MIS',             'One day: position, movement, dues and what remains unexplained',       'fa-calendar-o'             From dual Union All
+                  Select 932,    'Weekly AP Review',              'Opening against closing, and the controls that failed in the week',    'fa-calendar'               From dual Union All
+                  Select 933,    'Monthly Management MIS',        'The management pack, reconciled to the GL at the foot',                'fa-file-text-o'            From dual)
+                Select '<a class="ds-kpi ds-kpi--link ds-kpi--teal" href="'
+                    || apex_page.get_url(
+                         p_page        => Pg.Id,
+                         p_clear_cache => to_char(Pg.Id),
+                         /* Page 700 is a single-day report and has no From/To pair -
+                            naming an item that does not exist on the target page
+                            fails at run time, so its filter list is built separately. */
+                         p_items  => Case When Pg.Id = 931
+                                          Then 'P931_DAY,P931_COMPANY,P931_LOCATION'
+                                          Else 'P'||Pg.Id||'_FROMDATE,P'||Pg.Id||'_TODATE,P'
+                                               ||Pg.Id||'_COMPANY,P'||Pg.Id||'_LOCATION' End,
+                         p_values => Case When Pg.Id = 931
+                                          Then :P931_DAY ||','|| :P931_COMPANY ||','|| :P931_LOCATION
+                                          Else :P931_DAY ||','|| :P931_DAY ||','|| :P931_COMPANY ||','|| :P931_LOCATION End)
+                    || '"><span class="ds-kpi-ic fa ' || Pg.Ic || '"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">' || Pg.Nm || '</div>'
+                    || '<div class="ds-kpi-sub">' || Pg.Sub || '</div></div></a>' As CARD
+                  From Pg
+                 Where Pg.Id <> 931
+                 Order By Pg.Id
+                ```
+            pageItemsToSubmit: [
+                P931_DAY
+                P931_COMPANY
+                P931_LOCATION
+            ]
+        }
+        layout {
+            sequence: 900
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-apnavwrap
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: CARD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region rule-detail (
+        name: Detail
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Payments Made Today</h2>
+                  <p>Every payment posted on the report day, largest first</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 28
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region top-overdue (
+        name: Largest Overdue Positions
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Capped at 20 and the cap is stated in the heading - a silently
+                   truncated "top" list reads as a complete one. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     D As (Select to_date(:P931_DAY,'DD-MM-RRRR') Dy From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, D dd
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= dd.Dy And cv.VoucherDate <= dd.Dy
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, D dd
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= dd.Dy And cv.VoucherDate <= dd.Dy
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     G As (
+                       Select d.AccountCode Pty,
+                              Sum(Case When (d.Amount - nvl(al.Amt,0)) > 0
+                                        And coalesce(pt.DueDt, jt.DueDt, ao.BillDueDate) < (Select Dy From D)
+                                       Then (d.Amount - nvl(al.Amt,0)) Else 0 End) Overdue,
+                              Sum(Case When (d.Amount - nvl(al.Amt,0)) > 0
+                                       Then (d.Amount - nvl(al.Amt,0)) Else 0 End) Gross,
+                              Sum(Case When (d.Amount - nvl(al.Amt,0)) < 0
+                                       Then  (d.Amount - nvl(al.Amt,0)) Else 0 End) Credit
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join (Select pp.Tno Tno,
+                                           coalesce(Max(pb.PartyBillDate), Max(pb.PurchaseBillDate)) DocDt,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           coalesce(Max(jb.PartyBillDate), Max(jb.JobBillDate)) DocDt,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                         Cross Join D dd
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= dd.Dy
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P931_COMPANY  Is Null Or d.CompanyCode  = :P931_COMPANY)
+                          And (:P931_LOCATION Is Null Or d.LocationCode = :P931_LOCATION)
+                        Group By d.AccountCode)
+                Select * From (
+                  Select apex_escape.html(nvl(p.PartyName, g.Pty)) As CUSTOMER,
+                         g.Pty                                     As PARTY_CODE,
+                         Round(g.Overdue,2)                        As OVERDUE,
+                         Round(g.Gross,2)                          As GROSS,
+                         Round(g.Credit,2)                         As CREDIT_HELD,
+                         Round(Least(g.Gross, g.Credit),2)         As ADJUSTABLE_NOW
+                    From G g Left Join Party p On p.PartyCode = g.Pty
+                   Where g.Overdue > 0.005
+                   Order By g.Overdue Desc)
+                 Where rownum <= 20
+                ```
+            pageItemsToSubmit: [
+                P931_DAY
+                P931_COMPANY
+                P931_LOCATION
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        performance {
+            lazyLoading: true
+        }
+        messages {
+            whenNoDataFound: No vendor is overdue as at this day, on the due-date basis.
+        }
+
+        column ADJUSTABLE_NOW (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Adjustable Now (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 60
+                columnAlignment: end
+            }
+        )
+
+        column CREDIT_HELD (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Credit Held (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+        )
+
+        column CUSTOMER (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Vendor (top 20 by overdue)
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column GROSS (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Gross Payable (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+        )
+
+        column OVERDUE (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Overdue (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+        )
+
+        column PARTY_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+    )
+
+    pageItem P931_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.CompanyCode = c.CompanyCode
+                                  And v.AccountCode In (Select PartyCode From (select p.* from PARTY p where exists(select 1 from PARTYCOMPANY c where c.TNO=p.TNO and c.COMPANYCODE=:GLOBAL_COMPANYCODE)) PARTY
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P931_DAY (
+        type: datePicker
+        label {
+            label: Report Day
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P931_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.LocationCode = l.LocationCode
+                                  And v.AccountCode In (Select PartyCode From (select p.* from PARTY p where exists(select 1 from PARTYCOMPANY c where c.TNO=p.TNO and c.COMPANYCODE=:GLOBAL_COMPANYCODE)) PARTY
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode)
+                                  And (:P931_COMPANY Is Null Or v.CompanyCode = :P931_COMPANY))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P931_COMPANY
+            itemsToSubmit: P931_COMPANY
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 50
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Command Centre
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 920
+                items: {
+                    P920_TODATE: &P931_DAY.
+                    P920_COMPANY: &P931_COMPANY.
+                    P920_LOCATION: &P931_LOCATION.
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

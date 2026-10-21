@@ -1,0 +1,13 @@
+
+
+  CREATE OR REPLACE FORCE EDITIONABLE VIEW "IMART"."IMART_AUDIT_EVENT_V" ("AUDIT_EVENT_ID", "EVENT_TIMESTAMP", "AUDIT_SESSION_ID", "APPLICATION_ID", "APEX_SESSION_ID", "USER_NAME", "BOSSUSERCODE", "EMPLOYEE_CODE", "DATABASE_USER", "CURRENT_SCHEMA_NAME", "DB_SESSION_ID", "DB_HOST", "SERVER_HOST", "BACKGROUND_JOB_ID", "COMPANY_CODE", "LOCATION_CODE", "MODULE_CODE", "PAGE_ID", "PAGE_NAME", "PAGE_ALIAS", "FORM_NAME", "TABLE_NAME", "OLD_PRIMARY_KEY", "NEW_PRIMARY_KEY", "RECORD_KEY", "RECORD_KEY_HASH", "PARENT_TABLE", "PARENT_KEY", "TRANSACTION_REFERENCE", "REQUEST_ID", "TRANSACTION_ID", "ACTION_TYPE", "EVENT_TYPE", "SOURCE_TYPE", "OUTCOME", "IP_ADDRESS", "USER_AGENT", "CLIENT_IDENTIFIER", "DB_MODULE", "DB_ACTION", "REQUEST_NAME", "BUTTON_NAME", "PROCESS_NAME", "ERROR_CODE", "REMARKS", "RESOLVED_MODULE_CODE", "MODULE_NAME", "MODULE_MAPPING_SOURCE") AS
+  select e."AUDIT_EVENT_ID",e."EVENT_TIMESTAMP",e."AUDIT_SESSION_ID",e."APPLICATION_ID",e."APEX_SESSION_ID",e."USER_NAME",e."BOSSUSERCODE",e."EMPLOYEE_CODE",e."DATABASE_USER",e."CURRENT_SCHEMA_NAME",e."DB_SESSION_ID",e."DB_HOST",e."SERVER_HOST",e."BACKGROUND_JOB_ID",e."COMPANY_CODE",e."LOCATION_CODE",e."MODULE_CODE",e."PAGE_ID",e."PAGE_NAME",e."PAGE_ALIAS",e."FORM_NAME",e."TABLE_NAME",e."OLD_PRIMARY_KEY",e."NEW_PRIMARY_KEY",e."RECORD_KEY",e."RECORD_KEY_HASH",e."PARENT_TABLE",e."PARENT_KEY",e."TRANSACTION_REFERENCE",e."REQUEST_ID",e."TRANSACTION_ID",e."ACTION_TYPE",e."EVENT_TYPE",e."SOURCE_TYPE",e."OUTCOME",e."IP_ADDRESS",e."USER_AGENT",e."CLIENT_IDENTIFIER",e."DB_MODULE",e."DB_ACTION",e."REQUEST_NAME",e."BUTTON_NAME",e."PROCESS_NAME",e."ERROR_CODE",e."REMARKS",
+ coalesce(e.module_code,tc.module_code,pm.module_code) resolved_module_code,
+ coalesce(m.module_name,case when e.event_type='AUTHENTICATION' then 'Authentication' when e.page_id between 1090 and 1096 and e.application_id=105 then 'Audit Trail' else 'Unmapped module' end) module_name,
+ case when e.module_code is not null then 'Recorded with event' when tc.module_code is not null then 'Current table mapping (historical event)' when pm.module_code is not null then 'Current page mapping (historical event)' else 'No unique ERP module mapping' end module_mapping_source
+from IMART_AUDIT_EVENT e
+left join IMART_AUDIT_CONFIG tc on tc.table_name=e.table_name and exists(select 1 from module x where x.modulecode=tc.module_code)
+left join IMART_AUDIT_MODULE_PAGE_V pm on pm.page_id=e.page_id and e.application_id=105
+left join (select modulecode,max(regexp_replace(modulename,'[[:space:]]+',' ')) module_name from module group by modulecode) m on m.modulecode=coalesce(e.module_code,tc.module_code,pm.module_code)
+where IMART_AUDIT.can_read(e.company_code,e.location_code)=1;
+

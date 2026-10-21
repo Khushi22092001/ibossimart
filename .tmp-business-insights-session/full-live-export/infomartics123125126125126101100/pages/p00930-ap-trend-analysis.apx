@@ -1,0 +1,1427 @@
+page 930 (
+    name: AP Trends and Cash Forecast
+    alias: AP-TREND-ANALYSIS
+    title: AP Trends and Cash Forecast
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: #APP_FILES#hspl-jet-l10n-fallback.js?version=#APP_VERSION#&cb=20260924a
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: Every series here is a POINT-IN-TIME position re-derived at each month end, not a running total of period movements - outstanding at 30-Jun is what was actually open on that date, with allocations counted only if both their vouchers were dated on or before it. That is why the month spine is cross-joined into the open-item layer rather than the layer being summed by month. Month ends before 01-04-2026 are not shown: VoucherDetail begins 01-03-2026 and prior-year AP arrives as OPENING journals dated 31-03-2026, so an earlier point would be reconstructed from a carry-forward that does not represent a real position.
+    }
+
+    region ageing-mix (
+        name: Ageing Mix Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Composition of the open payable at each month end. Ageing here is
+                   on the DOCUMENT basis deliberately: on the Due basis 72% of value
+                   would land in Cannot Age at every point and the chart would say
+                   nothing about how the mix is moving. The document basis ages every
+                   item, which is what a mix chart needs. The page says so. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Spine As (
+                       Select Me From (
+                         Select Least(Last_Day(Add_Months(trunc(to_date(:P930_FROMDATE,'DD-MM-RRRR'),'MM'), Level - 1)),
+                                      to_date(:P930_TODATE,'DD-MM-RRRR')) Me
+                           From dual
+                        Connect By Level <= Months_Between(trunc(to_date(:P930_TODATE,'DD-MM-RRRR'),'MM'),
+                                                           trunc(to_date(:P930_FROMDATE,'DD-MM-RRRR'),'MM')) + 1)
+                        Where Me >= date '2026-04-01'),
+                     Ln As (
+                       Select d.Tno, d.Sno, d.Amount Amt, d.VoucherDate Vdt,
+                              coalesce(pt.DocDt, jt.DocDt, ao.BillDate, d.VoucherDate) DocDate
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join (Select pp.Tno Tno,
+                                           coalesce(Max(pb.PartyBillDate), Max(pb.PurchaseBillDate)) DocDt,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           coalesce(Max(jb.PartyBillDate), Max(jb.JobBillDate)) DocDt,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING' And ao.Tno = d.ModuleTno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P930_COMPANY  Is Null Or d.CompanyCode  = :P930_COMPANY)
+                          And (:P930_LOCATION Is Null Or d.LocationCode = :P930_LOCATION)),
+                     AlSpine As (
+                       Select s.Me, a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Spine s
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= s.Me And cv.VoucherDate <= s.Me
+                        Group By s.Me, a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select s.Me, a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Spine s
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= s.Me And cv.VoucherDate <= s.Me
+                        Group By s.Me, a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Me, Tno, Sno, Sum(Amt) Amt From AlSpine Group By Me, Tno, Sno),
+                     P As (
+                       Select s.Me, (l.Amt - nvl(al.Amt,0)) Pay, s.Me - l.DocDate Age
+                         From Ln l
+                         Join Spine s On l.Vdt <= s.Me
+                         Left Join Al al On al.Me = s.Me And al.Tno = l.Tno And al.Sno = l.Sno)
+                Select to_char(Me,'Mon-RR')                                                  As LABEL,
+                       Round(Sum(Case When Pay > 0 And Age <=  30 Then Pay Else 0 End)/10000000,2) As D0_30,
+                       Round(Sum(Case When Pay > 0 And Age >  30 And Age <=  60 Then Pay Else 0 End)/10000000,2) As D31_60,
+                       Round(Sum(Case When Pay > 0 And Age >  60 And Age <=  90 Then Pay Else 0 End)/10000000,2) As D61_90,
+                       Round(Sum(Case When Pay > 0 And Age >  90 And Age <= 180 Then Pay Else 0 End)/10000000,2) As D91_180,
+                       Round(Sum(Case When Pay > 0 And Age > 180 Then Pay Else 0 End)/10000000,2) As D180_PLUS
+                  From P Group By Me Order By Me
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 340
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No open payable at any month end in this window.
+        }
+
+        series b1 (
+            name: 0–30 (₹ Cr)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: D0_30
+            }
+        )
+
+        series b2 (
+            name: 31–60 (₹ Cr)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: D31_60
+            }
+        )
+
+        series b3 (
+            name: 61–90 (₹ Cr)
+            execution {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: D61_90
+            }
+        )
+
+        series b4 (
+            name: 91–180 (₹ Cr)
+            execution {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: D91_180
+            }
+        )
+
+        series b5 (
+            name: Over 180 (₹ Cr)
+            execution {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: D180_PLUS
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Open Payable (₹ Cr)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region basis-note (
+        name: How these series are built
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-apnote"><span class="fa fa-line-chart"></span><div>
+                  <b>Each point is a position, not a movement.</b> Outstanding at a month end is re-derived from the
+                  open-item layer as at that date, counting an allocation only when <i>both</i> of its vouchers are dated
+                  on or before it &mdash; so a bill paid in July still shows open at the end of June.
+                  Bills Booked and Payments Made are the exception: those two <i>are</i> flows, summed within each month.
+                  <br><br>
+                  Month ends before <b>01-04-2026</b> are not plotted. <code>VoucherDetail</code> begins 01-03-2026 and
+                  prior-year payables arrive as <code>OPENING</code> journals dated 31-03-2026, so any earlier point
+                  would be an artefact of the carry-forward rather than a real position.
+                </div></div>
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region billing-collection (
+        name: Bills Booked vs Payments Made
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* These two ARE flows and are summed within each month - the one place
+                   on this page where that is the correct treatment. Payments are the
+                   debit side of payment vouchers on every channel, never a fall in
+                   outstanding. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode)
+                Select to_char(trunc(d.VoucherDate,'MM'),'Mon-RR') As LABEL,
+                       Round(Sum(Case When d.Amount > 0
+                                       And (v.ModuleCode In ('PBPASS','JBPASS','FREIGHTADVICE','CASHPURCHASE',
+                                                             'NECESSITYCOMPLETION','NECESSITYSLIP','EXTERNALSERVICESENTRY')
+                                            Or v.DocTypeCode = 'SERVICEBILL')
+                                      Then d.Amount Else 0 End)/10000000,2)  As BILLING_CR,
+                       Round(Sum(Case When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT') And d.Amount < 0
+                                      Then -d.Amount Else 0 End)/10000000,2) As COLLECTION_CR,
+                       Round(Sum(Case When v.DocTypeCode = 'DEBITNOTE' And d.Amount < 0
+                                      Then -d.Amount Else 0 End)/10000000,2) As CREDITNOTE_CR
+                  From VoucherDetail d Join Voucher v On v.Tno = d.Tno
+                 Where d.AccountCode In (Select PartyCode From Sd)
+                   And d.VoucherDate >= to_date(:P930_FROMDATE,'DD-MM-RRRR')
+                   And d.VoucherDate <  to_date(:P930_TODATE,'DD-MM-RRRR') + 1
+                   And (cast(null as varchar2(100)) Is Null
+                        Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                   And (null    Is Null Or cast(null as varchar2(100))        = null)
+                   And (:P930_COMPANY  Is Null Or d.CompanyCode  = :P930_COMPANY)
+                   And (:P930_LOCATION Is Null Or d.LocationCode = :P930_LOCATION)
+                 Group By trunc(d.VoucherDate,'MM')
+                 Order By trunc(d.VoucherDate,'MM')
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 50
+            slot: body
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 330
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: Nothing was billed or collected in this window.
+        }
+
+        series billing (
+            name: Bills Booked (₹ Cr)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: BILLING_CR
+            }
+        )
+
+        series collection (
+            name: Payments Made (₹ Cr)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: COLLECTION_CR
+            }
+        )
+
+        series creditnote (
+            name: Credit Notes (₹ Cr)
+            execution {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: CREDITNOTE_CR
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: ₹ Crore
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region cash-forecast (
+        name: Cash Requirement by Due Date
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The treasury strip: what the due dates demand, in bands that add up
+                   without double counting. Only payables that CARRY a due date can
+                   enter a due-date forecast - the uncovered share is stated in the
+                   last cell rather than silently pretended to be zero. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Asof As (Select to_date(:P930_TODATE,'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                        Group By a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Tno, Sno, Sum(Amt) Amt From Alc Group By Tno, Sno),
+                     Oi As (
+                       Select (d.Amount - nvl(al.Amt,0)) Pay,
+                              Case When v.ModuleCode = 'PBPASS'   Then pt.DueDt
+                                   When v.ModuleCode = 'JBPASS'   Then jt.DueDt
+                                   When v.VoucherNo  = 'OPENING'  Then ao.BillDueDate
+                              End DueDate
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Al al On al.Tno = d.Tno And al.Sno = d.Sno
+                         Left Join (Select pp.Tno Tno,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING' And ao.Tno = d.ModuleTno
+                         Cross Join Asof
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And d.VoucherDate <= Asof.D
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P930_COMPANY  Is Null Or d.CompanyCode  = :P930_COMPANY)
+                          And (:P930_LOCATION Is Null Or d.LocationCode = :P930_LOCATION)),
+                     T As (
+                       Select nvl(Sum(Case When Pay > 0 Then Pay Else 0 End),0) Gross,
+                              nvl(Sum(Case When Pay > 0 And DueDate Is Not Null Then Pay Else 0 End),0) Covered,
+                              nvl(Sum(Case When Pay > 0 And DueDate <= Asof.D Then Pay Else 0 End),0) OverdueNow,
+                              nvl(Sum(Case When Pay > 0 And DueDate = Asof.D Then Pay Else 0 End),0) DueToday,
+                              nvl(Sum(Case When Pay > 0 And DueDate > Asof.D     And DueDate <= Asof.D + 7  Then Pay Else 0 End),0) D7,
+                              nvl(Sum(Case When Pay > 0 And DueDate > Asof.D + 7 And DueDate <= Asof.D + 15 Then Pay Else 0 End),0) D15,
+                              nvl(Sum(Case When Pay > 0 And DueDate > Asof.D + 15 And DueDate <= Asof.D + 30 Then Pay Else 0 End),0) D30,
+                              nvl(Sum(Case When Pay > 0 And DueDate > Asof.D + 30 And DueDate <= Asof.D + 60 Then Pay Else 0 End),0) D60,
+                              nvl(Sum(Case When Pay > 0 And DueDate > Asof.D + 60 And DueDate <= Asof.D + 90 Then Pay Else 0 End),0) D90
+                         From Oi Cross Join Asof)
+                Select '<a class="ds-kpi ds-kpi--risk" href="'
+                    || apex_page.get_url(p_page => 922, p_clear_cache => '922',
+                         p_items => 'P922_FROMDATE,P922_TODATE,P922_COMPANY,P922_LOCATION,P922_AGEBASIS,P922_BUCKET',
+                         p_values => :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION ||',DUE,DT')
+                    || '" title="Payable whose due date is exactly the As-of Date.">'
+                    || '<span class="ds-kpi-ic fa fa-bell-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Due Today</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.DueToday >= 10000000 Then to_char(Round(t.DueToday/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.DueToday/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">' || :P930_TODATE || '</div></div></a>' As F1,
+                       '<a class="ds-kpi ds-kpi--amber" href="'
+                    || apex_page.get_url(p_page => 922, p_clear_cache => '922',
+                         p_items => 'P922_FROMDATE,P922_TODATE,P922_COMPANY,P922_LOCATION,P922_AGEBASIS,P922_BUCKET',
+                         p_values => :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION ||',DUE,D7')
+                    || '" title="Payable falling due in the next seven days.">'
+                    || '<span class="ds-kpi-ic fa fa-calendar-o"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Next 7 Days</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.D7 >= 10000000 Then to_char(Round(t.D7/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.D7/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">days 1&ndash;7</div></div></a>' As F2,
+                       '<a class="ds-kpi ds-kpi--gold" href="'
+                    || apex_page.get_url(p_page => 922, p_clear_cache => '922',
+                         p_items => 'P922_FROMDATE,P922_TODATE,P922_COMPANY,P922_LOCATION,P922_AGEBASIS,P922_BUCKET',
+                         p_values => :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION ||',DUE,B815')
+                    || '" title="Payable falling due 8 to 15 days out.">'
+                    || '<span class="ds-kpi-ic fa fa-calendar"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Days 8&ndash;15</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.D15 >= 10000000 Then to_char(Round(t.D15/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.D15/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">band, not cumulative</div></div></a>' As F3,
+                       '<a class="ds-kpi ds-kpi--teal" href="'
+                    || apex_page.get_url(p_page => 922, p_clear_cache => '922',
+                         p_items => 'P922_FROMDATE,P922_TODATE,P922_COMPANY,P922_LOCATION,P922_AGEBASIS,P922_BUCKET',
+                         p_values => :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION ||',DUE,B1630')
+                    || '" title="Payable falling due 16 to 30 days out.">'
+                    || '<span class="ds-kpi-ic fa fa-calendar"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Days 16&ndash;30</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.D30 >= 10000000 Then to_char(Round(t.D30/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.D30/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">band, not cumulative</div></div></a>' As F4,
+                       '<a class="ds-kpi ds-kpi--struct" href="'
+                    || apex_page.get_url(p_page => 922, p_clear_cache => '922',
+                         p_items => 'P922_FROMDATE,P922_TODATE,P922_COMPANY,P922_LOCATION,P922_AGEBASIS,P922_BUCKET',
+                         p_values => :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION ||',DUE,B3160')
+                    || '" title="Payable falling due 31 to 60 days out.">'
+                    || '<span class="ds-kpi-ic fa fa-calendar"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Days 31&ndash;60</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.D60 >= 10000000 Then to_char(Round(t.D60/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.D60/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">band, not cumulative</div></div></a>' As F5,
+                       '<a class="ds-kpi ds-kpi--violet" href="'
+                    || apex_page.get_url(p_page => 922, p_clear_cache => '922',
+                         p_items => 'P922_FROMDATE,P922_TODATE,P922_COMPANY,P922_LOCATION,P922_AGEBASIS,P922_BUCKET',
+                         p_values => :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION ||',DUE,B6190')
+                    || '" title="Payable falling due 61 to 90 days out.">'
+                    || '<span class="ds-kpi-ic fa fa-calendar"></span><div class="ds-kpi-body">'
+                    || '<div class="ds-kpi-t">Days 61&ndash;90</div><div class="ds-kpi-n">&#8377;'
+                    || Case When t.D90 >= 10000000 Then to_char(Round(t.D90/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.D90/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</div><div class="ds-kpi-sub">band, not cumulative</div></div></a>' As F6,
+                       '<div class="ds-apexcl"><div class="ds-apexcl-h">What this forecast can and cannot see</div>'
+                    || '<div class="ds-apexcl-b">Only payables carrying a due date can enter a due-date forecast: <b>&#8377;'
+                    || Case When t.Covered >= 10000000 Then to_char(Round(t.Covered/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Covered/100000,2),'FM999G990D00') || ' Lac' End
+                    || '</b> of &#8377;'
+                    || Case When t.Gross >= 10000000 Then to_char(Round(t.Gross/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.Gross/100000,2),'FM999G990D00') || ' Lac' End
+                    || ' (' || nvl(to_char(Round(100 * t.Covered / Nullif(t.Gross,0),1),'FM990D0'),'0') || '%). '
+                    || 'Already overdue &#8377;'
+                    || Case When t.OverdueNow >= 10000000 Then to_char(Round(t.OverdueNow/10000000,2),'FM999G990D00') || ' Cr'
+                            Else to_char(Round(t.OverdueNow/100000,2),'FM999G990D00') || ' Lac' End
+                    || ' is payable now and sits in the ageing, not in these bands. The uncovered share is the Cannot Age bucket.</div></div>' As F7
+                  From T t
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 22
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column F1 (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: F1
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column F2 (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: F2
+            }
+            layout {
+                sequence: 20
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column F3 (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: F3
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column F4 (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: F4
+            }
+            layout {
+                sequence: 40
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column F5 (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: F5
+            }
+            layout {
+                sequence: 50
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column F6 (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: F6
+            }
+            layout {
+                sequence: 60
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column F7 (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: F7
+            }
+            layout {
+                sequence: 70
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region cash-forecast-rule (
+        name: Cash Requirement
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Cash Requirement</h2>
+                  <p>What the due dates demand of treasury, in bands that add up &mdash; and what share of the book the forecast can actually see</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 21
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region command-header (
+        name: AP Trends and Cash Forecast
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select '<div class="ds-ap-head">'
+                    || '<div class="ds-ap-eyebrow">Payables &middot; Trend</div>'
+                    || '<h1 class="ds-ap-title">AP Trends and Cash Forecast</h1>'
+                    || '<div class="ds-ap-sub">Outstanding, ageing mix, bookings against payments, payment application and the due-date cash forecast, each re-derived at every month end in the window</div>'
+                    || '<div class="ds-ap-context">'
+                    || '<span class="ds-ap-chip"><span class="fa fa-calendar"></span>Window <b>'
+                       || :P930_FROMDATE || ' &rarr; ' || :P930_TODATE || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-crosshairs"></span>Each point is a <b>position at that month end</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl((Select c.CompanyName From Company c Where c.CompanyCode = :P930_COMPANY),'All companies')) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl((Select l.LocationName From Location l Where l.LocationCode = :P930_LOCATION),'All locations')) || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From dual
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ap-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region filter-bar (
+        name: Filters
+        type: staticContent
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Form--slimPadding
+                t-Form--stretchInputs
+            ]
+            cssClasses: ds-dash-filters
+        }
+        advanced {
+            htmlDomId: p718Filters
+        }
+    )
+
+    region outstanding-trend (
+        name: Outstanding Trend
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* THE MONTH SPINE IS CROSS-JOINED INTO THE OPEN-ITEM LAYER.
+                   Summing period movements would give a running total, which is a
+                   different (and wrong) thing: it cannot show a bill that was open in
+                   June and settled in July as open in June. The cost is one pass over
+                   the AR grain per month end - about 9,700 lines x 6 months here,
+                   which is small enough to do honestly. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Spine As (
+                       Select Me From (
+                         Select Least(Last_Day(Add_Months(trunc(to_date(:P930_FROMDATE,'DD-MM-RRRR'),'MM'), Level - 1)),
+                                      to_date(:P930_TODATE,'DD-MM-RRRR')) Me
+                           From dual
+                        Connect By Level <= Months_Between(trunc(to_date(:P930_TODATE,'DD-MM-RRRR'),'MM'),
+                                                           trunc(to_date(:P930_FROMDATE,'DD-MM-RRRR'),'MM')) + 1)
+                        Where Me >= date '2026-04-01'),
+                     Ln As (
+                       Select d.Tno, d.Sno, d.Amount Amt, d.VoucherDate Vdt,
+                              coalesce(pt.DueDt, jt.DueDt, ao.BillDueDate) DueDate
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join (Select pp.Tno Tno,
+                                           coalesce(Max(pb.PartyBillDate), Max(pb.PurchaseBillDate)) DocDt,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           coalesce(Max(jb.PartyBillDate), Max(jb.JobBillDate)) DocDt,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P930_COMPANY  Is Null Or d.CompanyCode  = :P930_COMPANY)
+                          And (:P930_LOCATION Is Null Or d.LocationCode = :P930_LOCATION)),
+                     AlSpine As (
+                       Select s.Me, a.DrVoucherTno Tno, a.DrVoucherSno Sno, -Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Spine s
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= s.Me And cv.VoucherDate <= s.Me
+                        Group By s.Me, a.DrVoucherTno, a.DrVoucherSno
+                       Union All
+                       Select s.Me, a.CrVoucherTno, a.CrVoucherSno, Sum(a.Amount)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Spine s
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= s.Me And cv.VoucherDate <= s.Me
+                        Group By s.Me, a.CrVoucherTno, a.CrVoucherSno),
+                     Al As (Select Me, Tno, Sno, Sum(Amt) Amt From AlSpine Group By Me, Tno, Sno),
+                     P As (
+                       Select s.Me, (l.Amt - nvl(al.Amt,0)) Pay,
+                              Case When l.DueDate Is Null Then Null
+                                   Else Greatest(s.Me - l.DueDate,0) End DaysOd
+                         From Ln l
+                         Join Spine s On l.Vdt <= s.Me
+                         Left Join Al al On al.Me = s.Me And al.Tno = l.Tno And al.Sno = l.Sno)
+                Select to_char(Me,'Mon-RR')                                                       As LABEL,
+                       Round(Sum(Case When Pay > 0 Then Pay Else 0 End)/10000000,2)             As GROSS_CR,
+                       Round(Sum(Case When Pay > 0 And DaysOd > 0 Then Pay Else 0 End)/10000000,2) As OVERDUE_CR,
+                       Round(Sum(Case When Pay > 0 And DaysOd > 90 Then Pay Else 0 End)/10000000,2) As OVER90_CR,
+                       Round(Sum(Case When Pay < 0 Then -Pay Else 0 End)/10000000,2)            As CREDITS_CR,
+                       Round(Sum(Pay)/10000000,2)                                                As NET_CR
+                  From P Group By Me Order By Me
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 12
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chart {
+            type: line
+        }
+        chartLayout {
+            height: 360
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No month end in this window falls on or after 01-04-2026, so no position can be reconstructed.
+        }
+
+        series credits (
+            name: Vendor Credits (₹ Cr)
+            execution {
+                sequence: 40
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: CREDITS_CR
+            }
+        )
+
+        series gross (
+            name: Gross Outstanding (₹ Cr)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: GROSS_CR
+            }
+        )
+
+        series net (
+            name: Net Exposure (₹ Cr)
+            execution {
+                sequence: 50
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: NET_CR
+            }
+        )
+
+        series over90 (
+            name: 90+ Days (₹ Cr)
+            execution {
+                sequence: 30
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: OVER90_CR
+            }
+        )
+
+        series overdue (
+            name: Overdue (₹ Cr)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: OVERDUE_CR
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: ₹ Crore
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    region quick-links (
+        name: Go to
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The quick-links strip: one card per sibling page in this section.
+                   One report ROW per card, so the report's own tbody becomes the
+                   grid (see `.ds-kpiwrap` in design-system.css) and the number of
+                   cards can vary with the reader's privileges without the layout
+                   caring.
+                
+                   AUTHORISATION. The menu gates each entry on
+                   GetApexReportPrivilege, but that function returns a PL/SQL
+                   BOOLEAN and therefore cannot be called from SQL. Its logic is
+                   reproduced below against the same three tables, INCLUDING the
+                   hard-coded 'BOSS' bypass it carries, so a card appears only
+                   where the menu entry would. A reader never sees a card for a
+                   page they cannot open. If that function's rule changes, this
+                   predicate has to change with it - that duplication is the price
+                   of the boolean return type.
+                
+                   Page 698 (Bill Detail) is deliberately absent: it is keyed on a
+                   specific (Tno, Sno) and is meaningless without one, so it is
+                   reached by clicking a bill, never from a menu. */
+                With Pg As (
+                  Select 920 Id, 'AP Command Centre'          Nm, 'Payable, due and overdue, payments, advances and the exceptions behind every number' Sub, 'fa-dashboard'              Ic From dual Union All
+                  Select 921,    'Vendor-wise Payable',           'One row per vendor, with ageing and the netting position',             'fa-users'                  From dual Union All
+                  Select 922,    'Bill-wise Payable',             'Every open item at line level, with its source document',              'fa-list-alt'               From dual Union All
+                  Select 923,    'Creditor 360',                  'One vendor from every angle - bills, payments, advances, statement',   'fa-user'                   From dual Union All
+                  Select 924,    'Payments and Settlement',       'Cash actually paid, which bank paid it, how much is applied',          'fa-upload'                 From dual Union All
+                  Select 925,    'Advances and Unapplied Payments','Money already with vendors, and the payable it could clear',          'fa-hand-o-up'              From dual Union All
+                  Select 926,    'Unbilled Liability (GRNI)',     'Goods received, no supplier bill yet - tied to the GR/IR account',     'fa-truck'                  From dual Union All
+                  Select 927,    'Exceptions and Controls',       'Every control, what it tests, and the records that fail it',           'fa-exclamation-triangle'   From dual Union All
+                  Select 928,    'Reconciliation and Data Health','The open-item register against the general-ledger control account',    'fa-balance-scale'          From dual Union All
+                  Select 930,    'Trends and Cash Forecast',      'How the position moved, and the cash the due dates demand',            'fa-line-chart'             From dual Union All
+                  Select 931,    'Daily Payment MIS',             'One day: position, movement, dues and what remains unexplained',       'fa-calendar-o'             From dual Union All
+                  Select 932,    'Weekly AP Review',              'Opening against closing, and the controls that failed in the week',    'fa-calendar'               From dual Union All
+                  Select 933,    'Monthly Management MIS',        'The management pack, reconciled to the GL at the foot',                'fa-file-text-o'            From dual)
+                Select '<a class="ds-kpi ds-kpi--link ds-kpi--teal" href="'
+                    || apex_page.get_url(
+                         p_page        => Pg.Id,
+                         p_clear_cache => to_char(Pg.Id),
+                         /* Page 700 is a single-day report and has no From/To pair -
+                            naming an item that does not exist on the target page
+                            fails at run time, so its filter list is built separately. */
+                         p_items  => Case When Pg.Id = 931
+                                          Then 'P931_DAY,P931_COMPANY,P931_LOCATION'
+                                          Else 'P'||Pg.Id||'_FROMDATE,P'||Pg.Id||'_TODATE,P'
+                                               ||Pg.Id||'_COMPANY,P'||Pg.Id||'_LOCATION' End,
+                         p_values => Case When Pg.Id = 931
+                                          Then :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION
+                                          Else :P930_FROMDATE ||','|| :P930_TODATE ||','|| :P930_COMPANY ||','|| :P930_LOCATION End)
+                    || '"><span class="ds-kpi-ic fa ' || Pg.Ic || '"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">' || Pg.Nm || '</div>'
+                    || '<div class="ds-kpi-sub">' || Pg.Sub || '</div></div></a>' As CARD
+                  From Pg
+                 Where Pg.Id <> 930
+                 Order By Pg.Id
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 900
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-apnavwrap
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: CARD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region receipt-application (
+        name: Payment Application
+        type: chart
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Of the cash paid in each month, how much has since been applied to a
+                   bill and how much is still unapplied. Applied is measured as at
+                   TODAY, not as at the month end - the question this answers is "has
+                   this payment been matched yet", which is a current-state question.
+                   A payment line is a DEBIT: allocations sit on the Dr side. */
+                With Sd As (
+                       Select PartyCode From Party
+                        Start With PartyCode = 'SUNDRYCREDITORS'
+                        Connect By Prior PartyCode = ParentCode),
+                     Alc As (
+                       Select a.DrVoucherTno Tno, a.DrVoucherSno Sno, Sum(a.Amount) Amt
+                         From DrCrAllocation a, Voucher dv, Voucher cv
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                        Group By a.DrVoucherTno, a.DrVoucherSno),
+                     R As (
+                       Select trunc(d.VoucherDate,'MM') Mth, -d.Amount Amt, nvl(al.Amt,0) Applied
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Alc al On al.Tno = d.Tno And al.Sno = d.Sno
+                        Where d.AccountCode In (Select PartyCode From Sd)
+                          And v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')
+                          And d.Amount < 0
+                          And d.VoucherDate >= to_date(:P930_FROMDATE,'DD-MM-RRRR')
+                          And d.VoucherDate <  to_date(:P930_TODATE,'DD-MM-RRRR') + 1
+                          And (cast(null as varchar2(100)) Is Null
+                               Or cast(null as varchar2(100)) = cast(null as varchar2(100)))
+                          And (null    Is Null Or cast(null as varchar2(100))        = null)
+                          And (:P930_COMPANY  Is Null Or d.CompanyCode  = :P930_COMPANY)
+                          And (:P930_LOCATION Is Null Or d.LocationCode = :P930_LOCATION))
+                Select to_char(Mth,'Mon-RR')                            As LABEL,
+                       Round(Sum(Applied)/10000000,2)                   As APPLIED_CR,
+                       Round(Sum(Amt - Applied)/10000000,2)             As UNAPPLIED_CR
+                  From R Group By Mth Order By Mth
+                ```
+            pageItemsToSubmit: [
+                P930_FROMDATE
+                P930_TODATE
+                P930_COMPANY
+                P930_LOCATION
+            ]
+        }
+        layout {
+            sequence: 52
+            slot: body
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        chartLayout {
+            height: 330
+        }
+        multiSeriesChartData {
+            fillGapsInChartData: false
+        }
+        legend {
+            position: bottom
+        }
+        messages {
+            whenNoDataFound: No payment was posted in this window.
+        }
+
+        series applied (
+            name: Applied to a bill (₹ Cr)
+            execution {
+                sequence: 10
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: APPLIED_CR
+            }
+        )
+
+        series unapplied (
+            name: Still on account (₹ Cr)
+            execution {
+                sequence: 20
+            }
+            source {
+                location: regionSource
+            }
+            columnMapping {
+                label: LABEL
+                value: UNAPPLIED_CR
+            }
+        )
+
+        axis x (
+            name: x
+            minorTicks {
+                show: false
+            }
+        )
+
+        axis y (
+            name: y
+            title: Payments (₹ Cr)
+            value {
+                format: decimal
+                decimalPlaces: 0
+                formatScaling: none
+            }
+            minorTicks {
+                show: false
+            }
+        )
+
+    )
+
+    pageItem P930_COMPANY (
+        type: selectList
+        label {
+            label: Company
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select c.CompanyName d, c.CompanyCode r
+                  From Company c
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.CompanyCode = c.CompanyCode
+                                  And v.AccountCode In (Select PartyCode From (select p.* from PARTY p where exists(select 1 from PARTYCOMPANY c where c.TNO=p.TNO and c.COMPANYCODE=:GLOBAL_COMPANYCODE)) PARTY
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All companies
+        }
+        layout {
+            sequence: 30
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P930_FROMDATE (
+        type: datePicker
+        label {
+            label: From Date
+            alignment: left
+        }
+        layout {
+            sequence: 10
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue:
+                ```sql
+                Select to_char(FinancialYearBegin,'DD-MM-RRRR')
+                  From FinancialYear
+                 Where trunc(sysdate) Between FinancialYearBegin And FinancialYearEnd
+                   And rownum = 1
+                ```
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P930_LOCATION (
+        type: selectList
+        label {
+            label: Location
+            alignment: left
+        }
+        lov {
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                Select l.LocationName d, l.LocationCode r
+                  From Location l
+                 Where Exists (Select 1 From VoucherDetail v
+                                Where v.LocationCode = l.LocationCode
+                                  And v.AccountCode In (Select PartyCode From (select p.* from PARTY p where exists(select 1 from PARTYCOMPANY c where c.TNO=p.TNO and c.COMPANYCODE=:GLOBAL_COMPANYCODE)) PARTY
+                                        Start With PartyCode = 'SUNDRYCREDITORS' Connect By Prior PartyCode = ParentCode)
+                                  And (:P930_COMPANY Is Null Or v.CompanyCode = :P930_COMPANY))
+                 Order By 1
+                ```
+            displayExtraValues: false
+            nullDisplayValue: All locations
+        }
+        cascadingLov {
+            parentItems: P930_COMPANY
+            itemsToSubmit: P930_COMPANY
+        }
+        layout {
+            sequence: 40
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 3
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P930_TODATE (
+        type: datePicker
+        label {
+            label: To Date
+            alignment: left
+        }
+        layout {
+            sequence: 20
+            region: @filter-bar
+            slot: regionBody
+            alignment: left
+            startNewRow: false
+            columnSpan: 2
+            labelColumnSpan: 0
+        }
+        appearance {
+            template: @/optional
+            templateOptions: [
+                #DEFAULT#
+                t-Form-fieldContainer--stretchInputs
+            ]
+        }
+        validation {
+            valueRequired: true
+        }
+        default {
+            type: sqlQuerySingleValue
+            sqlQuerySingleValue: Select to_char(trunc(sysdate),'DD-MM-RRRR') From dual
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button apply (
+        buttonName: APPLY
+        label: Apply
+        layout {
+            sequence: 60
+            region: @filter-bar
+            slot: regionBody
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconRight
+            ]
+            icon: fa-refresh
+        }
+    )
+
+    button back (
+        buttonName: BACK
+        label: Command Centre
+        layout {
+            sequence: 70
+            region: @filter-bar
+            slot: regionBody
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 920
+                items: {
+                    P920_FROMDATE: &P930_FROMDATE.
+                    P920_TODATE: &P930_TODATE.
+                    P920_COMPANY: &P930_COMPANY.
+                    P920_LOCATION: &P930_LOCATION.
+                }
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+)
+

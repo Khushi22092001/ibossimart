@@ -1,0 +1,1433 @@
+page 929 (
+    name: Bill Detail
+    alias: AP-BILL-DETAIL
+    title: Bill Detail
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+        warnOnUnsavedChanges: false
+    }
+    javaScript {
+        fileUrls: #APP_FILES#hspl-jet-l10n-fallback.js?version=#APP_VERSION#&cb=20260924a
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        formAutoComplete: false
+    }
+    advanced {
+        reloadOnSubmit: always
+    }
+    help {
+        helpText: One open item, end to end. A "bill" in this ERP is a VoucherDetail line identified by (Tno, Sno) - there is no BillReference table - so this page is keyed on that pair. The movement band proves the arithmetic: Original amount, less allocations settled on or before the As-of Date, equals Outstanding. Settlement is a many-to-many bridge (one payment settles many bills, one bill takes many payments), so the settlement region lists the bridge rows with their counterpart voucher rather than joining them into the header - joining would duplicate the outstanding amount on every row. The GL region shows the complete double entry the item belongs to, which is how a reader confirms the bill against the ledger rather than against another report. The last region compares the ledger figure against what the ERP's own bill-pass and payment-advice documents say about the same bill: the two disagree on 1,790 of 8,630 passes because payments made by bank-statement upload or direct voucher never reach the document figures. The ledger stands; the gap is named as control AP-X01, and PbPass.PaidAmount is shown as a cached figure that computes nothing.
+    }
+
+    region command-header (
+        name: Bill Detail
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                With Asof As (Select to_date(nvl(:P929_TODATE, to_char(trunc(sysdate),'DD-MM-RRRR')),'DD-MM-RRRR') D From dual),
+                     B As (
+                       Select d.AccountCode Pty, d.CompanyCode Cmp, d.LocationCode Loc, cast(null as varchar2(100)) Pnl,
+                              v.VoucherNo Vno, v.DocTypeCode Dtc, v.ModuleCode Mc,
+                              coalesce(i.InvoiceNo, sb.ServiceBillNo, cn.CreditNoteNo, ao.BillNo, v.VoucherNo) Ref,
+                              Case When v.VoucherNo = 'OPENING'          Then 'Opening Carry-forward'
+                                   When v.ModuleCode = 'PBPASS'          Then 'Purchase Bill'
+                                   When v.ModuleCode = 'JBPASS'          Then 'Job Bill'
+                                   When v.ModuleCode = 'FREIGHTADVICE'   Then 'Freight Bill'
+                                   When v.ModuleCode = 'CASHPURCHASE'    Then 'Cash Purchase'
+                                   When v.ModuleCode In ('NECESSITYCOMPLETION','NECESSITYSLIP')
+                                                                         Then 'Necessity Expense'
+                                   When v.ModuleCode = 'EXTERNALSERVICESENTRY'
+                                     Or v.DocTypeCode = 'SERVICEBILL'    Then 'Service Bill'
+                                   When v.ModuleCode = 'DEBITNOTE'
+                                     Or v.DocTypeCode = 'DEBITNOTE'      Then 'Debit Note'
+                                   When v.ModuleCode = 'BILLDISCOUNTINGVOUCHER'
+                                                                         Then 'Bill Discounting'
+                                   When v.ModuleCode In ('INVOICE','CCINVOICE')
+                                     Or v.DocTypeCode = 'SALE'           Then 'Contra Sale'
+                                   When v.DocTypeCode In ('PAYMENT','CASHPAYMENT','BANKPAYMENT')
+                                                                         Then 'Payment to Vendor'
+                                   When v.DocTypeCode = 'RECEIPT'        Then 'Receipt / Credit-in'
+                                   Else 'Journal' End Cls
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join Invoice     i  On v.ModuleCode = 'INVOICE'     And i.Tno  = v.ModuleTno
+                         Left Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                         Left Join CreditNote  cn On v.ModuleCode = 'CREDITNOTE'  And cn.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                        Where d.Tno = :P929_TNO And d.Sno = :P929_SNO)
+                Select '<div class="ds-ap-head">'
+                    || '<div class="ds-ap-eyebrow">Payables &middot; Open Item Detail</div>'
+                    || '<h1 class="ds-ap-title">' || apex_escape.html(nvl(b.Ref,'Open item')) || '</h1>'
+                    || '<div class="ds-ap-sub">'
+                       || apex_escape.html(nvl(p.PartyName, b.Pty))
+                       || ' &middot; voucher ' || apex_escape.html(b.Vno) || '</div>'
+                    || '<div class="ds-ap-context">'
+                    || '<span class="ds-ap-chip"><span class="fa fa-tag"></span>Class <b>' || b.Cls || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-crosshairs"></span>As at <b>' || to_char(a.D,'DD-MM-RRRR') || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-building-o"></span>Company <b>'
+                       || apex_escape.html(nvl(c.CompanyName, b.Cmp)) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-map-marker"></span>Location <b>'
+                       || apex_escape.html(nvl(l.LocationName, b.Loc)) || '</b></span>'
+                    || '<span class="ds-ap-chip"><span class="fa fa-hashtag"></span>Ledger line <b>'
+                       || :P929_TNO || ' / ' || :P929_SNO || '</b></span>'
+                    || '</div></div>' As HEAD
+                  From B b Cross Join Asof a
+                  Left Join Party p On p.PartyCode = b.Pty
+                  Left Join Company c On c.CompanyCode = b.Cmp
+                  Left Join Location l On l.LocationCode = b.Loc
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+                P929_TODATE
+            ]
+        }
+        layout {
+            sequence: 5
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-ap-headregion
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No open item was selected, or the ledger line no longer exists.
+        }
+
+        column HEAD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: HEAD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region doc-crosscheck (
+        name: Ledger vs the ERP's Own Documents
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* CONTROL AP-X01, at the grain of one bill.
+                   The ledger figure above is authoritative. This region shows what the
+                   OPERATIONAL documents say about the same bill and names the gap,
+                   because the two disagree on 1,790 of 8,630 passes by Rs 78.12 Cr net
+                   and a reader who is shown only one of them cannot know which.
+                
+                   PbPass.PaidAmount is the ERP's own cached paid figure. It is written
+                   by some flows and not others - populated on 1,231 of 8,626 passes -
+                   so it is displayed as a cached figure and never used to compute
+                   anything. PaymentAdviceReference is what an advice STATES it pays,
+                   which misses every payment made by bank-statement upload or direct
+                   voucher; that is the usual cause of the gap. */
+                With Asof As (Select to_date(nvl(:P929_TODATE, to_char(trunc(sysdate),'DD-MM-RRRR')),'DD-MM-RRRR') D From dual),
+                     Led As (
+                       /* the ledger, exactly as the movement band above computes it */
+                       Select d.Amount Amt,
+                              d.Amount - nvl((
+                                Select Sum(x.Amt) From (
+                                  Select -Sum(a.Amount) Amt
+                                    From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                                   Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                                     And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                                     And a.DrVoucherTno = d.Tno And a.DrVoucherSno = d.Sno
+                                  Union All
+                                  Select Sum(a.Amount)
+                                    From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                                   Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                                     And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                                     And a.CrVoucherTno = d.Tno And a.CrVoucherSno = d.Sno) x),0) Open_
+                         From VoucherDetail d Cross Join Asof
+                        Where d.Tno = :P929_TNO And d.Sno = :P929_SNO),
+                     Doc As (
+                       /* the document layer, for a purchase-bill pass only - the one
+                          module where an operational figure exists at all */
+                       Select nvl(p.PBPassAmount,0) PassAmt,
+                              nvl(p.SumOfTdsAmount,0) Tds,
+                              p.PaidAmount CachedPaid,
+                              nvl((Select Sum(r.Amount) From PaymentAdviceReference r
+                                    Where r.ReferenceModuleCode = 'PURCHASEBILL'
+                                      And r.ReferenceModuleTno = p.PurchaseBillTno),0) AdvBill,
+                              nvl((Select Sum(r.Amount) From PaymentAdviceReference r
+                                    Where r.ReferenceModuleCode = 'PURCHASEORDER'
+                                      And r.ReferenceModuleTno In
+                                          (Select pbd.PurchaseOrderTno From PurchaseBillDetail pbd
+                                            Where pbd.Tno = p.PurchaseBillTno)),0) AdvPo,
+                              nvl((Select Sum(nvl(dn.DebitNoteAmount,0)) From DebitNote dn
+                                    Where dn.ReferenceModuleCode = 'PBPASS'
+                                      And dn.ReferenceModuleTno = p.Tno),0) DnAmt
+                         From Voucher v
+                         Join PBPass p On p.Tno = v.ModuleTno
+                        Where v.Tno = :P929_TNO And v.ModuleCode = 'PBPASS')
+                Select Ord, Line, Amt, Note From (
+                  Select 10 Ord, 'Ledger: outstanding on this item' Line,
+                         Round(l.Open_,2) Amt,
+                         'the authoritative figure - Amount less allocations dated on or before the As-of Date' Note
+                    From Led l
+                  Union All
+                  Select 20, 'Document: pass amount', Round(d.PassAmt,2),
+                         'PBPass.PBPassAmount' From Doc d
+                  Union All
+                  Select 30, 'Document: less TDS withheld', Round(-d.Tds,2),
+                         'PBPass.SumOfTdsAmount' From Doc d
+                  Union All
+                  Select 40, 'Document: less debit notes', Round(-d.DnAmt,2),
+                         'DebitNote rows referencing this pass' From Doc d
+                  Union All
+                  Select 50, 'Document: less payments stated by advices', Round(-(d.AdvBill + d.AdvPo),2),
+                         'PaymentAdviceReference against the bill and its orders' From Doc d
+                  Union All
+                  Select 60, 'Document: implied outstanding',
+                         Round(d.PassAmt - d.Tds - d.DnAmt - d.AdvBill - d.AdvPo,2),
+                         'what the operational documents alone would conclude' From Doc d
+                  Union All
+                  Select 70, 'Difference (ledger less documents)',
+                         Round(l.Open_ - (d.PassAmt - d.Tds - d.DnAmt - d.AdvBill - d.AdvPo),2),
+                         Case When Abs(l.Open_ - (d.PassAmt - d.Tds - d.DnAmt - d.AdvBill - d.AdvPo)) < 1
+                              Then 'the two views agree on this bill'
+                              Else 'payments settled outside the advice system - bank-statement upload or direct voucher - '
+                                   || 'are invisible to the document view. Control AP-X01; the ledger figure stands.' End
+                    From Led l Cross Join Doc d
+                  Union All
+                  Select 80, 'ERP cached paid figure (not used)',
+                         Round(d.CachedPaid,2),
+                         Case When d.CachedPaid Is Null
+                              Then 'PbPass.PaidAmount is NULL on this pass - it is populated on 1,231 of 8,626 and is never used to compute outstanding'
+                              Else 'PbPass.PaidAmount, shown for reference only - written by some flows and not others, so no figure on this dashboard derives from it' End
+                    From Doc d
+                ) Order By Ord
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+                P929_TODATE
+            ]
+        }
+        layout {
+            sequence: 46
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: This item is not a purchase-bill pass, so no operational document figure exists to compare the ledger against.
+        }
+
+        column AMT (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Amount (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 20
+                columnAlignment: end
+            }
+        )
+
+        column LINE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Ledger against documents
+            }
+            layout {
+                sequence: 10
+            }
+        )
+
+        column NOTE (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Basis
+            }
+            layout {
+                sequence: 30
+            }
+        )
+
+        column ORD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: ORD
+            }
+            layout {
+                sequence: 5
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+    )
+
+    region exceptions (
+        name: Exceptions on This Item
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The same control predicates as page 715, narrowed to this one item.
+                   A control that does not fire is not listed - this is a per-item
+                   finding list, not the full matrix. */
+                With Asof As (Select to_date(nvl(:P929_TODATE, to_char(trunc(sysdate),'DD-MM-RRRR')),'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select -Sum(a.Amount) Amt From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                          And a.DrVoucherTno = :P929_TNO And a.DrVoucherSno = :P929_SNO
+                       Union All
+                       Select Sum(a.Amount) From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                          And a.CrVoucherTno = :P929_TNO And a.CrVoucherSno = :P929_SNO),
+                     A As (Select nvl(Sum(Amt),0) Amt From Alc),
+                     I As (
+                       Select d.Amount Amt, d.CompanyCode Cmp, cast(null as varchar2(100)) Pnl, d.LocationCode Loc, d.VoucherDate Vdt,
+                              v.VoucherNo Vno, v.DocTypeCode Dtc,
+                              coalesce(pt.DueDt, jt.DueDt, ao.BillDueDate) DueDate,
+                              ao.BillDate AoBillDate, ao.BillDueDate AoBillDue,
+                              -(d.Amount - (Select Amt From A)) Pay
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join (Select pp.Tno Tno,
+                                           coalesce(Max(pb.PartyBillDate), Max(pb.PurchaseBillDate)) DocDt,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           coalesce(Max(jb.PartyBillDate), Max(jb.JobBillDate)) DocDt,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                        Where d.Tno = :P929_TNO And d.Sno = :P929_SNO)
+                Select Code, Nm, Sev, Detail From (
+                  Select 'AP-B02' Code, 'Cannot be aged' Nm, 'High' Sev,
+                         'The source document carries no due date and this ERP holds no credit terms to derive one from.' Detail
+                    From I i Where i.Pay > 0.005 And i.DueDate Is Null
+                  Union All
+                  Select 'AP-O01','Opening item, original bill date lost','High',
+                         'Migrated at the 31-03-2026 cutover without its original bill date, so its age is understated.'
+                    From I i Where i.Vno = 'OPENING' And i.AoBillDate Is Null And Abs(i.Pay) > 0.005
+                  Union All
+                  Select 'AP-O02','Opening item, original due date lost','Medium',
+                         'Cannot be aged on the Due Date basis; falls into Cannot Age.'
+                    From I i Where i.Vno = 'OPENING' And i.AoBillDue Is Null And i.Pay > 0.005
+                  Union All
+                  Select 'AP-P03','Receipt cash unapplied over 90 days','Critical',
+                         'Received ' || to_char((Select D From Asof) - i.Vdt) || ' days ago and still not applied to any bill.'
+                    From I i Cross Join Asof Where i.Dtc = 'RECEIPT' And i.Pay < -0.005 And Asof.D - i.Vdt > 90
+                  Union All
+                  Select 'AP-A07','Allocation exceeds the item','Critical',
+                         'More has been allocated against this line than the line is worth; its balance has flipped sign.'
+                    From I i Where Abs((Select Amt From A)) > Abs(i.Amt) + 0.005
+                  Union All
+                  Select 'AP-M01','Posted with incomplete business scope','Critical',
+                         'Company or location is missing, so the payable cannot be assigned to a complete Ironmart business scope.'
+                    From I i Where i.Cmp Is Null Or i.Loc Is Null
+                  Union All
+                  Select 'AP-M02','Location marked DO NOT USE','High',
+                         'The location master names this location as unusable, yet this payable is posted to it.'
+                    From I i Join Location l On l.LocationCode = i.Loc
+                   Where upper(l.LocationName) Like '%DO NOT USE%'
+                ) Order By Case Sev When 'Critical' Then 1 When 'High' Then 2 Else 3 End, Code
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+                P929_TODATE
+            ]
+        }
+        layout {
+            sequence: 50
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No control fires on this item.
+        }
+
+        column CODE (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Control
+            }
+            layout {
+                sequence: 10
+            }
+        )
+
+        column DETAIL (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Why
+            }
+            layout {
+                sequence: 40
+            }
+        )
+
+        column NM (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Exception
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column SEV (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Severity
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+        )
+
+    )
+
+    region gl-lines (
+        name: General Ledger Entry
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* Every line of the voucher this item belongs to, so the reader can see
+                   the complete double entry. The item itself is marked. A DEBIT is a
+                   NEGATIVE Amount, so the two sides are split by sign and shown as
+                   positive figures under their own headings. */
+                Select Case When d.Sno = :P929_SNO Then
+                            '<b>' || apex_escape.html(nvl(p.PartyName, d.AccountCode)) || '</b>'
+                            || ' <span class="ds-apchip ds-apchip--info">this item</span>'
+                       Else apex_escape.html(nvl(p.PartyName, d.AccountCode)) End As ACCOUNT,
+                       d.AccountCode                                    As ACCOUNT_CODE,
+                       Round(Case When d.Amount < 0 Then -d.Amount End,2) As DEBIT,
+                       Round(Case When d.Amount > 0 Then  d.Amount End,2) As CREDIT,
+                       substr(d.Narration,1,200)      As NARRATION
+                  From VoucherDetail d
+                  Left Join Party p On p.PartyCode = d.AccountCode
+                 Where d.Tno = :P929_TNO
+                 Order By d.Sno
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+            ]
+        }
+        layout {
+            sequence: 32
+            slot: body
+            startNewRow: false
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: This voucher carries no lines.
+        }
+
+        column ACCOUNT (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Account
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column ACCOUNT_CODE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Code
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column CREDIT (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Credit (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+        )
+
+        column DEBIT (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Debit (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 30
+                columnAlignment: end
+            }
+        )
+
+        column NARRATION (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            heading {
+                heading: Narration
+            }
+            layout {
+                sequence: 50
+            }
+        )
+
+    )
+
+    region movement (
+        name: Financial Movement
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* THE ARITHMETIC, SHOWN RATHER THAN ASSERTED.
+                     Original amount
+                   - allocations settled on or before the As-of Date
+                   = Outstanding
+                   Both allocation directions are handled: for a DEBIT item the
+                   allocations are the credits applied to it, for a CREDIT item they
+                   are the debits it was applied against. The two are summed with
+                   opposite signs, exactly as the canonical layer does. */
+                With Asof As (Select to_date(nvl(:P929_TODATE, to_char(trunc(sysdate),'DD-MM-RRRR')),'DD-MM-RRRR') D From dual),
+                     Alc As (
+                       Select -Sum(a.Amount) Amt, Count(*) N
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                          And a.DrVoucherTno = :P929_TNO And a.DrVoucherSno = :P929_SNO
+                       Union All
+                       Select Sum(a.Amount), Count(*)
+                         From DrCrAllocation a, Voucher dv, Voucher cv, Asof
+                        Where dv.Tno = a.DrVoucherTno And cv.Tno = a.CrVoucherTno
+                          And dv.VoucherDate <= Asof.D And cv.VoucherDate <= Asof.D
+                          And a.CrVoucherTno = :P929_TNO And a.CrVoucherSno = :P929_SNO),
+                     A As (Select nvl(Sum(Amt),0) Amt, nvl(Sum(N),0) N From Alc),
+                     D As (
+                       Select d.Amount Amt,
+                              coalesce(pt.DocDt, jt.DocDt, ao.BillDate, d.VoucherDate) DocDate,
+                              coalesce(pt.DueDt, jt.DueDt, ao.BillDueDate) DueDate
+                         From VoucherDetail d
+                         Join Voucher v On v.Tno = d.Tno
+                         Left Join (Select pp.Tno Tno,
+                                           coalesce(Max(pb.PartyBillDate), Max(pb.PurchaseBillDate)) DocDt,
+                                           Max(pb.PurchaseBillDate)
+                                             + coalesce(Max(po.CreditDays), Max(pty.CreditDays)) DueDt
+                                      From PBPass pp
+                                      Join PurchaseBill pb On pb.Tno = pp.PurchaseBillTno
+                                      Left Join PurchaseBillDetail pbd On pbd.Tno = pb.Tno
+                                      Left Join PurchaseOrder po On po.Tno = pbd.PurchaseOrderTno
+                                      Left Join Party pty On pty.PartyCode = pb.PartyCode
+                                     Group By pp.Tno) pt On v.ModuleCode = 'PBPASS' And pt.Tno = v.ModuleTno
+                         Left Join (Select jp.Tno Tno,
+                                           coalesce(Max(jb.PartyBillDate), Max(jb.JobBillDate)) DocDt,
+                                           Max(jb.JobBillDate) + nvl(Max(jo.CreditDays),0) DueDt
+                                      From JBPass jp
+                                      Join JobBill jb On jb.Tno = jp.JobBillTno
+                                      Left Join JobOrder jo On jo.Tno = jb.JobOrderTno
+                                     Group By jp.Tno) jt On v.ModuleCode = 'JBPASS' And jt.Tno = v.ModuleTno
+                         Left Join AccountOpening ao On v.VoucherNo = 'OPENING'   And ao.Tno = d.ModuleTno
+                        Where d.Tno = :P929_TNO And d.Sno = :P929_SNO)
+                Select '<div class="ds-apexp">'
+                    || '<div class="ds-apexp-cell ds-apexp-cell--pay"><dl>'
+                    || '<dt>' || Case When d.Amt < 0 Then 'Original Payable' Else 'Original Credit' End || '</dt><dd>&#8377;'
+                    || to_char(Round(Abs(d.Amt),2),'FM999G99G99G990D00') || '</dd>'
+                    || '<div class="ds-apexp-sub">document dated ' || to_char(d.DocDate,'DD-MM-RRRR')
+                    || Case When d.DueDate Is Not Null Then ' &middot; due ' || to_char(d.DueDate,'DD-MM-RRRR')
+                            Else ' &middot; <b>no due date on the source document</b>' End
+                    || '</div></dl></div>'
+                    || '<div class="ds-apexp-cell ds-apexp-cell--dr"><dl>'
+                    || '<dt>Settled</dt><dd>&#8377;'
+                    || to_char(Round(Abs(a.Amt),2),'FM999G99G99G990D00') || '</dd>'
+                    || '<div class="ds-apexp-sub">' || to_char(a.N,'FM999G990')
+                    || Case When a.N = 1 Then ' settlement' Else ' settlements' End
+                    || ' dated on or before the As-of Date</div></dl></div>'
+                    || '<div class="ds-apexp-cell ds-apexp-cell--net"><dl>'
+                    || '<dt>' || Case When -(d.Amt - a.Amt) >= 0 Then 'Outstanding' Else 'Credit Remaining' End || '</dt><dd>&#8377;'
+                    || to_char(Round(Abs(d.Amt - a.Amt),2),'FM999G99G99G990D00') || '</dd>'
+                    || '<div class="ds-apexp-sub">original less settled</div>'
+                    /* The arithmetic is spelled out so a reader never has to take on
+                       trust that the three figures above belong together. */
+                    || '<span class="ds-apexp-tie ds-apexp-tie--ok"><span class="fa fa-check"></span>'
+                    || to_char(Round(Abs(d.Amt),2),'FM999G99G99G990D00') || ' &minus; '
+                    || to_char(Round(Abs(a.Amt),2),'FM999G99G99G990D00') || ' = '
+                    || to_char(Round(Abs(d.Amt - a.Amt),2),'FM999G99G99G990D00') || '</span>'
+                    || '</dl></div></div>' As BAND
+                  From D d Cross Join A a
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+                P929_TODATE
+            ]
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column BAND (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: BAND
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region quick-links (
+        name: Go to
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The quick-links strip: one card per sibling page in this section.
+                   One report ROW per card, so the report's own tbody becomes the
+                   grid (see `.ds-kpiwrap` in design-system.css) and the number of
+                   cards can vary with the reader's privileges without the layout
+                   caring.
+                
+                   AUTHORISATION. The menu gates each entry on
+                   GetApexReportPrivilege, but that function returns a PL/SQL
+                   BOOLEAN and therefore cannot be called from SQL. Its logic is
+                   reproduced below against the same three tables, INCLUDING the
+                   hard-coded 'BOSS' bypass it carries, so a card appears only
+                   where the menu entry would. A reader never sees a card for a
+                   page they cannot open. If that function's rule changes, this
+                   predicate has to change with it - that duplication is the price
+                   of the boolean return type.
+                
+                   Page 698 (Bill Detail) is deliberately absent: it is keyed on a
+                   specific (Tno, Sno) and is meaningless without one, so it is
+                   reached by clicking a bill, never from a menu. */
+                With Pg As (
+                  Select 920 Id, 'AP Command Centre'          Nm, 'Payable, due and overdue, payments, advances and the exceptions behind every number' Sub, 'fa-dashboard'              Ic From dual Union All
+                  Select 921,    'Vendor-wise Payable',           'One row per vendor, with ageing and the netting position',             'fa-users'                  From dual Union All
+                  Select 922,    'Bill-wise Payable',             'Every open item at line level, with its source document',              'fa-list-alt'               From dual Union All
+                  Select 923,    'Creditor 360',                  'One vendor from every angle - bills, payments, advances, statement',   'fa-user'                   From dual Union All
+                  Select 924,    'Payments and Settlement',       'Cash actually paid, which bank paid it, how much is applied',          'fa-upload'                 From dual Union All
+                  Select 925,    'Advances and Unapplied Payments','Money already with vendors, and the payable it could clear',          'fa-hand-o-up'              From dual Union All
+                  Select 926,    'Unbilled Liability (GRNI)',     'Goods received, no supplier bill yet - tied to the GR/IR account',     'fa-truck'                  From dual Union All
+                  Select 927,    'Exceptions and Controls',       'Every control, what it tests, and the records that fail it',           'fa-exclamation-triangle'   From dual Union All
+                  Select 928,    'Reconciliation and Data Health','The open-item register against the general-ledger control account',    'fa-balance-scale'          From dual Union All
+                  Select 930,    'Trends and Cash Forecast',      'How the position moved, and the cash the due dates demand',            'fa-line-chart'             From dual Union All
+                  Select 931,    'Daily Payment MIS',             'One day: position, movement, dues and what remains unexplained',       'fa-calendar-o'             From dual Union All
+                  Select 932,    'Weekly AP Review',              'Opening against closing, and the controls that failed in the week',    'fa-calendar'               From dual Union All
+                  Select 933,    'Monthly Management MIS',        'The management pack, reconciled to the GL at the foot',                'fa-file-text-o'            From dual)
+                Select '<a class="ds-kpi ds-kpi--link ds-kpi--teal" href="'
+                    || apex_page.get_url(
+                         p_page        => Pg.Id,
+                         p_clear_cache => to_char(Pg.Id),
+                         /* Page 700 is a single-day report and has no From/To pair -
+                            naming an item that does not exist on the target page
+                            fails at run time, so its filter list is built separately. */
+                         p_items  => Case When Pg.Id = 931
+                                          Then 'P931_DAY,P931_COMPANY,P931_LOCATION'
+                                          Else 'P'||Pg.Id||'_FROMDATE,P'||Pg.Id||'_TODATE,P'
+                                               ||Pg.Id||'_COMPANY,P'||Pg.Id||'_LOCATION' End,
+                         p_values => Case When Pg.Id = 931
+                                          Then :P929_TODATE ||',,,'
+                                          Else :P929_FROMDATE ||','|| :P929_TODATE ||',,,' End)
+                    || '"><span class="ds-kpi-ic fa ' || Pg.Ic || '"></span>'
+                    || '<div class="ds-kpi-body"><div class="ds-kpi-t">' || Pg.Nm || '</div>'
+                    || '<div class="ds-kpi-sub">' || Pg.Sub || '</div></div></a>' As CARD
+                  From Pg
+                 Where Pg.Id <> 929
+                 Order By Pg.Id
+                ```
+            pageItemsToSubmit: [
+                P929_FROMDATE
+                P929_TODATE
+            ]
+        }
+        layout {
+            sequence: 900
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-kpiwrap
+                ds-kpiwrap--cols
+                ds-apnavwrap
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+
+        column CARD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: CARD
+            }
+            layout {
+                sequence: 10
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    region rule-crosscheck (
+        name: Ledger against Documents
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Ledger against the ERP's Own Documents</h2>
+                  <p>What the bill-pass and payment-advice documents say about this bill, and where they differ from the ledger &mdash; control AP-X01</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 45
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region rule-settle (
+        name: Settlement
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Settlement History</h2>
+                  <p>Every allocation against this item, with the counterpart voucher on the other side of it</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 38
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region rule-source (
+        name: Source Document
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="ds-dash-section">
+                  <h2>Source Document</h2>
+                  <p>Where this item came from, and the complete double entry it belongs to</p>
+                </div>
+                ```
+        }
+        layout {
+            sequence: 28
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-sectionregion
+        }
+    )
+
+    region settlements (
+        name: Settlements
+        type: interactiveReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* The allocation bridge, listed rather than joined. Both directions are
+                   unioned so the page works whether the item is a bill being settled by
+                   receipts, or a receipt being applied against bills. Allocations dated
+                   after the As-of Date are shown but flagged, because they are excluded
+                   from the Outstanding figure above and a reader who cannot see them
+                   would think the arithmetic was wrong. */
+                With Asof As (Select to_date(nvl(:P929_TODATE, to_char(trunc(sysdate),'DD-MM-RRRR')),'DD-MM-RRRR') D From dual)
+                Select cv.Tno                                          As COUNTERPART_TNO,
+                       'Receipt / credit applied to this bill'         As DIRECTION,
+                       cv.VoucherNo                                    As COUNTERPART_VOUCHER,
+                       cv.VoucherDate                                  As COUNTERPART_DATE,
+                       cv.DocTypeCode                                  As COUNTERPART_TYPE,
+                       nvl(p.PartyName, cd.AccountCode) As COUNTERPART_ACCOUNT,
+                       Round(a.Amount,2)                               As ALLOCATED,
+                       nvl(a.ModuleCode,'-')         As ALLOCATION_SOURCE,
+                       nvl(l.LocationName, cd.LocationCode) As COUNTERPART_LOCATION,
+                       Case When cv.VoucherDate > (Select D From Asof)
+                                 Then '<span class="ds-apchip ds-apchip--warn">After As-of &mdash; excluded</span>'
+                            Else '<span class="ds-apchip ds-apchip--pass">Counted</span>' End As STATUS
+                  From DrCrAllocation a
+                  Join Voucher cv On cv.Tno = a.CrVoucherTno
+                  Left Join VoucherDetail cd On cd.Tno = a.CrVoucherTno And cd.Sno = a.CrVoucherSno
+                  Left Join Party p On p.PartyCode = cd.AccountCode
+                  Left Join Location l On l.LocationCode = cd.LocationCode
+                 Where a.DrVoucherTno = :P929_TNO And a.DrVoucherSno = :P929_SNO
+                Union All
+                Select dv.Tno,
+                       'This credit applied against a bill',
+                       dv.VoucherNo, dv.VoucherDate, dv.DocTypeCode,
+                       apex_escape.html(nvl(p.PartyName, dd.AccountCode)),
+                       Round(a.Amount,2),
+                       apex_escape.html(nvl(a.ModuleCode,'-')),
+                       apex_escape.html(nvl(l.LocationName, dd.LocationCode)),
+                       Case When dv.VoucherDate > (Select D From Asof)
+                                 Then '<span class="ds-apchip ds-apchip--warn">After As-of &mdash; excluded</span>'
+                            Else '<span class="ds-apchip ds-apchip--pass">Counted</span>' End
+                  From DrCrAllocation a
+                  Join Voucher dv On dv.Tno = a.DrVoucherTno
+                  Left Join VoucherDetail dd On dd.Tno = a.DrVoucherTno And dd.Sno = a.DrVoucherSno
+                  Left Join Party p On p.PartyCode = dd.AccountCode
+                  Left Join Location l On l.LocationCode = dd.LocationCode
+                 Where a.CrVoucherTno = :P929_TNO And a.CrVoucherSno = :P929_SNO
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+                P929_TODATE
+            ]
+        }
+        layout {
+            sequence: 40
+            slot: body
+        }
+        appearance {
+            template: 2102002977963900996
+            templateOptions: #DEFAULT#
+            cssClasses: [
+                ds-dash-panel
+                ds-register
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+        }
+        messages {
+            whenNoDataFound: This item has never been allocated. It is open for its full original amount - which is the normal state here: only 31% of AP lines in this ledger have ever been allocated.
+        }
+        searchBar {
+            rowsPerPageSelector: true
+        }
+        advanced {
+            savedReportMappingIdentifier: 69800000000000698
+        }
+
+        column ALLOCATED (
+            type: plainText
+            heading {
+                heading: Allocated (₹)
+                alignment: end
+            }
+            layout {
+                sequence: 70
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G99G99G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column ALLOCATION_SOURCE (
+            type: plainText
+            heading {
+                heading: Allocation Source
+            }
+            layout {
+                sequence: 90
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column COUNTERPART_ACCOUNT (
+            type: plainText
+            heading {
+                heading: Counterpart Account
+            }
+            layout {
+                sequence: 60
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column COUNTERPART_DATE (
+            type: plainText
+            heading {
+                heading: Date
+            }
+            layout {
+                sequence: 40
+            }
+            appearance {
+                formatMask: DD-MM-RRRR
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column COUNTERPART_LOCATION (
+            type: plainText
+            heading {
+                heading: Counterpart Location
+            }
+            layout {
+                sequence: 100
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column COUNTERPART_TNO (
+            type: hidden
+            heading {
+                heading: Tno
+            }
+            layout {
+                sequence: 20
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column COUNTERPART_TYPE (
+            type: plainText
+            heading {
+                heading: Type
+            }
+            layout {
+                sequence: 50
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column COUNTERPART_VOUCHER (
+            type: link
+            heading {
+                heading: Counterpart Voucher
+            }
+            layout {
+                sequence: 10
+            }
+            link {
+                target: {
+                    page: 678
+                    items: {
+                        P678_TNO: #COUNTERPART_TNO#
+                    }
+                    clearCache: 678
+                }
+                linkText: #COUNTERPART_VOUCHER#
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column DIRECTION (
+            type: plainText
+            heading {
+                heading: Direction
+            }
+            layout {
+                sequence: 30
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        column STATUS (
+            type: plainText
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 80
+                columnAlignment: center
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport 69801 (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 25
+            }
+
+            displayColumn ALLOCATED (
+                sequence: 5
+            )
+
+            displayColumn COUNTERPART_ACCOUNT (
+                sequence: 4
+            )
+
+            displayColumn COUNTERPART_DATE (
+                sequence: 2
+            )
+
+            displayColumn COUNTERPART_TYPE (
+                sequence: 3
+            )
+
+            displayColumn COUNTERPART_VOUCHER (
+                sequence: 1
+            )
+
+            displayColumn STATUS (
+                sequence: 6
+            )
+
+            aggregate (
+                column: ALLOCATED
+            )
+
+        )
+
+    )
+
+    region source-doc (
+        name: Originating Document
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                /* One row per attribute, so a document type with fields another type
+                   does not have simply contributes fewer rows - rather than forcing a
+                   single wide row full of nulls that a reader has to interpret. */
+                With V As (Select v.*, d.ModuleTno DtlModuleTno
+                             From Voucher v Join VoucherDetail d On d.Tno = v.Tno
+                            Where d.Tno = :P929_TNO And d.Sno = :P929_SNO)
+                Select Ord, Attribute, Val From (
+                  Select 10 Ord, 'Document type' Attribute,
+                         apex_escape.html(nvl(v.ModuleCode, v.DocTypeCode)) Val From V v
+                  Union All
+                  Select 20, 'Invoice number', apex_escape.html(i.InvoiceNo)
+                    From V v Join Invoice i On v.ModuleCode = 'INVOICE' And i.Tno = v.ModuleTno
+                  Union All
+                  Select 30, 'Invoice date', to_char(i.InvoiceDate,'DD-MM-RRRR')
+                    From V v Join Invoice i On v.ModuleCode = 'INVOICE' And i.Tno = v.ModuleTno
+                  Union All
+                  Select 40, 'Due date', nvl(to_char(i.DueDate,'DD-MM-RRRR'),'<b>not set on the invoice</b>')
+                    From V v Join Invoice i On v.ModuleCode = 'INVOICE' And i.Tno = v.ModuleTno
+                  Union All
+                  Select 50, 'Invoice amount', to_char(Round(i.InvoiceAmount,2),'FM999G99G99G990D00')
+                    From V v Join Invoice i On v.ModuleCode = 'INVOICE' And i.Tno = v.ModuleTno
+                  Union All
+                  Select 60, 'Agent', apex_escape.html(nvl(ag.PartyName, i.AgentCode))
+                    From V v Join Invoice i On v.ModuleCode = 'INVOICE' And i.Tno = v.ModuleTno
+                    Left Join Party ag On ag.PartyCode = i.AgentCode
+                   Where i.AgentCode Is Not Null
+                  Union All
+                  Select 70, 'Commercial invoice', apex_escape.html(cc.CCInvoiceNo)
+                    From V v Join Invoice i On v.ModuleCode = 'INVOICE' And i.Tno = v.ModuleTno
+                    Join CCInvoice cc On cc.Tno = i.ModuleTno
+                  Union All
+                  Select 80, 'Service bill number', apex_escape.html(sb.ServiceBillNo)
+                    From V v Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                  Union All
+                  Select 90, 'Service bill due date', nvl(to_char(sb.DueDate,'DD-MM-RRRR'),'not set')
+                    From V v Join ServiceBill sb On v.ModuleCode = 'SERVICEBILL' And sb.Tno = v.ModuleTno
+                  Union All
+                  Select 100, 'Credit note number', apex_escape.html(cn.CreditNoteNo)
+                    From V v Join CreditNote cn On v.ModuleCode = 'CREDITNOTE' And cn.Tno = v.ModuleTno
+                  Union All
+                  /* Opening carry-forward links through the DETAIL ModuleTno, not the
+                     header's - the only place a pre-cutover bill date survives. */
+                  Select 110, 'Migrated bill number', apex_escape.html(ao.BillNo)
+                    From V v Join AccountOpening ao On v.VoucherNo = 'OPENING' And ao.Tno = v.DtlModuleTno
+                  Union All
+                  Select 120, 'Original bill date',
+                         nvl(to_char(ao.BillDate,'DD-MM-RRRR'),
+                             '<b>not preserved at migration &mdash; age is floored at the cutover (AP-O01)</b>')
+                    From V v Join AccountOpening ao On v.VoucherNo = 'OPENING' And ao.Tno = v.DtlModuleTno
+                  Union All
+                  Select 130, 'Original due date',
+                         nvl(to_char(ao.BillDueDate,'DD-MM-RRRR'),
+                             '<b>not preserved at migration &mdash; cannot be aged on the Due basis (AP-O02)</b>')
+                    From V v Join AccountOpening ao On v.VoucherNo = 'OPENING' And ao.Tno = v.DtlModuleTno
+                  Union All
+                  Select 140, 'Voucher number', apex_escape.html(v.VoucherNo) From V v
+                  Union All
+                  Select 150, 'Voucher date', to_char(v.VoucherDate,'DD-MM-RRRR') From V v
+                  Union All
+                  Select 160, 'Voucher type', apex_escape.html(v.DocTypeCode) From V v
+                  Union All
+                  Select 170, 'Posted by', apex_escape.html(v.Creator) From V v Where v.Creator Is Not Null
+                  Union All
+                  Select 180, 'Posted on', to_char(v.CreationTime,'DD-MM-RRRR HH24:MI') From V v Where v.CreationTime Is Not Null
+                  Union All
+                  Select 190, 'Bank reference', apex_escape.html(v.MoneyTransferReferenceNo)
+                    From V v Where v.MoneyTransferReferenceNo Is Not Null
+                  Union All
+                  Select 200, 'Payment mode', apex_escape.html(v.MoneyTransferModeCode)
+                    From V v Where v.MoneyTransferModeCode Is Not Null
+                ) Where Val Is Not Null Order By Ord
+                ```
+            pageItemsToSubmit: [
+                P929_TNO
+                P929_SNO
+            ]
+        }
+        layout {
+            sequence: 30
+            slot: body
+            columnSpan: 6
+        }
+        appearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+            cssClasses: ds-dash-panel
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: #DEFAULT#
+        }
+        messages {
+            whenNoDataFound: No source document is linked to this ledger line.
+        }
+
+        column ATTRIBUTE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Attribute
+            }
+            layout {
+                sequence: 20
+            }
+        )
+
+        column ORD (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Ord
+            }
+            layout {
+                sequence: 10
+            }
+            serverSideCondition {
+                type: never
+            }
+        )
+
+        column VAL (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Value
+            }
+            layout {
+                sequence: 30
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+    )
+
+    pageItem P929_FROMDATE (
+        type: hidden
+        layout {
+            sequence: 16
+            slot: body
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P929_PARTY (
+        type: hidden
+        layout {
+            sequence: 18
+            slot: body
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P929_SNO (
+        type: hidden
+        layout {
+            sequence: 12
+            slot: body
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P929_TNO (
+        type: hidden
+        layout {
+            sequence: 10
+            slot: body
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    pageItem P929_TODATE (
+        type: hidden
+        layout {
+            sequence: 14
+            slot: body
+        }
+        security {
+            encryptSessionState: false
+        }
+    )
+
+    button back-items (
+        buttonName: BACKITEMS
+        label: Back to Open Items
+        layout {
+            sequence: 60
+            slot: body
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-arrow-left
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 922
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+    )
+
+    button vendor-360 (
+        buttonName: DEBTOR360
+        label: Vendor 360
+        layout {
+            sequence: 62
+            slot: body
+            startNewRow: false
+        }
+        appearance {
+            buttonTemplate: @/text-with-icon
+            hot: true
+            templateOptions: [
+                #DEFAULT#
+                t-Button--iconLeft
+            ]
+            icon: fa-user
+        }
+        behavior {
+            action: redirectThisApp
+            target: {
+                page: 923
+                items: {
+                    P923_PARTY: &P929_PARTY.
+                    P923_TODATE: &P929_TODATE.
+                    P923_FROMDATE: &P929_FROMDATE.
+                }
+                clearCache: 923
+            }
+            warnOnUnsavedChanges: doNotCheck
+        }
+        serverSideCondition {
+            type: itemIsNotNull
+            item: P929_PARTY
+        }
+    )
+
+)
+

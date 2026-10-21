@@ -1,0 +1,7 @@
+/*!
+ * Chart.js v4.4.1
+ * https://chartjs.org
+ * (c) 2023 Chart.js Contributors
+ * Released under the MIT License
+ */
+(function(g,f){typeof exports==='object'&&typeof module!=='undefined'?module.exports=f():typeof define==='function'&&define.amd?define(f):(g=typeof globalThis!=='undefined'?globalThis:g||self,g.Chart=f());})(this,(function(){'use strict';return class Chart{constructor(c,b){this.ctx=c.getContext('2d');this.config=b;this.init()}init(){let t=this.config.type,d=this.config.data.datasets[0].data,l=this.config.data.labels||[],col=this.config.data.datasets[0].borderColor,bg=this.config.data.datasets[0].backgroundColor,w=this.ctx.canvas.width,h=this.ctx.canvas.height;this.ctx.clearRect(0,0,w,h);if(t==='line'){this.ctx.beginPath();this.ctx.strokeStyle=col;this.ctx.lineWidth=2;let max=Math.max(...d),min=Math.min(...d),range=max-min||1;d.forEach((v,i)=>{let x=(w/(d.length-1))*i,y=h-((v-min)/range)*(h-10)-5;if(i===0)this.ctx.moveTo(x,y);else this.ctx.lineTo(x,y)});this.ctx.stroke()}else if(t==='bar'){let max=Math.max(...d)||1,bW=(w/d.length)*0.7,gap=(w/d.length)*0.3;d.forEach((v,i)=>{let x=(w/d.length)*i+gap/2,bH=(v/max)*(h-10),y=h-bH;this.ctx.fillStyle=bg;this.ctx.fillRect(x,y,bW,bH)})}}};}));

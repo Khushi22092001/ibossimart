@@ -1,0 +1,109 @@
+page 826 (
+    name: Dashboard
+    alias: DASHBOARD-HUB
+    title: Dashboard
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    htmlHeader {
+        htmlHeader:
+            ```html
+            
+            <script id="hspl-sidebar-head-state">
+            (function(d){
+              var state='closed';
+              try {
+                var saved=window.localStorage.getItem('imart.sidebar.state.v1');
+                if(saved==='open'||saved==='closed') state=saved;
+              } catch(ignore) {}
+              d.classList.remove(state==='open'?'hspl-nav-target-closed':'hspl-nav-target-open');
+              d.classList.add(state==='open'?'hspl-nav-target-open':'hspl-nav-target-closed');
+            })(document.documentElement);
+            </script>
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region hspl-directory-content (
+        name: Dashboard pages
+        type: plSqlDynamicContent
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                  l_count                 pls_integer := 0;
+                  l_url                   varchar2(4000);
+                  l_icon                  varchar2(4000);
+                  l_has_business_insights boolean := false;
+                
+                  procedure render_card(p_label varchar2, p_page number, p_icon varchar2) is
+                  begin
+                    l_count := l_count + 1;
+                    l_url := apex_page.get_url(
+                      p_page        => p_page,
+                      p_session     => v('APP_SESSION'),
+                      p_clear_cache => to_char(p_page));
+                    l_icon := case
+                      when instr(lower(nvl(p_icon,'')), 'fa-') > 0 then p_icon
+                      else 'fa-file-text-o'
+                    end;
+                    htp.p('<a class="hspl-directory-card hspl-directory-tone-' || mod(l_count - 1, 8) ||
+                          '" href="' || apex_escape.html_attribute(l_url) || '">');
+                    htp.p('<span class="hspl-directory-icon"><span class="fa ' ||
+                          apex_escape.html_attribute(l_icon) || '" aria-hidden="true"></span></span>');
+                    htp.p('<span class="hspl-directory-title">' || apex_escape.html(p_label) || '</span>');
+                    htp.p('<span class="hspl-directory-arrow fa fa-arrow-right-alt" aria-hidden="true"></span>');
+                    htp.p('</a>');
+                  end render_card;
+                begin
+                  htp.p('<section class="hspl-directory-grid" aria-label="Dashboard shortcuts">');
+                  for r in (
+                    select myboxlabel, pageno, iconname, serialno
+                      from myboxtree_apexmenu
+                     where bossusercode = :GLOBAL_BOSSUSERCODE
+                       and companycode = :GLOBAL_COMPANYCODE
+                       and parentkey = 'BU:' || :GLOBAL_BOSSUSERCODE || '.C:' || :GLOBAL_COMPANYCODE || '.MG:134'
+                       and pageno is not null
+                     order by serialno, upper(myboxlabel)
+                  ) loop
+                    if upper(trim(r.myboxlabel)) = 'BUSINESS INSIGHTS' then
+                      l_has_business_insights := true;
+                    end if;
+                    render_card(r.myboxlabel, r.pageno, r.iconname);
+                  end loop;
+                
+                  -- Sidebar navigation exposes this application page, but the legacy role-menu
+                  -- source can omit it. Add only the missing card and guard against duplicates.
+                  if not l_has_business_insights then
+                    render_card('Business Insights', 901, 'fa-line-chart');
+                  end if;
+                
+                  if l_count = 0 then
+                    htp.p('<div class="hspl-directory-empty"><span class="fa fa-folder-open-o" aria-hidden="true"></span><b>No pages available</b><p>Your current role has no authorized pages in this section.</p></div>');
+                  end if;
+                  htp.p('</section>');
+                end;
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/blank-with-attributes-no-grid
+            templateOptions: [
+                #DEFAULT#
+                t-Region--noUI
+            ]
+        }
+    )
+
+)
+
