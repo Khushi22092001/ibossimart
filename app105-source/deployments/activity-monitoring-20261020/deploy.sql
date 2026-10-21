@@ -1,0 +1,15 @@
+-- Run only after review of this bundle for the target environment.
+-- Does not modify existing database objects, business rows, capture policies or grants.
+WHENEVER SQLERROR EXIT SQL.SQLCODE ROLLBACK
+CONNECT -name IMART
+SET DEFINE OFF
+SET SERVEROUTPUT ON
+SPOOL deployment.log
+@preflight.sql
+@01_reporting_views.sql
+@02_apex_pages.sql
+@03_dashboard_hub_card.sql
+SELECT OBJECT_NAME,OBJECT_TYPE,STATUS FROM USER_OBJECTS WHERE OBJECT_NAME IN ('IMART_ACTIVITY_EVENTS_V','IMART_ACTIVITY_SCOPE_V');
+SELECT PAGE_ID,PAGE_NAME,PAGE_ALIAS,AUTHORIZATION_SCHEME FROM APEX_APPLICATION_PAGES WHERE APPLICATION_ID=105 AND PAGE_ID BETWEEN 1100 AND 1115 ORDER BY PAGE_ID;
+SPOOL OFF
+EXIT
