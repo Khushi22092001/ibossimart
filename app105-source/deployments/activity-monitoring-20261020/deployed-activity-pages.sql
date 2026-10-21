@@ -137,7 +137,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -263,28 +263,37 @@ wwv_flow_imp_page.create_jet_chart_series(
 ,p_name=>'DELETE'
 ,p_data_source_type=>'SQL'
 ,p_data_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
-'select x.label,x.series,x.value,case length(x.label) when 13 then case when (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FRO'
-||'M''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) then subst'
-||'r(x.label,12,2)||'':00'' else to_char(to_date(substr(x.label,1,10),''YYYY-MM-DD''),''DD Mon'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(x.label,12,2)||'':00'' end when 10 then to_char(to_date(x.label,''YYYY-MM-DD''),''Dy DD Mon'',''NLS_DATE_LANGUAGE=English'') els'
-||'e to_char(to_date(x.label||''-01'',''YYYY-MM-DD''),''Mon YYYY'',''NLS_DATE_LANGUAGE=English'') end display_label,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(n'
-||'vl(to_char(label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(series),''~NULL~''),''%'',''%25''),'','',''%2C'')) drill_url from (select to_char(b.bucket,case b.grain when ''MONTH'' then ''YYYY-MM'' when ''HOUR'' then ''YYYY-MM-DD '
-||'HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
+'select x.label,x.series,x.value,case length(x.label) when 13 then case when (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FRO'
+||'M''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_convers'
+||'ion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_ut'
+||'il.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) then substr(x.label,12,2)||'':00'' else to_char(to_date(substr(x.label,1,10),''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(x.label,12,2)||'':00'' end when 10 then to_c'
+||'har(to_date(x.label,''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') else to_char(to_date(x.label||''-01'',''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') end display_label,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items='
+||'>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(series),''~NULL~''),''%'',''%25''),'','',''%2C'')) drill_url from (select to_cha'
+||'r(b.bucket,case b.grain when ''MONTH'' then ''YYYY-MM'' when ''HOUR'' then ''YYYY-MM-DD HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
 ' from (',
 ' select case grain when ''MONTH'' then add_months(trunc(f,''MM''),level-1) when ''HOUR'' then f+(level-1)/24 else f+level-1 end bucket,grain',
-' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ '
-||'case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'
-||''' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when vali'
-||'date_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conve'
-||'rsion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'
-||''') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))'
-||'+1 when ''HOUR'' then (t-f+1)*24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') wh'
-||'en ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
-' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end fr'
-||'om dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' t'
-||'hen ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(se'
-||'lect /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ n'
-||'o_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(ape'
-||'x_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
+' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_ses'
+||'sion_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM'
+||'-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from du'
+||'al) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_T'
+||'O''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when validate_conversion('
+||'apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_'
+||'util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_ses'
+||'sion_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1'
+||' then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))+1 when ''HOUR'' then (t-f+1)*'
+||'24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local'
+||'_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
+' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_sessio'
+||'n_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1'
+||'100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date('
+||'apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unne'
+||'st */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,'
+||'''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYY'
+||'Y'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)='
+||'(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1'
+||'100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
 ' group by case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end,e.operation) c on c.bucket=b.bucket and c.series=o.series',
 ' where exists(select 1 from IMART_ACTIVITY_SCOPE_V where operation in (''INSERT'',''UPDATE'',''DELETE'')) order by label,series) x where x.series=''DELETE'''))
 ,p_series_type=>'line'
@@ -311,28 +320,37 @@ wwv_flow_imp_page.create_jet_chart_series(
 ,p_name=>'INSERT'
 ,p_data_source_type=>'SQL'
 ,p_data_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
-'select x.label,x.series,x.value,case length(x.label) when 13 then case when (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FRO'
-||'M''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) then subst'
-||'r(x.label,12,2)||'':00'' else to_char(to_date(substr(x.label,1,10),''YYYY-MM-DD''),''DD Mon'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(x.label,12,2)||'':00'' end when 10 then to_char(to_date(x.label,''YYYY-MM-DD''),''Dy DD Mon'',''NLS_DATE_LANGUAGE=English'') els'
-||'e to_char(to_date(x.label||''-01'',''YYYY-MM-DD''),''Mon YYYY'',''NLS_DATE_LANGUAGE=English'') end display_label,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(n'
-||'vl(to_char(label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(series),''~NULL~''),''%'',''%25''),'','',''%2C'')) drill_url from (select to_char(b.bucket,case b.grain when ''MONTH'' then ''YYYY-MM'' when ''HOUR'' then ''YYYY-MM-DD '
-||'HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
+'select x.label,x.series,x.value,case length(x.label) when 13 then case when (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FRO'
+||'M''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_convers'
+||'ion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_ut'
+||'il.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) then substr(x.label,12,2)||'':00'' else to_char(to_date(substr(x.label,1,10),''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(x.label,12,2)||'':00'' end when 10 then to_c'
+||'har(to_date(x.label,''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') else to_char(to_date(x.label||''-01'',''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') end display_label,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items='
+||'>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(series),''~NULL~''),''%'',''%25''),'','',''%2C'')) drill_url from (select to_cha'
+||'r(b.bucket,case b.grain when ''MONTH'' then ''YYYY-MM'' when ''HOUR'' then ''YYYY-MM-DD HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
 ' from (',
 ' select case grain when ''MONTH'' then add_months(trunc(f,''MM''),level-1) when ''HOUR'' then f+(level-1)/24 else f+level-1 end bucket,grain',
-' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ '
-||'case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'
-||''' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when vali'
-||'date_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conve'
-||'rsion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'
-||''') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))'
-||'+1 when ''HOUR'' then (t-f+1)*24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') wh'
-||'en ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
-' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end fr'
-||'om dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' t'
-||'hen ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(se'
-||'lect /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ n'
-||'o_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(ape'
-||'x_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
+' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_ses'
+||'sion_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM'
+||'-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from du'
+||'al) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_T'
+||'O''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when validate_conversion('
+||'apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_'
+||'util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_ses'
+||'sion_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1'
+||' then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))+1 when ''HOUR'' then (t-f+1)*'
+||'24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local'
+||'_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
+' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_sessio'
+||'n_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1'
+||'100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date('
+||'apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unne'
+||'st */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,'
+||'''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYY'
+||'Y'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)='
+||'(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1'
+||'100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
 ' group by case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end,e.operation) c on c.bucket=b.bucket and c.series=o.series',
 ' where exists(select 1 from IMART_ACTIVITY_SCOPE_V where operation in (''INSERT'',''UPDATE'',''DELETE'')) order by label,series) x where x.series=''INSERT'''))
 ,p_series_type=>'line'
@@ -359,28 +377,37 @@ wwv_flow_imp_page.create_jet_chart_series(
 ,p_name=>'UPDATE'
 ,p_data_source_type=>'SQL'
 ,p_data_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
-'select x.label,x.series,x.value,case length(x.label) when 13 then case when (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FRO'
-||'M''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) then subst'
-||'r(x.label,12,2)||'':00'' else to_char(to_date(substr(x.label,1,10),''YYYY-MM-DD''),''DD Mon'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(x.label,12,2)||'':00'' end when 10 then to_char(to_date(x.label,''YYYY-MM-DD''),''Dy DD Mon'',''NLS_DATE_LANGUAGE=English'') els'
-||'e to_char(to_date(x.label||''-01'',''YYYY-MM-DD''),''Mon YYYY'',''NLS_DATE_LANGUAGE=English'') end display_label,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(n'
-||'vl(to_char(label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(series),''~NULL~''),''%'',''%25''),'','',''%2C'')) drill_url from (select to_char(b.bucket,case b.grain when ''MONTH'' then ''YYYY-MM'' when ''HOUR'' then ''YYYY-MM-DD '
-||'HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
+'select x.label,x.series,x.value,case length(x.label) when 13 then case when (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FRO'
+||'M''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_convers'
+||'ion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_ut'
+||'il.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) then substr(x.label,12,2)||'':00'' else to_char(to_date(substr(x.label,1,10),''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(x.label,12,2)||'':00'' end when 10 then to_c'
+||'har(to_date(x.label,''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') else to_char(to_date(x.label||''-01'',''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') end display_label,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items='
+||'>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(series),''~NULL~''),''%'',''%25''),'','',''%2C'')) drill_url from (select to_cha'
+||'r(b.bucket,case b.grain when ''MONTH'' then ''YYYY-MM'' when ''HOUR'' then ''YYYY-MM-DD HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
 ' from (',
 ' select case grain when ''MONTH'' then add_months(trunc(f,''MM''),level-1) when ''HOUR'' then f+(level-1)/24 else f+level-1 end bucket,grain',
-' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ '
-||'case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'
-||''' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when vali'
-||'date_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conve'
-||'rsion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'
-||''') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))'
-||'+1 when ''HOUR'' then (t-f+1)*24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') wh'
-||'en ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
-' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end fr'
-||'om dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' t'
-||'hen ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(se'
-||'lect /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ n'
-||'o_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(ape'
-||'x_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
+' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_ses'
+||'sion_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM'
+||'-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from du'
+||'al) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_T'
+||'O''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when validate_conversion('
+||'apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_'
+||'util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_ses'
+||'sion_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1'
+||' then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))+1 when ''HOUR'' then (t-f+1)*'
+||'24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local'
+||'_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
+' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_sessio'
+||'n_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1'
+||'100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date('
+||'apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unne'
+||'st */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,'
+||'''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYY'
+||'Y'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)='
+||'(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1'
+||'100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
 ' group by case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end,e.operation) c on c.bucket=b.bucket and c.series=o.series',
 ' where exists(select 1 from IMART_ACTIVITY_SCOPE_V where operation in (''INSERT'',''UPDATE'',''DELETE'')) order by label,series) x where x.series=''UPDATE'''))
 ,p_series_type=>'line'
@@ -913,13 +940,15 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_display_sequence=>20
 ,p_plug_grid_column_span=>12
 ,p_plug_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
-'declare g varchar2(10);begin select case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_u'
-||'til.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY'
-||'-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end f'
-||'rom dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end int'
-||'o g from dual;',
-' htp.p(''<div class="am-trend-intro"><h3>''||case g when ''HOUR'' then ''Hourly'' when ''MONTH'' then ''Monthly'' else ''Daily'' end||'' ERP operations</h3><p>Insert, update and delete events for the selected reporting period. Single-day views use hourly detail.<'
-||'/p></div>'');end;'))
+'declare g varchar2(10);begin select case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_u'
+||'til.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ '
+||'case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYY'
+||'Y-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 '
+||'then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(selec'
+||'t /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FR'
+||'OM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end into g from dual;',
+' htp.p(''<div class="am-trend-intro"><h3>''||case g when ''HOUR'' then ''Hourly'' when ''MONTH'' then ''Monthly'' else ''Daily'' end||'' ERP operations</h3><p>Insert, update and delete events for ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P'
+||'1100_TO''))||''. Single-day views use hourly detail.</p></div>'');end;'))
 ,p_plug_source_type=>'NATIVE_PLSQL'
 );
 wwv_flow_imp_page.create_page_plug(
@@ -934,31 +963,39 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_display_point=>'SUB_REGIONS'
 ,p_plug_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare n number:=0;begin',
-unistr(' htp.p(''<div class="am-trend-table-wrap"><table class="am-trend-table"><caption>Activity trend data \2014 same period and filters as the chart</caption><thead><tr><th scope="col">Period</th><th scope="col">Insert</th><th scope="col">Update</th><th scope=')
-||'"col">Delete</th></tr></thead><tbody>'');',
+unistr(' htp.p(''<div class="am-trend-table-wrap"><table class="am-trend-table"><caption>Activity trend data \2014 same period and filters as the chart</caption><thead><tr><th scope="col">Period starting</th><th scope="col">Insert</th><th scope="col">Update</th><')
+||'th scope="col">Delete</th></tr></thead><tbody>'');',
 ' for r in (select label,max(case when series=''INSERT'' then value end) inserts,max(case when series=''UPDATE'' then value end) updates,max(case when series=''DELETE'' then value end) deletes from (select to_char(b.bucket,case b.grain when ''MONTH'' then ''YY'
 ||'YY-MM'' when ''HOUR'' then ''YYYY-MM-DD HH24'' else ''YYYY-MM-DD'' end) label,o.series,nvl(c.value,0) value',
 ' from (',
 ' select case grain when ''MONTH'' then add_months(trunc(f,''MM''),level-1) when ''HOUR'' then f+(level-1)/24 else f+level-1 end bucket,grain',
-' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ '
-||'case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'
-||''' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when vali'
-||'date_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conve'
-||'rsion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'
-||''') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))'
-||'+1 when ''HOUR'' then (t-f+1)*24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') wh'
-||'en ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
-' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end fr'
-||'om dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' t'
-||'hen ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(se'
-||'lect /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ n'
-||'o_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when validate_conversion(ape'
-||'x_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
+' from (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_ses'
+||'sion_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM'
+||'-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from du'
+||'al) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_T'
+||'O''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unnest */ case when validate_conversion('
+||'apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_'
+||'util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_ses'
+||'sion_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)=(select /*+ no_unnest */ case when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1'
+||' then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) connect by level<=case grain when ''MONTH'' then months_between(trunc(t,''MM''),trunc(f,''MM''))+1 when ''HOUR'' then (t-f+1)*'
+||'24 else t-f+1 end) b cross join (select ''INSERT'' series from dual union all select ''UPDATE'' from dual union all select ''DELETE'' from dual) o left join (select case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local'
+||'_timestamp,''HH24'') else trunc(e.local_timestamp) end bucket,e.operation series,count(*) value',
+' from IMART_ACTIVITY_SCOPE_V e cross join (select (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when v'
+||'alidate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) f,(select /*+ no_unnest */ case when validate_conversion(apex_util.get_sessio'
+||'n_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1'
+||'100_TO''),''FXYYYY-MM-DD'') end from dual) t,case when :P1100_GRAIN=''MONTH'' then ''MONTH'' when (:P1100_GRAIN=''HOUR'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date('
+||'apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)-(select /*+ no_unne'
+||'st */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,'
+||'''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)<=6) or (:P1100_GRAIN=''DAY'' and (select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYY'
+||'Y'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)='
+||'(select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1'
+||'100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual)) then ''HOUR'' else ''DAY'' end grain from dual) p where e.operation in (''INSERT'',''UPDATE'',''DELETE'')',
 ' group by case p.grain when ''MONTH'' then trunc(e.local_timestamp,''MM'') when ''HOUR'' then trunc(e.local_timestamp,''HH24'') else trunc(e.local_timestamp) end,e.operation) c on c.bucket=b.bucket and c.series=o.series',
 ' where exists(select 1 from IMART_ACTIVITY_SCOPE_V where operation in (''INSERT'',''UPDATE'',''DELETE'')) order by label,series) group by label order by label) loop',
 ' n:=n+1;',
-' htp.p(''<tr><th scope="row">''||apex_escape.html(case length(r.label) when 13 then to_char(to_date(substr(r.label,1,10),''YYYY-MM-DD''),''Dy, DD Mon'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(r.label,12,2)||'':00'' when 7 then to_char(to_date(r.label||''-01'
-||''',''YYYY-MM-DD''),''Mon YYYY'',''NLS_DATE_LANGUAGE=English'') else to_char(to_date(r.label,''YYYY-MM-DD''),''Dy, DD Mon'',''NLS_DATE_LANGUAGE=English'') end)||''</th>'');',
+' htp.p(''<tr><th scope="row">''||apex_escape.html(case length(r.label) when 13 then to_char(to_date(substr(r.label,1,10),''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'')||'' ''||substr(r.label,12,2)||'':00'' when 7 then to_char(to_date(r.label||''-01'
+||''',''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') else to_char(to_date(r.label,''YYYY-MM-DD''),''DD-MM-YYYY'',''NLS_DATE_LANGUAGE=English'') end)||''</th>'');',
 ' htp.p(''<td><a href="''||apex_escape.html_attribute(apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(r.label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'''
 ||',''||''ACTION''||'',''||replace(replace(nvl(to_char(''INSERT''),''~NULL~''),''%'',''%25''),'','',''%2C'')))||''">''||to_char(r.inserts,''FM999G999G999G990'')||''</a></td>'');htp.p(''<td><a href="''||apex_escape.html_attribute(apex_page.get_url(p_page=>1113,p_clear_cache=>''RP'
 ||',1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(r.label),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''ACTION''||'',''||replace(replace(nvl(to_char(''UPDATE''),''~NULL~''),''%'',''%25''),'','',''%2C'')))||''">''||to'
@@ -1009,9 +1046,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Operation'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct operation d,operation r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util'
-||'.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 th'
-||'en to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and operation is not null order by 1'
+,p_lov=>'select distinct operation d,operation r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util'
+||'.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Ko'
+||'lkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conve'
+||'rsion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and operation is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_begin_on_new_line=>'N'
@@ -1030,9 +1068,11 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Company'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct company_code||'' - ''||company_name d,company_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'
-||''')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') a'
-||'s date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and company_code is not null order by 1'
+,p_lov=>'select distinct company_code||'' - ''||company_name d,company_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'
+||''')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from d'
+||'ual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM'
+||'-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and company_code is not null order '
+||'by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_colspan=>3
@@ -1050,9 +1090,11 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Current department'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct current_department_name d,current_department_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-D'
-||'D'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and current_department_code is not null order by 1'
+,p_lov=>'select distinct current_department_name d,current_department_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYY'
+||'Y'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from '
+||'dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and current_department_code is not'
+||' null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_colspan=>3
@@ -1070,9 +1112,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Recorded employee code'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct employee_code d,employee_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(a'
-||'pex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-D'
-||'D'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and employee_code is not null order by 1'
+,p_lov=>'select distinct employee_code d,employee_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(a'
+||'pex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),'
+||'''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when valida'
+||'te_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and employee_code is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_begin_on_new_line=>'N'
@@ -1089,7 +1132,7 @@ wwv_flow_imp_page.create_page_item(
 ,p_item_sequence=>20
 ,p_item_plug_id=>wwv_flow_imp.id(92002610200000004)
 ,p_prompt=>'Start date'
-,p_format_mask=>'YYYY-MM-DD'
+,p_format_mask=>'DD-MM-YYYY'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_DATE_PICKER_APEX'
 ,p_begin_on_new_line=>'N'
@@ -1132,10 +1175,11 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Location'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct location_code||'' - ''||location_name d,location_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM'
-||'-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'''
-||') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and location_code is not null and ((select /*+ no_unnest */ apex_util.get_session_state(''P1100_COMPANY'') f'
-||'rom dual) is null or company_code=(select /*+ no_unnest */ apex_util.get_session_state(''P1100_COMPANY'') from dual)) order by 1'
+,p_lov=>'select distinct location_code||'' - ''||location_name d,location_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-Y'
+||'YYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end fro'
+||'m dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD'
+||'-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and location_code is not null an'
+||'d ((select /*+ no_unnest */ apex_util.get_session_state(''P1100_COMPANY'') from dual) is null or company_code=(select /*+ no_unnest */ apex_util.get_session_state(''P1100_COMPANY'') from dual)) order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_lov_cascade_parent_items=>'P1100_COMPANY'
@@ -1156,9 +1200,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Module'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct module_code||'' - ''||module_name d,module_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')='
-||'1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as d'
-||'ate,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and module_code is not null order by 1'
+,p_lov=>'select distinct module_code||'' - ''||module_name d,module_code r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')='
+||'1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual'
+||') as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YY'
+||'YY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and module_code is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_begin_on_new_line=>'N'
@@ -1177,9 +1222,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Outcome'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct outcome d,outcome r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get'
-||'_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then t'
-||'o_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and outcome is not null order by 1'
+,p_lov=>'select distinct outcome d,outcome r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get'
+||'_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkat'
+||'a'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conversio'
+||'n(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and outcome is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_colspan=>3
@@ -1197,10 +1243,11 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Screen'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct to_char(page_id)||'' - ''||page_name d,to_char(page_id) r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-'
-||'MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_T'
-||'O'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and to_char(page_id) is not null and ((select /*+ no_unnest */ apex_util.get_session_state(''P1100_MODULE'
-||''') from dual) is null or module_code=(select /*+ no_unnest */ apex_util.get_session_state(''P1100_MODULE'') from dual)) order by 1'
+,p_lov=>'select distinct to_char(page_id)||'' - ''||page_name d,to_char(page_id) r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM'
+||'-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end f'
+||'rom dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FX'
+||'DD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and to_char(page_id) is not nu'
+||'ll and ((select /*+ no_unnest */ apex_util.get_session_state(''P1100_MODULE'') from dual) is null or module_code=(select /*+ no_unnest */ apex_util.get_session_state(''P1100_MODULE'') from dual)) order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_lov_cascade_parent_items=>'P1100_MODULE'
@@ -1258,9 +1305,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Source'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct source_type d,source_type r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_'
-||'util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')='
-||'1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and source_type is not null order by 1'
+,p_lov=>'select distinct source_type d,source_type r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_'
+||'util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asi'
+||'a/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_c'
+||'onversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and source_type is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_begin_on_new_line=>'N'
@@ -1279,9 +1327,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'Entity'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct table_name d,table_name r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_ut'
-||'il.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 '
-||'then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and table_name is not null order by 1'
+,p_lov=>'select distinct table_name d,table_name r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_ut'
+||'il.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/'
+||'Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_con'
+||'version(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and table_name is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_begin_on_new_line=>'N'
@@ -1298,7 +1347,7 @@ wwv_flow_imp_page.create_page_item(
 ,p_item_sequence=>30
 ,p_item_plug_id=>wwv_flow_imp.id(92002610200000004)
 ,p_prompt=>'End date'
-,p_format_mask=>'YYYY-MM-DD'
+,p_format_mask=>'DD-MM-YYYY'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_DATE_PICKER_APEX'
 ,p_begin_on_new_line=>'N'
@@ -1321,9 +1370,10 @@ wwv_flow_imp_page.create_page_item(
 ,p_prompt=>'ERP user'
 ,p_source_type=>'ALWAYS_NULL'
 ,p_display_as=>'NATIVE_SELECT_LIST'
-,p_lov=>'select distinct user_name d,user_name r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util'
-||'.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Kolkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 th'
-||'en to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and user_name is not null order by 1'
+,p_lov=>'select distinct user_name d,user_name r from IMART_ACTIVITY_EVENTS_V where event_timestamp>=from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util'
+||'.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end from dual) as timestamp),''Asia/Ko'
+||'lkata'') and event_timestamp<from_tz(cast((select /*+ no_unnest */ case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-MM-YYYY'') when validate_conve'
+||'rsion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end from dual)+1 as timestamp),''Asia/Kolkata'') and user_name is not null order by 1'
 ,p_lov_display_null=>'YES'
 ,p_lov_null_text=>'All permitted / available'
 ,p_begin_on_new_line=>'N'
@@ -1343,11 +1393,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000003
@@ -1378,10 +1430,12 @@ wwv_flow_imp_page.create_page_process(
 'apex_util.set_session_state(''P1100_RECORD'',null);',
 ' :P1100_QUICK:=''TODAY'';:P1100_GRAIN:=''DAY'';end if;',
 ' case nvl(:P1100_QUICK,''CUSTOM'') when ''TODAY'' then f:=d;t:=d;when ''YESTERDAY'' then f:=d-1;t:=d-1;when ''WEEK'' then f:=trunc(d,''IW'');t:=d;when ''MONTH'' then f:=trunc(d,''MM'');t:=d;when ''PREVIOUS'' then f:=add_months(trunc(d,''MM''),-1);t:=trunc(d,''MM'')-1;wh'
-||'en ''CUSTOM'' then f:=to_date(:P1100_FROM default null on conversion error,''FXYYYY-MM-DD'');t:=to_date(:P1100_TO default null on conversion error,''FXYYYY-MM-DD'');else raise_application_error(-20840,''Invalid quick date selection'');end case;',
+||'en ''CUSTOM'' then f:=case when validate_conversion(:P1100_FROM as date,''FXDD-MM-YYYY'')=1 then to_date(:P1100_FROM,''FXDD-MM-YYYY'') when validate_conversion(:P1100_FROM as date,''FXYYYY-MM-DD'')=1 then to_date(:P1100_FROM,''FXYYYY-MM-DD'') end;t:=case when '
+||'validate_conversion(:P1100_TO as date,''FXDD-MM-YYYY'')=1 then to_date(:P1100_TO,''FXDD-MM-YYYY'') when validate_conversion(:P1100_TO as date,''FXYYYY-MM-DD'')=1 then to_date(:P1100_TO,''FXYYYY-MM-DD'') end;else raise_application_error(-20840,''Invalid quick '
+||'date selection'');end case;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
 ' if :P1100_GRAIN not in (''HOUR'',''DAY'',''MONTH'') or :P1100_GRAIN is null then raise_application_error(-20840,''Choose Hour, Day or Month.'');end if;',
-' :P1100_FROM:=to_char(f,''YYYY-MM-DD'');:P1100_TO:=to_char(t,''YYYY-MM-DD'');',
+' :P1100_FROM:=to_char(f,''DD-MM-YYYY'');:P1100_TO:=to_char(t,''DD-MM-YYYY'');',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000023
@@ -1421,6 +1475,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -1440,7 +1510,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -1481,15 +1551,15 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_display_sequence=>30
 ,p_query_type=>'SQL'
 ,p_plug_source=>wwv_flow_string.join(wwv_flow_t_varchar2(
-'select case when regexp_like(to_char(activity_period),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(activity_period) else to_char(activity_period) end activity_period,case when regexp_like(to_char(company_name),''^[[:space:][:cntrl:]]*[=+@-]'')'
-||' then chr(39)||to_char(company_name) else to_char(company_name) end company_name,case when regexp_like(to_char(location_name),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(location_name) else to_char(location_name) end location_name,case when'
-||' regexp_like(to_char(module_name),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(module_name) else to_char(module_name) end module_name,case when regexp_like(to_char(company_code),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(company_c'
-||'ode) else to_char(company_code) end company_code,case when regexp_like(to_char(location_code),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(location_code) else to_char(location_code) end location_code,case when regexp_like(to_char(module_code'
-||'),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(module_code) else to_char(module_code) end module_code,total_events,successful_events,failed_events,observed_events,inserts,updates,deletes,other_events,active_users,distinct_records,successful_'
-||'row_operations,first_activity,last_activity,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2,P1113_D3,P1113_V3,P1113_D4,P1113_V4'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(activity_perio'
-||'d),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''COMPANY''||'',''||replace(replace(nvl(to_char(company_code),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''LOCATION''||'',''||replace(replace(nvl(to_char(location_code),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''MODULE''||'',''||'
-||'replace(replace(nvl(to_char(module_code),''~NULL~''),''%'',''%25''),'','',''%2C'')) detail_url from (select to_char(local_timestamp,case when :P1100_GRAIN=''HOUR'' then ''YYYY-MM-DD HH24'' when :P1100_GRAIN=''MONTH'' then ''YYYY-MM'' else ''YYYY-MM-DD'' end) activity_pe'
-||'riod,company_name,location_name,module_name,company_code,location_code,module_code,count(*) total_events,',
+'select activity_period,case when regexp_like(to_char(company_name),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(company_name) else to_char(company_name) end company_name,case when regexp_like(to_char(location_name),''^[[:space:][:cntrl:]]*[=+'
+||'@-]'') then chr(39)||to_char(location_name) else to_char(location_name) end location_name,case when regexp_like(to_char(module_name),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(module_name) else to_char(module_name) end module_name,case when'
+||' regexp_like(to_char(company_code),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(company_code) else to_char(company_code) end company_code,case when regexp_like(to_char(location_code),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(loca'
+||'tion_code) else to_char(location_code) end location_code,case when regexp_like(to_char(module_code),''^[[:space:][:cntrl:]]*[=+@-]'') then chr(39)||to_char(module_code) else to_char(module_code) end module_code,total_events,successful_events,failed_eve'
+||'nts,observed_events,inserts,updates,deletes,other_events,active_users,distinct_records,successful_row_operations,first_activity,last_activity,apex_page.get_url(p_page=>1113,p_clear_cache=>''RP,1113'',p_items=>''P1113_D1,P1113_V1,P1113_D2,P1113_V2,P1113_'
+||'D3,P1113_V3,P1113_D4,P1113_V4'',p_values=>''PERIOD''||'',''||replace(replace(nvl(to_char(to_char(activity_period,case :P1100_GRAIN when ''HOUR'' then ''YYYY-MM-DD HH24'' when ''MONTH'' then ''YYYY-MM'' else ''YYYY-MM-DD'' end)),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''|'
+||'|''COMPANY''||'',''||replace(replace(nvl(to_char(company_code),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''LOCATION''||'',''||replace(replace(nvl(to_char(location_code),''~NULL~''),''%'',''%25''),'','',''%2C'')||'',''||''MODULE''||'',''||replace(replace(nvl(to_char(module_code)'
+||',''~NULL~''),''%'',''%25''),'','',''%2C'')) detail_url from (select case when :P1100_GRAIN=''HOUR'' then trunc(local_timestamp,''HH24'') when :P1100_GRAIN=''MONTH'' then trunc(local_timestamp,''MM'') else trunc(local_timestamp) end activity_period,company_name,locatio'
+||'n_name,module_name,company_code,location_code,module_code,count(*) total_events,',
 ' sum(case when outcome=''SUCCESS'' then 1 else 0 end) successful_events,',
 ' sum(case when outcome=''FAILURE'' then 1 else 0 end) failed_events,',
 ' sum(case when outcome=''OBSERVED'' then 1 else 0 end) observed_events,',
@@ -1499,8 +1569,8 @@ wwv_flow_imp_page.create_page_plug(
 ' sum(case when operation not in (''INSERT'',''UPDATE'',''DELETE'') then 1 else 0 end) other_events,',
 ' count(distinct case when source_type=''APEX_USER'' then user_name end) active_users,',
 ' count(distinct record_identity) distinct_records,',
-' sum(successful_row_operation) successful_row_operations,min(local_timestamp) first_activity,max(local_timestamp) last_activity from IMART_ACTIVITY_SCOPE_V group by to_char(local_timestamp,case when :P1100_GRAIN=''HOUR'' then ''YYYY-MM-DD HH24'' when :P1'
-||'100_GRAIN=''MONTH'' then ''YYYY-MM'' else ''YYYY-MM-DD'' end),company_name,location_name,module_name,company_code,location_code,module_code)'))
+' sum(successful_row_operation) successful_row_operations,min(local_timestamp) first_activity,max(local_timestamp) last_activity from IMART_ACTIVITY_SCOPE_V group by case when :P1100_GRAIN=''HOUR'' then trunc(local_timestamp,''HH24'') when :P1100_GRAIN=''M'
+||'ONTH'' then trunc(local_timestamp,''MM'') else trunc(local_timestamp) end,company_name,location_name,module_name,company_code,location_code,module_code)'))
 ,p_plug_source_type=>'NATIVE_IR'
 ,p_plug_query_options=>'DERIVED_REPORT_COLUMNS'
 );
@@ -1541,7 +1611,8 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_display_order=>10
 ,p_column_identifier=>'A'
 ,p_column_label=>'Activity Period'
-,p_column_type=>'STRING'
+,p_column_type=>'DATE'
+,p_format_mask=>'DD-MM-YYYY HH24:MI'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -1619,7 +1690,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'S'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -1642,7 +1713,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'T'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -1779,11 +1850,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000057
@@ -1823,6 +1896,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -1842,7 +1931,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -2052,7 +2141,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'U'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -2075,7 +2164,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'V'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -2202,11 +2291,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000085
@@ -2246,6 +2337,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -2265,7 +2372,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -2412,7 +2519,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'R'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -2445,7 +2552,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'S'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -2592,11 +2699,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000115
@@ -2636,6 +2745,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -2655,7 +2780,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -2819,7 +2944,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'N'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -2842,7 +2967,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'O'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -2938,11 +3063,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000142
@@ -2982,6 +3109,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -3001,7 +3144,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -3167,7 +3310,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'P'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -3190,7 +3333,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'Q'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -3306,11 +3449,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000165
@@ -3350,6 +3495,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -3369,7 +3530,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -3518,7 +3679,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'O'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -3541,7 +3702,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'P'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -3677,11 +3838,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000190
@@ -3721,6 +3884,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -3740,7 +3919,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -3910,7 +4089,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'P'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -3933,7 +4112,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'Q'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -4059,11 +4238,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000215
@@ -4103,6 +4284,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -4122,7 +4319,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -4281,7 +4478,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'S'
 ,p_column_label=>'First Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -4304,7 +4501,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'T'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -4461,11 +4658,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000241
@@ -4505,6 +4704,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -4524,7 +4739,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -4758,7 +4973,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'B'
 ,p_column_label=>'Local Timestamp'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -4903,11 +5118,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000269
@@ -4947,6 +5164,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -4966,7 +5199,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -5200,7 +5433,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'B'
 ,p_column_label=>'Local Timestamp'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -5414,7 +5647,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'F'
 ,p_column_label=>'Last Activity'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -5425,7 +5658,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'E'
 ,p_column_label=>'Session End'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -5448,7 +5681,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'D'
 ,p_column_label=>'Session Started'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -5482,11 +5715,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000303
@@ -5526,6 +5761,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -5545,7 +5796,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -5779,7 +6030,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'B'
 ,p_column_label=>'Local Timestamp'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -5924,11 +6175,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000348
@@ -5968,6 +6221,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -5987,7 +6256,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -6221,7 +6490,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'B'
 ,p_column_label=>'Local Timestamp'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -6366,11 +6635,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000382
@@ -6410,6 +6681,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -6429,7 +6716,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -6695,7 +6982,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'B'
 ,p_column_label=>'Local Timestamp'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -6920,11 +7207,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000416
@@ -6964,6 +7253,22 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
@@ -6983,7 +7288,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -7217,7 +7522,7 @@ wwv_flow_imp_page.create_worksheet_column(
 ,p_column_identifier=>'B'
 ,p_column_label=>'Local Timestamp'
 ,p_column_type=>'DATE'
-,p_format_mask=>'DD-MON-YYYY HH24:MI:SS'
+,p_format_mask=>'DD-MM-YYYY HH24:MI:SS'
 ,p_use_as_row_header=>'N'
 ,p_available_clientside=>'N'
 );
@@ -7372,11 +7677,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000459
@@ -7416,11 +7723,27 @@ wwv_flow_imp_page.create_page(
 '@media(max-width:1000px){.am-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}',
 '@media(max-width:600px){.am-kpis,.am-directory{grid-template-columns:minmax(0,1fr)}.am-actions .t-Button{flex:1 1 auto}}',
 '@media print{.am-actions,.a-IRR-toolbar{display:none!important}.am-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}',
+'.am-trend-panel .am-trend-intro{padding:0 1rem .5rem}',
+'.am-trend-intro h3{font-size:1rem;margin:.25rem 0 .65rem;font-weight:600}',
+'.am-trend-intro p,.am-trend-note{color:var(--ut-body-text-color);line-height:1.6}',
+'.am-trend-table-wrap{max-height:26rem;overflow:auto;margin:0 1rem}',
+'.am-trend-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}',
+'.am-trend-table caption{text-align:left;padding:.6rem 0;color:var(--ut-body-text-color);font-size:.85rem}',
+'.am-trend-table th,.am-trend-table td{padding:.8rem 1rem;border-bottom:1px solid var(--ut-component-border-color,#e5e7eb);text-align:right}',
+'.am-trend-table th:first-child{text-align:left}',
+'.am-trend-table thead th{position:sticky;top:0;background:var(--ut-component-background-color,#fff);font-weight:600}',
+'.am-trend-table a{color:inherit;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:.2em}',
+'.am-trend-table a:hover,.am-trend-table a:focus-visible{text-decoration-color:currentColor;color:var(--ut-palette-primary)}',
+'.am-trend-note{font-size:.8rem;padding:.5rem 1rem;margin:0}',
+'.am-trend-panel .t-Region .t-Region-header{display:none}',
+'@media(max-width:600px){.am-trend-table-wrap{margin:0}.am-trend-table th,.am-trend-table td{padding:.7rem .5rem}}',
+'.am-trend-panel .t-Region{border:0;box-shadow:none;background:transparent;margin-bottom:0}',
+'',
 ''))
 ,p_step_template=>wwv_flow_imp.id(95002006100926)
 ,p_required_role=>wwv_flow_imp.id(91004000000000002)
 ,p_protection_level=>'C'
-,p_page_component_map=>'10'
+,p_page_component_map=>'18'
 );
 wwv_flow_imp_page.create_page_plug(
  p_id=>wwv_flow_imp.id(92002610200000493)
@@ -7435,7 +7758,7 @@ wwv_flow_imp_page.create_page_plug(
 'begin',
 ' htp.p(''<div class="am-context"><p><strong>Reporting period:</strong> ''||apex_escape.html(v(''P1100_FROM''))||'' to ''||apex_escape.html(v(''P1100_TO''))||'' (Asia/Kolkata, inclusive dates). Organization: ''||apex_escape.html(nvl(v(''P1100_COMPANY''),''All perm'
 ||'itted companies''))||'' / ''||apex_escape.html(nvl(v(''P1100_LOCATION''),''All permitted locations''))||''.</p>'');',
-' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MON-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
+' htp.p(''<p>Refreshed ''||to_char(systimestamp at time zone ''Asia/Kolkata'',''DD-MM-YYYY HH24:MI:SS TZR'')||''. Counts describe captured activity, not productivity.</p>'');',
 ' htp.p(''<p>User: ''||apex_escape.html(nvl(v(''P1100_USER''),''All permitted''))||''; module: ''||apex_escape.html(nvl(v(''P1100_MODULE''),''All available''))||''; operation: ''||apex_escape.html(nvl(v(''P1100_ACTION''),''All captured''))||''; outcome: ''||apex_escape.h'
 ||'tml(nvl(v(''P1100_OUTCOME''),''All recorded''))||''.</p>'');',
 ' htp.p(''<nav class="am-actions" aria-label="Activity navigation">'');',
@@ -7459,18 +7782,18 @@ wwv_flow_imp_page.create_page_plug(
 ,p_plug_source=>'<div class="am-coverage"><h2>What this dashboard measures</h2><p>Canonical captured audit events, filtered by recorded organization and your existing access grants. All pages share the Dashboard filters. Event outcomes SUCCESS, FAILURE and OBSERVED r'
 ||unistr('emain separate; observed approvals, page views and session ends are not successful transaction claims.</p><h3>Available</h3><ul><li>Event, user, module, company, location and operation summaries.</li><li>Searchable user \00D7 module and company \00D7 locatio')
 ||'n matrices with separate total rows.</li><li>Failures, deletions, current mapped master changes and user/role-entity changes.</li><li>Event detail and masked historical field comparisons using existing audit dialogs.</li><li>Authorized native CSV, XL'
-||'SX and HTML export; browser Print. Strings that could become spreadsheet formulas receive an apostrophe prefix.</li></ul><h3>Historical limits</h3><p>Capture observed from 4 October 2026. Missing company/location context remains excluded for company-'
-||'only viewers. Current company, location and module labels are directory enrichment, not historical snapshots. High-level business events and row changes are distinct units; use Successful row operations for successful database row changes. Active ERP'
-||' users means distinct recorded APEX_USER usernames, not database jobs.</p><h3>Unavailable until verified</h3><ul><li>Registered/inactive users: a complete user-to-organization membership relationship has not been verified. No activity does not prove '
-||'inactivity.</li><li>Historical employee names, department and actor role: no verified snapshots. Recorded employee codes and explicitly labeled current employee/department names are available.</li><li>Submodule hierarchy and policy risk classificatio'
-||'ns: no verified mapping or configured risk/working-hour thresholds.</li><li>Privileged actor assertions: user and role-entity changes are shown; historical role membership is not inferred from username.</li><li>Failed logins lacking permitted organiz'
-||'ation context remain restricted. Session duration and concurrency are not inferred from ordinary page views.</li><li>Scheduled delivery: no verified authorized audit-report subscription/recipient service. Needs an approved recipient directory, per-re'
-||'cipient scope, credential-safe mail/print configuration, job ownership and retention policy. Existing task jobs are not audit delivery jobs.</li><li>Server PDF generation is not claimed; use browser Print unless approved print infrastructure is confi'
-||'gured.</li></ul><h3>Security</h3><p>Audit Inquiry Access controls these pages. Central IMART_AUDIT.can_read controls all events; filters only narrow that scope. Downloads additionally require can_export for every organization in the selected populati'
-||'on. No new grants, business records, audit policies or capture triggers are introduced. Application-wide Session State Protection is currently disabled in the existing ERP. Page/item checksum settings are configured, but do not enforce URL integrity '
-||'until the application setting is reviewed separately. Central server-side organization checks remain enforced.</p><h3>Counting and boundaries</h3><p>Total events counts event IDs once. Failure events are recorded failures, not asserted unique attempt'
-||'s. Distinct records include table and key. Field rows never multiply event totals. Start date is inclusive; end date ends at the next midnight in Asia/Kolkata. Maximum period: 366 days. Matrix totals are not additional detail events. Top users shows '
-||'ten actors by volume and does not measure productivity.</p></div>'
+||'SX and HTML export; browser Print. Strings that could become spreadsheet formulas receive an apostrophe prefix.</li></ul><h3>Historical limits</h3><p>Capture observed from 04-10-2026. Missing company/location context remains excluded for company-only'
+||' viewers. Current company, location and module labels are directory enrichment, not historical snapshots. High-level business events and row changes are distinct units; use Successful row operations for successful database row changes. Active ERP use'
+||'rs means distinct recorded APEX_USER usernames, not database jobs.</p><h3>Unavailable until verified</h3><ul><li>Registered/inactive users: a complete user-to-organization membership relationship has not been verified. No activity does not prove inac'
+||'tivity.</li><li>Historical employee names, department and actor role: no verified snapshots. Recorded employee codes and explicitly labeled current employee/department names are available.</li><li>Submodule hierarchy and policy risk classifications: '
+||'no verified mapping or configured risk/working-hour thresholds.</li><li>Privileged actor assertions: user and role-entity changes are shown; historical role membership is not inferred from username.</li><li>Failed logins lacking permitted organizatio'
+||'n context remain restricted. Session duration and concurrency are not inferred from ordinary page views.</li><li>Scheduled delivery: no verified authorized audit-report subscription/recipient service. Needs an approved recipient directory, per-recipi'
+||'ent scope, credential-safe mail/print configuration, job ownership and retention policy. Existing task jobs are not audit delivery jobs.</li><li>Server PDF generation is not claimed; use browser Print unless approved print infrastructure is configure'
+||'d.</li></ul><h3>Security</h3><p>Audit Inquiry Access controls these pages. Central IMART_AUDIT.can_read controls all events; filters only narrow that scope. Downloads additionally require can_export for every organization in the selected population. '
+||'No new grants, business records, audit policies or capture triggers are introduced. Application-wide Session State Protection is currently disabled in the existing ERP. Page/item checksum settings are configured, but do not enforce URL integrity unti'
+||'l the application setting is reviewed separately. Central server-side organization checks remain enforced.</p><h3>Counting and boundaries</h3><p>Total events counts event IDs once. Failure events are recorded failures, not asserted unique attempts. D'
+||'istinct records include table and key. Field rows never multiply event totals. Start date is inclusive; end date ends at the next midnight in Asia/Kolkata. Maximum period: 366 days. Matrix totals are not additional detail events. Top users shows ten '
+||'actors by volume and does not measure productivity.</p></div>'
 );
 wwv_flow_imp_page.create_page_plug(
  p_id=>wwv_flow_imp.id(92002610200000492)
@@ -7491,11 +7814,13 @@ wwv_flow_imp_page.create_page_process(
 ,p_static_id=>'initialize-and-validate-shared-reporting-period'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare f date;t date;begin',
-' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''YYYY-MM-DD''));end if;',
-' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') '
-||'as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
+' if v(''P1100_FROM'') is null then apex_util.set_session_state(''P1100_FROM'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' if v(''P1100_TO'') is null then apex_util.set_session_state(''P1100_TO'',to_char(trunc(cast(systimestamp at time zone ''Asia/Kolkata'' as date)),''DD-MM-YYYY''));end if;',
+' f:=case when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXDD-MM-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_FROM'') as date,''F'
+||'XYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_FROM''),''FXYYYY-MM-DD'') end;t:=case when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXDD-MM-YYYY'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXDD-M'
+||'M-YYYY'') when validate_conversion(apex_util.get_session_state(''P1100_TO'') as date,''FXYYYY-MM-DD'')=1 then to_date(apex_util.get_session_state(''P1100_TO''),''FXYYYY-MM-DD'') end;',
 ' if f is null or t is null or t<f or t-f>365 then raise_application_error(-20840,''Choose a valid period of at most 366 days.'');end if;',
+' apex_util.set_session_state(''P1100_FROM'',to_char(f,''DD-MM-YYYY''));apex_util.set_session_state(''P1100_TO'',to_char(t,''DD-MM-YYYY''));',
 'end;'))
 ,p_process_clob_language=>'PLSQL'
 ,p_internal_uid=>92002610200000494

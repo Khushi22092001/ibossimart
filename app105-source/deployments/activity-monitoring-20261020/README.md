@@ -66,3 +66,7 @@ Common reporting filters are collapsible and initially closed. Activity trend no
 ## Repository bundle
 
 The committed bundle contains current source, native deployed exports, validation generators, verification evidence and screenshots. Temporary discovery probes, generated test SQL and intermediate installation backups remain local. Run the `.cjs` generators to recreate their SQL outputs; no database checks run during a Git commit. The folder's `.gitattributes` preserves exact artifact bytes so the SHA-256 deployment manifest is stable across Windows and other checkouts.
+
+## Date display and input
+
+All Activity Monitoring pages, filters, reports and event-history drills use DD-MM-YYYY. Timestamps retain HH24:MI:SS and recorded timezone where appropriate. Existing date selections migrate to this display automatically. Daily summary periods remain native dates for chronological sorting; internal navigation keys retain their existing encoding. Historical field payloads remain the captured values. The additional native page-1091 date presentation update is in date-drill-pages.sql, with the live snapshot in deployed-date-drill-pages.sql.

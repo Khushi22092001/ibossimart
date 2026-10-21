@@ -15,16 +15,16 @@ module.exports=({day,grainBind,drill})=>{
  const tableSQL=`select label,max(case when series='INSERT' then value end) inserts,max(case when series='UPDATE' then value end) updates,max(case when series='DELETE' then value end) deletes from (${sql}) group by label order by label`;
  const cell=(op,col)=>`htp.p('<td><a href="'||apex_escape.html_attribute(${drill(['PERIOD','ACTION'],['r.label',`'${op}'`])})||'">'||to_char(r.${col},'FM999G999G999G990')||'</a></td>');`;
  const tableSource=`declare n number:=0;begin
- htp.p('<div class="am-trend-table-wrap"><table class="am-trend-table"><caption>Activity trend data — same period and filters as the chart</caption><thead><tr><th scope="col">Period</th><th scope="col">Insert</th><th scope="col">Update</th><th scope="col">Delete</th></tr></thead><tbody>');
+ htp.p('<div class="am-trend-table-wrap"><table class="am-trend-table"><caption>Activity trend data — same period and filters as the chart</caption><thead><tr><th scope="col">Period starting</th><th scope="col">Insert</th><th scope="col">Update</th><th scope="col">Delete</th></tr></thead><tbody>');
  for r in (${tableSQL}) loop
  n:=n+1;
- htp.p('<tr><th scope="row">'||apex_escape.html(case length(r.label) when 13 then to_char(to_date(substr(r.label,1,10),'YYYY-MM-DD'),'Dy, DD Mon','NLS_DATE_LANGUAGE=English')||' '||substr(r.label,12,2)||':00' when 7 then to_char(to_date(r.label||'-01','YYYY-MM-DD'),'Mon YYYY','NLS_DATE_LANGUAGE=English') else to_char(to_date(r.label,'YYYY-MM-DD'),'Dy, DD Mon','NLS_DATE_LANGUAGE=English') end)||'</th>');
+ htp.p('<tr><th scope="row">'||apex_escape.html(case length(r.label) when 13 then to_char(to_date(substr(r.label,1,10),'YYYY-MM-DD'),'DD-MM-YYYY','NLS_DATE_LANGUAGE=English')||' '||substr(r.label,12,2)||':00' when 7 then to_char(to_date(r.label||'-01','YYYY-MM-DD'),'DD-MM-YYYY','NLS_DATE_LANGUAGE=English') else to_char(to_date(r.label,'YYYY-MM-DD'),'DD-MM-YYYY','NLS_DATE_LANGUAGE=English') end)||'</th>');
  ${cell('INSERT','inserts')}${cell('UPDATE','updates')}${cell('DELETE','deletes')}
  htp.p('</tr>');end loop;
  if n=0 then htp.p('<tr><td colspan="4">No captured insert, update or delete events match the selected filters.</td></tr>');end if;
  htp.p('</tbody></table></div><p class="am-trend-note">Actual captured ERP events. Zero indicates no captured operation in that period. Select a point or count to view its events.</p>');
  end;`;
  const introSource=`declare g varchar2(10);begin select ${grain} into g from dual;
- htp.p('<div class="am-trend-intro"><h3>'||case g when 'HOUR' then 'Hourly' when 'MONTH' then 'Monthly' else 'Daily' end||' ERP operations</h3><p>Insert, update and delete events for the selected reporting period. Single-day views use hourly detail.</p></div>');end;`;
+ htp.p('<div class="am-trend-intro"><h3>'||case g when 'HOUR' then 'Hourly' when 'MONTH' then 'Monthly' else 'Daily' end||' ERP operations</h3><p>Insert, update and delete events for '||apex_escape.html(v('P1100_FROM'))||' to '||apex_escape.html(v('P1100_TO'))||'. Single-day views use hourly detail.</p></div>');end;`;
  return {sql,tableSQL,tableSource,introSource};
 };

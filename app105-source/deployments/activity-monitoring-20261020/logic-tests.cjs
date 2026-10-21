@@ -23,7 +23,7 @@ sql+=`declare
  end;
  if p_error then raise_application_error(-20842,'Expected validation error: '||p_name);end if;
  dbms_sql.variable_value(c,':P1100_FROM',f);dbms_sql.variable_value(c,':P1100_TO',t);dbms_sql.close_cursor(c);
- if f<>p_expected_from or t<>p_expected_to or f is null or t is null then raise_application_error(-20842,'Date mismatch: '||p_name);end if;
+ if f<>to_char(to_date(p_expected_from,'YYYY-MM-DD'),'DD-MM-YYYY') or t<>to_char(to_date(p_expected_to,'YYYY-MM-DD'),'DD-MM-YYYY') or f is null or t is null then raise_application_error(-20842,'Date mismatch: '||p_name);end if;
  dbms_output.put_line('PASS logic: '||p_name);
  exception when others then if c is not null and dbms_sql.is_open(c) then dbms_sql.close_cursor(c);end if;raise;
  end;
@@ -33,6 +33,11 @@ begin
  run_case('This week (ISO Monday)','WEEK',null,null,'DAY',to_char(trunc(d,'IW'),'YYYY-MM-DD'),to_char(d,'YYYY-MM-DD'));
  run_case('This month','MONTH',null,null,'DAY',to_char(trunc(d,'MM'),'YYYY-MM-DD'),to_char(d,'YYYY-MM-DD'));
  run_case('Previous month','PREVIOUS',null,null,'MONTH',to_char(add_months(trunc(d,'MM'),-1),'YYYY-MM-DD'),to_char(trunc(d,'MM')-1,'YYYY-MM-DD'));
+ run_case('DD-MM input','CUSTOM','20-10-2026','21-10-2026','DAY','2026-10-20','2026-10-21');
+ run_case('DD-MM leap day','CUSTOM','29-02-2024','29-02-2024','DAY','2024-02-29','2024-02-29');
+ run_case('DD-MM invalid day rejected','CUSTOM','31-02-2026','20-10-2026','DAY',null,null,true);
+ run_case('DD-MM ambiguous day order','CUSTOM','04-05-2026','04-05-2026','DAY','2026-05-04','2026-05-04');
+ run_case('DD-MM month boundary','CUSTOM','31-10-2026','01-11-2026','DAY','2026-10-31','2026-11-01');
  run_case('Custom leap day','CUSTOM','2024-02-29','2024-02-29','DAY','2024-02-29','2024-02-29');
  run_case('366 inclusive days allowed','CUSTOM','2025-10-20','2026-10-20','DAY','2025-10-20','2026-10-20');
  run_case('Null date rejected','CUSTOM',null,'2026-10-20','DAY',null,null,true);
@@ -59,4 +64,4 @@ const detail=reports.find(r=>r.page===1113).sql;
 const predicate=detail.slice(detail.indexOf('where 1=1')+'where 1=1'.length);
 const cases=[['Insert drill','ACTION','INSERT',"operation='INSERT'"],['Failure drill','OUTCOME','FAILURE',"outcome='FAILURE'"],['Successful row drill','ROW_SUCCESS','1','successful_row_operation=1'],['Keyed records drill','KEYED','1','record_identity is not null'],['Other operations drill','OTHEROPS','1',"operation not in ('INSERT','UPDATE','DELETE')"],['Unspecified location drill','LOCATION','~NULL~','location_code is null'],['Unknown drill dimension fails closed','FORGED','1','1=0'],['Forged company cannot broaden scope','COMPANY','UNAUTHORIZED_COMPANY','1=0']];
 for(const[name,dim,value,expected]of cases){let p=predicate.replace(/:P1113_D1\b/g,lit(dim)).replace(/:P1113_V1\b/g,lit(value)).replace(/:P1113_[DV][234]\b/g,'null');sql+=`declare a number;e number;begin ${cte} select (select count(*) from IMART_ACTIVITY_SCOPE_V where 1=1 ${p}),(select count(*) from IMART_ACTIVITY_SCOPE_V where ${expected}) into a,e from dual;if a<>e then raise_application_error(-20842,'Drill count mismatch');end if;dbms_output.put_line('PASS logic: ${name} ('||a||' events)');end;\n/\n`;}
-sql+='SPOOL OFF\nEXIT\n';fs.writeFileSync(path.join(root,'logic-tests.sql'),sql);console.log('Prepared 32 read-only date, formula and drill-filter logic checks.');
+sql+='SPOOL OFF\nEXIT\n';fs.writeFileSync(path.join(root,'logic-tests.sql'),sql);console.log('Prepared 37 read-only date, formula and drill-filter logic checks.');
